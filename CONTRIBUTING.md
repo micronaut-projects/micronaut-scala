@@ -1,22 +1,22 @@
 # Contributing Code or Documentation to Micronaut
 
-Sign the [Contributor License Agreement (CLA)](https://cla-assistant.io/micronaut-projects/micronaut-project-template). This is required before any of your code or pull requests are accepted.
+Sign the [Contributor License Agreement (CLA)](https://cla-assistant.io/micronaut-projects/micronaut-scala). This is required before any of your code or pull requests are accepted.
 
 ## Finding Issues to Work on
 
-If you are interested in contributing to Micronaut and are looking for issues to work on, take a look at the issues tagged with [help wanted](https://github.com/micronaut-projects/micronaut-project-template/issues?q=is%3Aopen+is%3Aissue+label%3A%22status%3A+help+wanted%22).
+If you are interested in contributing to Micronaut and are looking for issues to work on, take a look at the issues tagged with [help wanted](https://github.com/micronaut-projects/micronaut-scala/issues?q=is%3Aopen+is%3Aissue+label%3A%22status%3A+help+wanted%22).
 
 ## JDK Setup
 
-Micronaut project-template currently requires JDK 25.
+Micronaut scala currently requires JDK 25.
 
 ## IDE Setup
 
-Micronaut project-template can be imported into IntelliJ IDEA by opening the `build.gradle` file.
+Micronaut scala can be imported into IntelliJ IDEA by opening the `build.gradle` file.
 
 ## Docker Setup
 
-Micronaut project-template tests currently require Docker to be installed.
+Micronaut scala tests currently require Docker to be installed.
 
 ## Running Tests
 
@@ -34,7 +34,7 @@ To also build the Javadocs, run `./gradlew docs`.
 
 If you use IntelliJ IDEA, you can import the project using the IntelliJ Gradle Tooling ("File / Import Project" and selecting the `settings.gradle` file).
 
-To get a local development version of Micronaut project-template working, first run the `publishToMavenLocal` task.
+To get a local development version of Micronaut scala working, first run the `publishToMavenLocal` task.
 
 ```
 ./gradlew pTML
@@ -77,7 +77,7 @@ When you merge a PR that will go into the next module's minor release:
 
 We want to keep the code clean, following good practices about organization, Javadoc, and style as much as possible.
 
-Micronaut project-template uses [Checkstyle](https://checkstyle.sourceforge.io/) to make sure that the code follows those standards. The configuration is defined in `config/checkstyle/checkstyle.xml`. To execute Checkstyle, run:
+Micronaut scala uses [Checkstyle](https://checkstyle.sourceforge.io/) to make sure that the code follows those standards. The configuration is defined in `config/checkstyle/checkstyle.xml`. To execute Checkstyle, run:
 
 ```
 ./gradlew <module-name>:checkstyleMain
