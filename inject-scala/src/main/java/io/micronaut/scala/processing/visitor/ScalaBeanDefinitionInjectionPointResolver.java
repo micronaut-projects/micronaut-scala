@@ -31,6 +31,10 @@ import java.util.Optional;
  */
 final class ScalaBeanDefinitionInjectionPointResolver implements BeanDefinitionInjectionPointResolver {
 
+    private static final String SCALA_ITERABLE = "scala.collection.Iterable";
+    private static final String SCALA_MAP = "scala.collection.Map";
+    private static final String SCALA_OPTION = "scala.Option";
+
     @Override
     public Optional<BeanDefinitionInjectionPoint<ClassElement>> resolve(
         ClassElement beanType,
@@ -68,7 +72,7 @@ final class ScalaBeanDefinitionInjectionPointResolver implements BeanDefinitionI
                 beanValueType
             ));
         }
-        if ("scala.Option".equals(requestedType.getName())) {
+        if (SCALA_OPTION.equals(requestedType.getName())) {
             ClassElement objectType = visitorContext.getClassElement(Object.class).orElseThrow();
             return Optional.of(new BeanDefinitionInjectionPoint.OptionalBeanInjectionPoint<>(
                 requestedType,
@@ -79,12 +83,26 @@ final class ScalaBeanDefinitionInjectionPointResolver implements BeanDefinitionI
         return Optional.empty();
     }
 
+    /**
+     * A collection of beans, i.e. anything Micronaut can populate from a {@code java.util.Collection}
+     * via {@link io.micronaut.scala.processing.ScalaCollectionConverterRegistrar}. Matching on the
+     * {@code scala.collection.} package prefix instead would also catch {@code Iterator},
+     * {@code View}, {@code IterableOnce} and friends, none of which are injectable.
+     */
     private static boolean isScalaCollection(ClassElement type) {
-        return type.getName().startsWith("scala.collection.") && !type.getName().contains(".Map");
+        return type.isAssignable(SCALA_ITERABLE) && !isScalaMap(type);
+    }
+
+    /**
+     * Maps are handled separately: they inject bean names to beans rather than a plain collection,
+     * and {@code scala.collection.Map} is itself a {@code scala.collection.Iterable} of pairs.
+     */
+    private static boolean isScalaMap(ClassElement type) {
+        return type.isAssignable(SCALA_MAP);
     }
 
     private static boolean isInjectableScalaMap(ClassElement type) {
-        if (!type.getName().startsWith("scala.collection.") || !type.getName().contains(".Map")) {
+        if (!isScalaMap(type)) {
             return false;
         }
         Map<String, ClassElement> typeArguments = type.getTypeArguments();

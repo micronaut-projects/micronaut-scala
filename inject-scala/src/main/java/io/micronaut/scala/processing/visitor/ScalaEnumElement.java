@@ -64,13 +64,24 @@ final class ScalaEnumElement extends ScalaClassElement implements EnumElement {
 
     @Override
     public Optional<MethodElement> getEnumValueOfMethod() {
+        // Mirror the validation Core applies in BeanIntrospectionWriter. Core turns an
+        // ill-formed lookup method into a ProcessingException raised from deep inside the
+        // introspection writer; rejecting it here means such a method is simply not a
+        // candidate, and the enum falls back to the standard valueOf.
         return classData.methods().stream()
             .filter(method -> "valueOf".equals(method.name()))
             .filter(method -> method.modifiers().contains(ElementModifier.STATIC))
+            .filter(method -> !method.modifiers().contains(ElementModifier.PRIVATE))
             .filter(method -> method.parameters().size() == 1)
-            .filter(method -> String.class.getName().equals(method.parameters().getFirst().type().name()))
+            .filter(method -> {
+                String parameterType = method.parameters().getFirst().type().name();
+                return String.class.getName().equals(parameterType)
+                    || CharSequence.class.getName().equals(parameterType);
+            })
+            .map(this::methodElement)
+            .filter(method -> method.getReturnType().isAssignable(this))
             .findFirst()
-            .map(this::methodElement);
+            .map(MethodElement.class::cast);
     }
 
     @Override

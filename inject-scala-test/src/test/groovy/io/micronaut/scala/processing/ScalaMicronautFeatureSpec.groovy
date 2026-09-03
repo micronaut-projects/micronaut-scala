@@ -22,6 +22,8 @@ import io.micronaut.context.annotation.ConfigurationInject
 import io.micronaut.context.annotation.Property
 import io.micronaut.context.annotation.Prototype
 import io.micronaut.context.exceptions.BeanInstantiationException
+import io.micronaut.context.exceptions.DependencyInjectionException
+import io.micronaut.context.exceptions.NoSuchBeanException
 import io.micronaut.http.annotation.Get
 import io.micronaut.inject.ValidatedBeanDefinition
 import io.micronaut.inject.processing.ProcessingException
@@ -125,6 +127,36 @@ class Vehicle(val engines: scala.collection.immutable.List[Engine])
 
         then:
         scala.jdk.javaapi.CollectionConverters.asJavaCollection(vehicle.engines())*.name() as Set == ['v6', 'v8'] as Set
+
+        cleanup:
+        context?.close()
+    }
+
+    void "does not treat non-collection scala.collection types as collections of beans"() {
+        when:
+        def context = buildContext('''
+package example
+
+import jakarta.inject.Singleton
+
+trait Engine:
+  def name(): String
+
+@Singleton
+class V6Engine extends Engine:
+  override def name(): String = "v6"
+
+@Singleton
+class Vehicle(val engines: scala.collection.Iterator[Engine])
+''')
+        getBean(context, 'example.Vehicle')
+
+        then:
+        // Iterator lives in scala.collection but is not a scala.collection.Iterable, so it is not
+        // an injectable collection: it must resolve as a plain bean lookup, which finds nothing.
+        def e = thrown(DependencyInjectionException)
+        e.cause instanceof NoSuchBeanException
+        e.message.contains('No bean of type [scala.collection.Iterator<example.Engine>] exists')
 
         cleanup:
         context?.close()
@@ -1143,6 +1175,22 @@ class Engine
         then:
         def e = thrown(IllegalStateException)
         e.message.contains('Error processing Scala element: io.micronaut.inject.processing.ProcessingException')
+    }
+
+    void "type element visitor start exceptions are reported as processing errors"() {
+        when:
+        ScalaAnnotatingVisitor.withStartFailure(new IllegalStateException(), {
+            buildClassElement('example.Engine', '''
+package example
+
+class Engine
+''')
+        } as Supplier)
+
+        then:
+        def e = thrown(IllegalStateException)
+        e.message.contains('Error initializing type visitor')
+        e.message.contains('java.lang.IllegalStateException')
     }
 
     void "type element visitor finish processing exceptions include fallback messages"() {
