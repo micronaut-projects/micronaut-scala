@@ -5,6 +5,10 @@ plugins {
 group = properties["projectGroupId"].toString()
 version = properties["projectVersion"].toString()
 
+val scalaVersion = libs.versions.scala3.get()
+val scalaCompilerProject = "inject-scala-$scalaVersion"
+val scalaTestCompilerProject = "inject-scala-test-$scalaVersion"
+
 micronautBuild {
     // A BOM has no binary API baseline. The component publications enable
     // compatibility checks once the independent 1.0.0 line is released.
@@ -15,13 +19,13 @@ micronautBom {
     propertyName = "scala"
     extraExcludedProjects = listOf(
         "inject-scala",
-        "inject-scala-3-3-8",
+        scalaCompilerProject,
         "inject-scala-test",
-        "inject-scala-test-3-3-8",
+        scalaTestCompilerProject,
         "micronaut-inject-scala",
-        "micronaut-inject-scala-3-3-8",
+        "micronaut-$scalaCompilerProject",
         "micronaut-inject-scala-test",
-        "micronaut-inject-scala-test-3-3-8"
+        "micronaut-$scalaTestCompilerProject"
     )
     suppressions {
         dependencies.add("com.fasterxml.jackson.core:jackson-annotations:2.22")
@@ -33,7 +37,7 @@ micronautBom {
 // so declare the two fully-crossed publications explicitly in the platform.
 dependencies {
     constraints {
-        add("api", "io.micronaut.scala:micronaut-inject-scala_3.3.8:${project.version}")
-        add("api", "io.micronaut.scala:micronaut-inject-scala-test_3.3.8:${project.version}")
+        add("api", "io.micronaut.scala:micronaut-inject-scala_${libs.versions.scala3.get()}:${project.version}")
+        add("api", "io.micronaut.scala:micronaut-inject-scala-test_${libs.versions.scala3.get()}:${project.version}")
     }
 }

@@ -10,8 +10,6 @@ plugins {
     id 'io.micronaut.build.shared.settings' version '8.0.1'
 }
 
-enableFeaturePreview('TYPESAFE_PROJECT_ACCESSORS')
-
 def localCore = providers.gradleProperty('local.git.micronaut-core')
     .orElse(providers.environmentVariable('LOCAL_GIT_MICRONAUT_CORE'))
 def includeCore = providers.gradleProperty('includeMicronautCore')
@@ -41,17 +39,24 @@ dependencyResolutionManagement {
 
 rootProject.name = 'micronaut-scala-parent'
 
+def scalaVersion = file('gradle/libs.versions.toml').text.find(/(?m)^scala3\s*=\s*"([^"]+)"/) { _, version -> version }
+if (scalaVersion == null) {
+    throw new GradleException("Could not determine the Scala version from gradle/libs.versions.toml")
+}
+
 include 'inject-scala'
-include 'inject-scala-3-3-8'
+include 'inject-scala-compiler'
 include 'inject-scala-test'
-include 'inject-scala-test-3-3-8'
+include 'inject-scala-test-compiler'
 include 'micronaut-scala-bom'
 
-// The repository layout keeps the full compiler version in the directory name.
-// Use Java-safe Gradle paths so generated accessors remain available to the
-// Micronaut build conventions.
-project(':inject-scala-3-3-8').projectDir = file('inject-scala-3.3.8')
-project(':inject-scala-test-3-3-8').projectDir = file('inject-scala-test-3.3.8')
+// Compiler-specific project names include the full Scala version because the
+// compiler plugin API is not binary compatible across compiler releases.
+// The physical directories remain stable as additional Scala versions are
+// supported. Since the names are version-dependent, the compiler-specific
+// projects intentionally do not use generated type-safe project accessors.
+project(':inject-scala-compiler').name = "inject-scala-${scalaVersion}"
+project(':inject-scala-test-compiler').name = "inject-scala-test-${scalaVersion}"
 
 micronautBuild {
     useStandardizedProjectNames = true

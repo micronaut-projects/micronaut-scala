@@ -10,31 +10,37 @@ repositories {
     mavenCentral()
 }
 
+def scalaVersion = libs.versions.scala3.get()
+def scalaPluginProjectPath = ":micronaut-inject-scala-${scalaVersion}"
+def scalaTestProjectPath = ":micronaut-inject-scala-test-${scalaVersion}"
+
 tasks.register("verifyCompilerArtifacts") {
     dependsOn(
-        ":micronaut-inject-scala-3-3-8:jar",
-        ":micronaut-inject-scala-3-3-8:generatePomFileForMavenPublication",
-        ":micronaut-inject-scala-test-3-3-8:jar",
-        ":micronaut-inject-scala-test-3-3-8:generatePomFileForMavenPublication",
+        "${scalaPluginProjectPath}:jar",
+        "${scalaPluginProjectPath}:generatePomFileForMavenPublication",
+        "${scalaTestProjectPath}:jar",
+        "${scalaTestProjectPath}:generatePomFileForMavenPublication",
         ":micronaut-scala-bom:generatePomFileForMavenPublication"
     )
     doLast {
-        def pluginProject = project(":micronaut-inject-scala-3-3-8")
-        def testProject = project(":micronaut-inject-scala-test-3-3-8")
-        def pluginJar = pluginProject.layout.buildDirectory.file("libs/micronaut-inject-scala_3.3.8-${project.version}.jar").get().asFile
-        def testJar = testProject.layout.buildDirectory.file("libs/micronaut-inject-scala-test_3.3.8-${project.version}.jar").get().asFile
+        def pluginProject = project(scalaPluginProjectPath)
+        def testProject = project(scalaTestProjectPath)
+        def pluginArtifactId = "micronaut-inject-scala_${scalaVersion}"
+        def testArtifactId = "micronaut-inject-scala-test_${scalaVersion}"
+        def pluginJar = pluginProject.layout.buildDirectory.file("libs/${pluginArtifactId}-${project.version}.jar").get().asFile
+        def testJar = testProject.layout.buildDirectory.file("libs/${testArtifactId}-${project.version}.jar").get().asFile
         def pluginPom = pluginProject.layout.buildDirectory.file("publications/maven/pom-default.xml").get().asFile.text
         def testPom = testProject.layout.buildDirectory.file("publications/maven/pom-default.xml").get().asFile.text
         def bomPom = project(":micronaut-scala-bom").layout.buildDirectory.file("publications/maven/pom-default.xml").get().asFile.text
 
         assert pluginJar.isFile(): "Missing ${pluginJar}"
         assert testJar.isFile(): "Missing ${testJar}"
-        assert pluginPom.contains("<artifactId>micronaut-inject-scala_3.3.8</artifactId>")
-        assert testPom.contains("<artifactId>micronaut-inject-scala-test_3.3.8</artifactId>")
-        assert bomPom.contains("<artifactId>micronaut-inject-scala_3.3.8</artifactId>")
-        assert bomPom.contains("<artifactId>micronaut-inject-scala-test_3.3.8</artifactId>")
-        assert !bomPom.contains("<artifactId>micronaut-inject-scala-3-3-8</artifactId>")
-        assert !bomPom.contains("<artifactId>micronaut-inject-scala-test-3-3-8</artifactId>")
+        assert pluginPom.contains("<artifactId>${pluginArtifactId}</artifactId>")
+        assert testPom.contains("<artifactId>${testArtifactId}</artifactId>")
+        assert bomPom.contains("<artifactId>${pluginArtifactId}</artifactId>")
+        assert bomPom.contains("<artifactId>${testArtifactId}</artifactId>")
+        assert !bomPom.contains("<artifactId>${scalaPluginProjectPath.substring(1)}</artifactId>")
+        assert !bomPom.contains("<artifactId>${scalaTestProjectPath.substring(1)}</artifactId>")
 
         def forbiddenPluginEntries = zipTree(pluginJar).matching {
             include("scala/**")

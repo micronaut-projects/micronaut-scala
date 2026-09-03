@@ -6,7 +6,11 @@ plugins {
     id("io.micronaut.build.internal.convention-library")
 }
 
-description = "Micronaut Scala compiler-plugin tests for Scala 3.3.8"
+val scalaVersion = libs.versions.scala3.get()
+val testArtifactId = "micronaut-inject-scala-test_$scalaVersion"
+val scalaPluginProject = project(":micronaut-inject-scala-$scalaVersion")
+
+description = "Micronaut Scala compiler-plugin tests for Scala $scalaVersion"
 
 micronautBuild {
     binaryCompatibility.enabledAfter("1.0.0")
@@ -26,10 +30,10 @@ sourceSets {
 }
 
 dependencies {
-    compileOnly(projects.micronautInjectScala338)
+    compileOnly(scalaPluginProject)
 
     api(libs.micronaut.context)
-    api(projects.micronautInjectScala338)
+    api(scalaPluginProject)
     api(libs.micronaut.retry)
     api(libs.managed.groovy)
     api(libs.scala3.compiler)
@@ -60,7 +64,6 @@ configurations.configureEach {
 }
 
 tasks.withType<Test>().configureEach {
-    val scalaPluginProject = project(":micronaut-inject-scala-3-3-8")
     dependsOn(scalaPluginProject.tasks.named("jar"))
     doFirst {
         systemProperty(
@@ -72,11 +75,11 @@ tasks.withType<Test>().configureEach {
 }
 
 tasks.named<Jar>("jar") {
-    archiveBaseName.set("micronaut-inject-scala-test_3.3.8")
+    archiveBaseName.set(testArtifactId)
 }
 
 publishing {
     publications.withType<MavenPublication>().configureEach {
-        artifactId = "micronaut-inject-scala-test_3.3.8"
+        artifactId = testArtifactId
     }
 }

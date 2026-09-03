@@ -8,7 +8,10 @@ plugins {
     id("scala")
 }
 
-description = "Micronaut Scala compiler plugin for Scala 3.3.8"
+val scalaVersion = libs.versions.scala3.get()
+val pluginArtifactId = "micronaut-inject-scala_$scalaVersion"
+
+description = "Micronaut Scala compiler plugin for Scala $scalaVersion"
 
 micronautBuild {
     core {
@@ -66,7 +69,7 @@ tasks.withType<ScalaCompile>().configureEach {
 }
 
 tasks.named<Jar>("jar") {
-    archiveBaseName.set("micronaut-inject-scala_3.3.8")
+    archiveBaseName.set(pluginArtifactId)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     exclude("META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.SF")
     // The Scala compiler plugin is loaded by a compiler-owned classloader. Keep
@@ -85,6 +88,6 @@ tasks.named<Jar>("jar") {
 
 publishing {
     publications.withType<MavenPublication>().configureEach {
-        artifactId = "micronaut-inject-scala_3.3.8"
+        artifactId = pluginArtifactId
     }
 }

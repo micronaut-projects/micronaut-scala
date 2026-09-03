@@ -40,7 +40,7 @@ During development of the Core SPI, IncludeGit can substitute the Core
 dependencies with a local Core checkout:
 
 ```bash
-./gradlew :micronaut-inject-scala-test-3-3-8:test \
+./gradlew :micronaut-inject-scala-test-3.3.8:test \
   -Plocal.git.micronaut-core=/path/to/micronaut-core
 ```
 
