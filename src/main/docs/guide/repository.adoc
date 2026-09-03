@@ -1,0 +1,20 @@
+The Micronaut Scala source code, issue tracker, and pull requests are hosted
+in the
+https://github.com/{githubSlug}[micronaut-projects/micronaut-scala repository].
+
+The repository is organized into shared implementation/test sources and
+compiler-versioned projects:
+
+* `inject-scala` contains shared Scala processing implementation sources.
+* `inject-scala-test` contains shared parity and compiler test sources.
+* `inject-scala-3.3.8` publishes the Scala 3.3.8 compiler plugin.
+* `inject-scala-test-3.3.8` publishes the matching Scala 3.3.8 test support.
+* `micronaut-scala-bom` manages the published Scala artifacts.
+
+The complete compiler version is intentionally part of each compiler-coupled
+artifact name. This keeps incompatible compiler-plugin APIs from being
+silently mixed.
+
+For the Core-side SPI and application documentation, see the
+https://github.com/micronaut-projects/micronaut-core/pull/12695[Core SPI change]
+and the related Scala documentation follow-up.

@@ -1,0 +1,13 @@
+Release notes and published versions are available from:
+
+https://github.com/{githubSlug}/releases[the Micronaut Scala releases page].
+
+The project uses an independent version line from Micronaut Core. Snapshot
+versions are used while the Core SPI and Scala implementation are developed
+together. A `1.0.0` release is published only after a released Micronaut Core
+version contains the required SPI.
+
+Each Scala compiler-plugin release remains coupled to its full Scala compiler
+version. For example, Scala 3.3.8 uses
+`micronaut-inject-scala_3.3.8`; future compiler releases receive parallel
+artifacts rather than replacing this coordinate.

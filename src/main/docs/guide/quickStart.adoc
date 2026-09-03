@@ -1,0 +1,51 @@
+This project publishes a Scala compiler plugin for use by Scala 3 builds.
+The plugin must be selected for the exact Scala compiler version used by the
+application.
+
+== Gradle
+
+For Scala 3.3.8, add the following plugin artifact to the Scala compiler
+plugin configuration and runtime dependencies:
+
+[source,kotlin]
+----
+scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.3.8:1.0.0-SNAPSHOT")
+runtimeOnly("io.micronaut.scala:micronaut-inject-scala_3.3.8:1.0.0-SNAPSHOT")
+----
+
+Use a released Micronaut Scala version in published applications. During
+development, the repository can be built against the Core SPI branch with
+IncludeGit or a local Core checkout:
+
+[source,bash]
+----
+./gradlew check -Plocal.git.micronaut-core=/path/to/micronaut-core
+----
+
+== Maven
+
+Use the full compiler-version artifact ID in the Scala compiler plugin and
+runtime dependency declarations:
+
+[source,xml]
+----
+<dependency>
+  <groupId>io.micronaut.scala</groupId>
+  <artifactId>micronaut-inject-scala_3.3.8</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----
+
+== sbt and Mill
+
+sbt builds should use `CrossVersion.full` so the complete Scala compiler
+version participates in the artifact coordinate. Mill builds should use the
+full-cross `:::` dependency syntax. In both tools, select the integration
+version independently from the Scala compiler version.
+
+== Compiler compatibility
+
+Do not replace `_3.3.8` with a binary Scala line suffix. Compiler plugin APIs
+can change between compiler releases, so a plugin built for one full compiler
+version must not be assumed to work with another. See the
+https://docs.scala-lang.org/overviews/plugins/index.html#binary-compatibility-of-compiler-plugins[Scala compiler-plugin binary-compatibility guidance].
