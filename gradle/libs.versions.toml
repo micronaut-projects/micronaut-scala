@@ -150,6 +150,10 @@ managed-kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref
 
 scala3-compiler = { module = "org.scala-lang:scala3-compiler_3", version.ref = "scala3" }
 scala3-library = { module = "org.scala-lang:scala3-library_3", version.ref = "scala3" }
+micronaut-core-processor = { module = "io.micronaut:micronaut-core-processor", version.ref = "micronaut-core" }
+micronaut-context = { module = "io.micronaut:micronaut-context", version.ref = "micronaut-core" }
+micronaut-retry = { module = "io.micronaut:micronaut-retry", version.ref = "micronaut-core" }
+micronaut-http = { module = "io.micronaut:micronaut-http", version.ref = "micronaut-core" }
 
 managed-kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "managed-kotlin-coroutines" }
 managed-kotlinx-coroutines-jdk8 = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-jdk8", version.ref = "managed-kotlin-coroutines" }

@@ -31,7 +31,7 @@ sourceSets {
 }
 
 dependencies {
-    api("io.micronaut:micronaut-core-processor:${libs.versions.micronaut.core.get()}") {
+    api(libs.micronaut.core.processor) {
         exclude(group = "io.micronaut.sourcegen", module = "micronaut-sourcegen-bom")
         exclude(group = "org.scala-lang", module = "scala3-library_3")
     }
@@ -41,7 +41,7 @@ dependencies {
 
     compileOnly(libs.scala3.compiler)
 
-    testImplementation("io.micronaut:micronaut-context:${libs.versions.micronaut.core.get()}")
+    testImplementation(libs.micronaut.context)
 }
 
 // Sourcegen and released Core versions may carry a newer Scala BOM. A compiler

@@ -26,11 +26,11 @@ sourceSets {
 }
 
 dependencies {
-    compileOnly(project(":micronaut-inject-scala-3-3-8"))
+    compileOnly(projects.micronautInjectScala338)
 
-    api("io.micronaut:micronaut-context:${libs.versions.micronaut.core.get()}")
-    api(project(":micronaut-inject-scala-3-3-8"))
-    api("io.micronaut:micronaut-retry:${libs.versions.micronaut.core.get()}")
+    api(libs.micronaut.context)
+    api(projects.micronautInjectScala338)
+    api(libs.micronaut.retry)
     api(libs.managed.groovy)
     api(libs.scala3.compiler)
     api(libs.scala3.library)
@@ -39,7 +39,7 @@ dependencies {
     }
 
     testImplementation(libs.managed.graalvm.nativeimage)
-    testImplementation("io.micronaut:micronaut-http:${libs.versions.micronaut.core.get()}")
+    testImplementation(libs.micronaut.http)
     testImplementation(platform(libs.test.boms.micronaut.validation))
     testImplementation(libs.micronaut.validation) {
         exclude(group = "io.micronaut")
@@ -60,11 +60,12 @@ configurations.configureEach {
 }
 
 tasks.withType<Test>().configureEach {
-    dependsOn(project(":micronaut-inject-scala-3-3-8").tasks.named("jar"))
+    val scalaPluginProject = project(":micronaut-inject-scala-3-3-8")
+    dependsOn(scalaPluginProject.tasks.named("jar"))
     doFirst {
         systemProperty(
             "micronaut.scala.plugin.jar",
-            project(":micronaut-inject-scala-3-3-8").tasks.named<Jar>("jar").get().archiveFile.get().asFile.absolutePath
+            scalaPluginProject.tasks.named<Jar>("jar").get().archiveFile.get().asFile.absolutePath
         )
         systemProperty("micronaut.scala.test.classpath", sourceSets.test.get().runtimeClasspath.asPath)
     }

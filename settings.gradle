@@ -10,6 +10,8 @@ plugins {
     id 'io.micronaut.build.shared.settings' version '8.0.1'
 }
 
+enableFeaturePreview('TYPESAFE_PROJECT_ACCESSORS')
+
 def localCore = providers.gradleProperty('local.git.micronaut-core')
     .orElse(providers.environmentVariable('LOCAL_GIT_MICRONAUT_CORE'))
 def includeCore = providers.gradleProperty('includeMicronautCore')
