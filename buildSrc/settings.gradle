@@ -1,0 +1,18 @@
+dependencyResolutionManagement {
+    versionCatalogs {
+        create("libs") {
+            from(files("../gradle/libs.versions.toml"))
+        }
+    }
+}
+
+def micronautBuildCheckout = providers.gradleProperty("micronautBuildCheckout")
+        .orElse(providers.environmentVariable("MICRONAUT_BUILD_CHECKOUT"))
+        .map { file(it) }
+        .getOrElse(file("../../build"))
+
+if (file("${micronautBuildCheckout}/micronaut-gradle-plugins").directory) {
+    includeBuild(micronautBuildCheckout)
+}
+
+rootProject.name = "buildSrc"
