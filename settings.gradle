@@ -6,16 +6,53 @@ pluginManagement {
 }
 
 plugins {
+    id 'me.champeau.includegit' version '0.3.2'
     id 'io.micronaut.build.shared.settings' version '8.0.1'
 }
 
-rootProject.name = 'project-template-parent'
+enableFeaturePreview('TYPESAFE_PROJECT_ACCESSORS')
 
-include 'project-template'
-include 'project-template-bom'
+def localCore = providers.gradleProperty('local.git.micronaut-core')
+    .orElse(providers.environmentVariable('LOCAL_GIT_MICRONAUT_CORE'))
+def includeCore = providers.gradleProperty('includeMicronautCore')
+    .orElse(providers.environmentVariable('INCLUDE_MICRONAUT_CORE'))
+    .map { it.toBoolean() }
+    .orElse(localCore.map { true })
+    .getOrElse(false)
 
-enableFeaturePreview 'TYPESAFE_PROJECT_ACCESSORS'
+if (includeCore) {
+    if (localCore.isPresent()) {
+        includeBuild(file(localCore.get()))
+    } else {
+        gitRepositories {
+            include('micronaut-core') {
+                uri = 'https://github.com/micronaut-projects/micronaut-core.git'
+                branch = providers.gradleProperty('micronautCoreBranch').orElse('core.scala').get()
+            }
+        }
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'micronaut-scala-parent'
+
+include 'inject-scala'
+include 'inject-scala-3-3-8'
+include 'inject-scala-test'
+include 'inject-scala-test-3-3-8'
+include 'micronaut-scala-bom'
+
+// The repository layout keeps the full compiler version in the directory name.
+// Use Java-safe Gradle paths so generated accessors remain available to the
+// Micronaut build conventions.
+project(':inject-scala-3-3-8').projectDir = file('inject-scala-3.3.8')
+project(':inject-scala-test-3-3-8').projectDir = file('inject-scala-test-3.3.8')
 
 micronautBuild {
-    importMicronautCatalog()
+    useStandardizedProjectNames = true
 }

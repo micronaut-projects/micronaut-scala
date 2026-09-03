@@ -1,3 +1,47 @@
 plugins {
+    id "idea"
     id "io.micronaut.build.internal.parent"
+    id "io.micronaut.build.internal.dependency-updates"
+    id "io.micronaut.build.internal.version-catalog-updates"
+    id "io.micronaut.build.internal.convention-quality"
+}
+
+repositories {
+    mavenCentral()
+}
+
+tasks.register("verifyCompilerArtifacts") {
+    dependsOn(
+        ":micronaut-inject-scala-3-3-8:jar",
+        ":micronaut-inject-scala-3-3-8:generatePomFileForMavenPublication",
+        ":micronaut-inject-scala-test-3-3-8:jar",
+        ":micronaut-inject-scala-test-3-3-8:generatePomFileForMavenPublication",
+        ":micronaut-scala-bom:generatePomFileForMavenPublication"
+    )
+    doLast {
+        def pluginProject = project(":micronaut-inject-scala-3-3-8")
+        def testProject = project(":micronaut-inject-scala-test-3-3-8")
+        def pluginJar = pluginProject.layout.buildDirectory.file("libs/micronaut-inject-scala_3.3.8-${project.version}.jar").get().asFile
+        def testJar = testProject.layout.buildDirectory.file("libs/micronaut-inject-scala-test_3.3.8-${project.version}.jar").get().asFile
+        def pluginPom = pluginProject.layout.buildDirectory.file("publications/maven/pom-default.xml").get().asFile.text
+        def testPom = testProject.layout.buildDirectory.file("publications/maven/pom-default.xml").get().asFile.text
+        def bomPom = project(":micronaut-scala-bom").layout.buildDirectory.file("publications/maven/pom-default.xml").get().asFile.text
+
+        assert pluginJar.isFile(): "Missing ${pluginJar}"
+        assert testJar.isFile(): "Missing ${testJar}"
+        assert pluginPom.contains("<artifactId>micronaut-inject-scala_3.3.8</artifactId>")
+        assert testPom.contains("<artifactId>micronaut-inject-scala-test_3.3.8</artifactId>")
+        assert bomPom.contains("<artifactId>micronaut-inject-scala_3.3.8</artifactId>")
+        assert bomPom.contains("<artifactId>micronaut-inject-scala-test_3.3.8</artifactId>")
+        assert !bomPom.contains("<artifactId>micronaut-inject-scala-3-3-8</artifactId>")
+        assert !bomPom.contains("<artifactId>micronaut-inject-scala-test-3-3-8</artifactId>")
+
+        def forbiddenPluginEntries = zipTree(pluginJar).matching {
+            include("scala/**")
+            include("dotty/**")
+            include("scala3-library_3-*")
+            include("scala-library-*")
+        }.files
+        assert forbiddenPluginEntries.empty: "Compiler runtime classes leaked into ${pluginJar.name}: ${forbiddenPluginEntries}"
+    }
 }

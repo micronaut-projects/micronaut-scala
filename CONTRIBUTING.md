@@ -1,93 +1,87 @@
-# Contributing Code or Documentation to Micronaut
-
-Sign the [Contributor License Agreement (CLA)](https://cla-assistant.io/micronaut-projects/micronaut-scala). This is required before any of your code or pull requests are accepted.
+# Contributing Code or Documentation to the Micronaut Framework
 
 ## Finding Issues to Work on
 
-If you are interested in contributing to Micronaut and are looking for issues to work on, take a look at the issues tagged with [help wanted](https://github.com/micronaut-projects/micronaut-scala/issues?q=is%3Aopen+is%3Aissue+label%3A%22status%3A+help+wanted%22).
+If you are interested in contributing to the Micronaut Framework and are looking for issues to work on, take a look at the issues tagged with [help wanted](https://github.com/micronaut-projects/micronaut-core/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22).
 
 ## JDK Setup
 
-Micronaut scala currently requires JDK 25.
+Building Micronaut Framework requires GraalVM for JDK 25, version 25.1.3.
+
+With [SDKMAN](https://sdkman.io/), install and select the required JDK:
+
+```bash
+sdk install java 25.1.3-graalce
+sdk use java 25.1.3-graalce
+```
 
 ## IDE Setup
 
-Micronaut scala can be imported into IntelliJ IDEA by opening the `build.gradle` file.
+The Micronaut Framework project is imported into IntelliJ IDEA by opening the `build.gradle` file.
 
 ## Docker Setup
 
-Micronaut scala tests currently require Docker to be installed.
+The Micronaut Framework tests require Docker.
 
 ## Running Tests
 
-To run the tests, use `./gradlew check`.
+To run the tests use `./gradlew check`.
+
+[Geb](http://gebish.org) functional tests are ignored unless you specify the geb environment via system property.
+
+To run with Chrome `./gradlew -Dgeb.env=chrome check`.
+
+To run with Firefox `./gradlew -Dgeb.env=firefox check`.
 
 ## Building Documentation
 
 The documentation sources are located at `src/main/docs/guide`.
 
-To build the documentation, run `./gradlew publishGuide` (or `./gradlew pG`), then open `build/docs/index.html`.
+To build the documentation run `./gradlew publishGuide` or `./gradlew pG` then open `build/working/02-docs-raw/index.html`
+> This only generates the raw guide without the API and Configuration references; therefore, the API links in the manual
+> will not resolve in a browser.
 
-To also build the Javadocs, run `./gradlew docs`.
+To include the API (javadocs) and Configuration references run `./gradlew docs` instead and open `build/docs/index.html`
+
 
 ## Working on the code base
 
-If you use IntelliJ IDEA, you can import the project using the IntelliJ Gradle Tooling ("File / Import Project" and selecting the `settings.gradle` file).
+If you are working with the IntelliJ IDEA development environment, you can import the project using Intellij's Gradle Tooling ("File / Open..." and select the "build.gradle" file or the project directory).
 
-To get a local development version of Micronaut scala working, first run the `publishToMavenLocal` task.
+Create a branch from the release branch to which you anticipate merging back changes, e.g. `3.4.x`, `3.5.x`, `3.6.x`, etc.
 
-```
-./gradlew pTML
-```
-
-You can then reference the version specified with `projectVersion` in `gradle.properties` in a test project's `build.gradle` or `pom.xml`. If you use Gradle, add the `mavenLocal` repository (Maven automatically does this):
+The most important task to complete before submitting work is the `check` task. This executes all the unit tests as well as various code quality checks.
 
 ```
-repositories {
-    mavenLocal()
-    mavenCentral()
-}
+./gradlew check
 ```
+
+The `check` task should complete successfully. Otherwise, the initial pull request will fail, and you will need to make corrections before it can be reviewed (unless you are opening a draft pull request).
 
 ## Creating a pull request
 
 Once you are satisfied with your changes:
 
-- Commit your changes in your local branch
-- Push your changes to your remote branch on GitHub
-- Send us a [pull request](https://help.github.com/articles/creating-a-pull-request)
-
-## Merging a pull request
-
-Before we merge a PR into a module's `master` branch, we have to consider:
-
-Can this PR be merged into a patch release (e.g. documentation fixes, bug fix, patch transitive dependency upgrade, breaking change due to security, GitHub actions sync, Micronaut Build Plugin upgrade)?
-
-Should this PR be merged into the next minor version of the module? For example, a new feature, a new module, or a minor transitive dependency upgrade.
-
-If the PR is going into the next minor version of the module, we need to release a patch version, and branch off `master` a new branch for the current minor module's version. If the `gradle.properties`'s `projectVersion` is 3.1.2-SNAPSHOT the branch should be named 3.1.x, and we push it to GitHub. If `master` contains only commits such as GitHub actions sync (no commits with benefits to users), we can branch off without doing a patch release.
-
-When you merge a PR that will go into the next module's minor release:
-
-- Update `gradle.properties`'s `githubCoreBranch` to point to the next minor branch of Micronaut Core.
-- Update `gradle.properties`'s `projectVersion` to the next minor snapshot.
-- Upgrade the module to the latest version of Micronaut.
+- Commit changes to the local branch you created.
+- Push that branch with changes to the corresponding remote branch on GitHub
+- Submit a [pull request](https://help.github.com/articles/creating-a-pull-request)
 
 ## Checkstyle
 
-We want to keep the code clean, following good practices about organization, Javadoc, and style as much as possible.
+The code base should remain clean, following industry best practices for organization, javadoc and style, as much as possible.
 
-Micronaut scala uses [Checkstyle](https://checkstyle.sourceforge.io/) to make sure that the code follows those standards. The configuration is defined in `config/checkstyle/checkstyle.xml`. To execute Checkstyle, run:
+The Micronaut Framework uses [Checkstyle](http://checkstyle.sourceforge.net/) to make sure that all the code follows those standards. The configuration file is defined in `config/checkstyle/checkstyle.xml`.
+To execute the Checkstyle task run:
 
 ```
 ./gradlew <module-name>:checkstyleMain
 ```
 
-Before starting to contribute new code, we recommend that you install the IntelliJ [CheckStyle-IDEA](https://plugins.jetbrains.com/plugin/1065-checkstyle-idea) plugin and configure it to use Micronaut's checkstyle configuration file.
+Before contributing new code it is recommended you install IntelliJ [CheckStyle-IDEA](https://plugins.jetbrains.com/plugin/1065-checkstyle-idea) plugin and configure it to use Micronaut Framework's checkstyle configuration file.
 
 IntelliJ will mark in red the issues Checkstyle finds. For example:
 
-![](https://github.com/micronaut-projects/micronaut-core/raw/master/src/main/docs/resources/img/checkstyle-issue.png)
+![checkstyle-issue](https://docs.micronaut.io/docsassets/img/checkstyle-issue.png)
 
 In this case, to fix the issues, we need to:
 
@@ -95,4 +89,12 @@ In this case, to fix the issues, we need to:
 - Add the Javadoc for the constructor in line 27
 - Add a space after `if` in line 34
 
-The plugin also adds a new tab in the bottom of the IDE to run Checkstyle and show errors and warnings. We recommend that you run the report and fix all issues before submitting a pull request.
+The plugin also adds a new tab in IDEA's bottom view pane to run a checkstyle report to display errors and warnings.
+Run the report and fix any exposed issues before submitting a pull request. The gradle `check` task also produces an HTML report if there are errors.
+
+## Building on Windows 10
+
+The following prerequisites are needed for building and testing on Windows 10:
+
+* Docker Desktop version 2.0.0.0 win81 build 29211 or higher is installed and running.
+* OpenSSL's binaries are installed, for example (https://indy.fulgan.com/SSL/) and on the PATH.
