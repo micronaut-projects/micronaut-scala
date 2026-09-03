@@ -19,7 +19,6 @@ import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.EnumConstantElement;
 import io.micronaut.inject.ast.EnumElement;
-import io.micronaut.inject.ast.ElementModifier;
 import io.micronaut.inject.ast.MethodElement;
 
 import java.util.List;
@@ -64,24 +63,7 @@ final class ScalaEnumElement extends ScalaClassElement implements EnumElement {
 
     @Override
     public Optional<MethodElement> getEnumValueOfMethod() {
-        // Mirror the validation Core applies in BeanIntrospectionWriter. Core turns an
-        // ill-formed lookup method into a ProcessingException raised from deep inside the
-        // introspection writer; rejecting it here means such a method is simply not a
-        // candidate, and the enum falls back to the standard valueOf.
-        return classData.methods().stream()
-            .filter(method -> "valueOf".equals(method.name()))
-            .filter(method -> method.modifiers().contains(ElementModifier.STATIC))
-            .filter(method -> !method.modifiers().contains(ElementModifier.PRIVATE))
-            .filter(method -> method.parameters().size() == 1)
-            .filter(method -> {
-                String parameterType = method.parameters().getFirst().type().name();
-                return String.class.getName().equals(parameterType)
-                    || CharSequence.class.getName().equals(parameterType);
-            })
-            .map(this::methodElement)
-            .filter(method -> method.getReturnType().isAssignable(this))
-            .findFirst()
-            .map(MethodElement.class::cast);
+        return enumValueOfMethod();
     }
 
     @Override

@@ -36,11 +36,11 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.util.WeakHashMap;
 import java.util.function.Consumer;
 
 /**
@@ -52,7 +52,13 @@ import java.util.function.Consumer;
  */
 final class ClasspathAnnotationMetadataReader {
 
-    private static final ConcurrentMap<Class<?>, LoadedClassMetadata> CACHE = new ConcurrentHashMap<>();
+    /**
+     * Keyed weakly: the plugin runs inside a compiler-owned classloader that a Gradle or zinc
+     * daemon discards between builds, and a strong static key would pin every class this reader
+     * has ever seen, and its classloader, for the life of the JVM.
+     */
+    private static final Map<Class<?>, LoadedClassMetadata> CACHE =
+        Collections.synchronizedMap(new WeakHashMap<>());
 
     private ClasspathAnnotationMetadataReader() {
     }
@@ -80,6 +86,9 @@ final class ClasspathAnnotationMetadataReader {
     }
 
     static AnnotationMetadata parameterMetadata(Executable executable, int parameterIndex) {
+        if (parameterIndex < 0) {
+            return AnnotationMetadata.EMPTY_METADATA;
+        }
         AnnotationMetadata[] metadata = metadata(executable.getDeclaringClass())
             .parameters()
             .get(memberKey(executable instanceof Constructor<?> ? "<init>" : executable.getName(), methodDescriptor(executable)));
@@ -90,7 +99,15 @@ final class ClasspathAnnotationMetadataReader {
     }
 
     private static LoadedClassMetadata metadata(Class<?> type) {
-        return CACHE.computeIfAbsent(type, ClasspathAnnotationMetadataReader::readMetadata);
+        LoadedClassMetadata cached = CACHE.get(type);
+        if (cached != null) {
+            return cached;
+        }
+        // Read outside the map lock: readMetadata does classpath I/O, and a duplicate read on a
+        // race is cheaper than holding the monitor across it.
+        LoadedClassMetadata metadata = readMetadata(type);
+        CACHE.put(type, metadata);
+        return metadata;
     }
 
     private static LoadedClassMetadata readMetadata(Class<?> type) {
