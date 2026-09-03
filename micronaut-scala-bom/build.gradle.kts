@@ -5,6 +5,12 @@ plugins {
 group = properties["projectGroupId"].toString()
 version = properties["projectVersion"].toString()
 
+micronautBuild {
+    // A BOM has no binary API baseline. The component publications enable
+    // compatibility checks once the independent 1.0.0 line is released.
+    binaryCompatibility.enabled = false
+}
+
 micronautBom {
     propertyName = "scala"
     extraExcludedProjects = listOf(
@@ -17,6 +23,9 @@ micronautBom {
         "micronaut-inject-scala-test",
         "micronaut-inject-scala-test-3-3-8"
     )
+    suppressions {
+        dependencies.add("com.fasterxml.jackson.core:jackson-annotations:2.22")
+    }
 }
 
 // The build plugin derives managed artifact IDs from Gradle project names. The
