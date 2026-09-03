@@ -25,7 +25,7 @@ if (includeCore) {
         gitRepositories {
             include('micronaut-core') {
                 uri = 'https://github.com/micronaut-projects/micronaut-core.git'
-                branch = providers.gradleProperty('micronautCoreBranch').orElse('core.scala').get()
+                branch = providers.gradleProperty('micronautCoreBranch').orElse('5.2.x').get()
             }
         }
     }
@@ -39,24 +39,18 @@ dependencyResolutionManagement {
 
 rootProject.name = 'micronaut-scala-parent'
 
-def scalaVersion = file('gradle/libs.versions.toml').text.find(/(?m)^scala3\s*=\s*"([^"]+)"/) { _, version -> version }
-if (scalaVersion == null) {
-    throw new GradleException("Could not determine the Scala version from gradle/libs.versions.toml")
-}
-
 include 'inject-scala'
 include 'inject-scala-compiler'
 include 'inject-scala-test'
 include 'inject-scala-test-compiler'
 include 'micronaut-scala-bom'
 
-// Compiler-specific project names include the full Scala version because the
-// compiler plugin API is not binary compatible across compiler releases.
-// The physical directories remain stable as additional Scala versions are
-// supported. Since the names are version-dependent, the compiler-specific
-// projects intentionally do not use generated type-safe project accessors.
-project(':inject-scala-compiler').name = "inject-scala-${scalaVersion}"
-project(':inject-scala-test-compiler').name = "inject-scala-test-${scalaVersion}"
+// The compiler plugin API is not binary compatible across compiler releases, so
+// the published Maven coordinates are fully crossed with the Scala version (see
+// the `pluginArtifactId`/`testArtifactId` values in the compiler subprojects).
+// The Gradle project names deliberately stay version-free: Core enables
+// TYPESAFE_PROJECT_ACCESSORS, which applies to the whole composite and rejects
+// any project name containing a dot.
 
 micronautBuild {
     useStandardizedProjectNames = true

@@ -8,7 +8,7 @@ plugins {
 
 val scalaVersion = libs.versions.scala3.get()
 val testArtifactId = "micronaut-inject-scala-test_$scalaVersion"
-val scalaPluginProject = project(":micronaut-inject-scala-$scalaVersion")
+val scalaPluginProject = project(":micronaut-inject-scala-compiler")
 
 description = "Micronaut Scala compiler-plugin tests for Scala $scalaVersion"
 
