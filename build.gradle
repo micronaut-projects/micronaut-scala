@@ -11,8 +11,8 @@ repositories {
 }
 
 def scalaVersion = libs.versions.scala3.get()
-def scalaPluginProjectPath = ":micronaut-inject-scala-${scalaVersion}"
-def scalaTestProjectPath = ":micronaut-inject-scala-test-${scalaVersion}"
+def scalaPluginProjectPath = ":micronaut-inject-scala-compiler"
+def scalaTestProjectPath = ":micronaut-inject-scala-test-compiler"
 
 tasks.register("verifyCompilerArtifacts") {
     dependsOn(

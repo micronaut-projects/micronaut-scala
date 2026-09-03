@@ -19,7 +19,6 @@ import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.EnumConstantElement;
 import io.micronaut.inject.ast.EnumElement;
-import io.micronaut.inject.ast.ElementModifier;
 import io.micronaut.inject.ast.MethodElement;
 
 import java.util.List;
@@ -64,13 +63,7 @@ final class ScalaEnumElement extends ScalaClassElement implements EnumElement {
 
     @Override
     public Optional<MethodElement> getEnumValueOfMethod() {
-        return classData.methods().stream()
-            .filter(method -> "valueOf".equals(method.name()))
-            .filter(method -> method.modifiers().contains(ElementModifier.STATIC))
-            .filter(method -> method.parameters().size() == 1)
-            .filter(method -> String.class.getName().equals(method.parameters().getFirst().type().name()))
-            .findFirst()
-            .map(this::methodElement);
+        return enumValueOfMethod();
     }
 
     @Override

@@ -5,9 +5,8 @@ plugins {
 group = properties["projectGroupId"].toString()
 version = properties["projectVersion"].toString()
 
-val scalaVersion = libs.versions.scala3.get()
-val scalaCompilerProject = "inject-scala-$scalaVersion"
-val scalaTestCompilerProject = "inject-scala-test-$scalaVersion"
+val scalaCompilerProject = "inject-scala-compiler"
+val scalaTestCompilerProject = "inject-scala-test-compiler"
 
 micronautBuild {
     // A BOM has no binary API baseline. The component publications enable

@@ -23,7 +23,7 @@ integration version remain separate version axes.
 
 1. Build against the Core SPI branch with IncludeGit and a local Core checkout
    when developing locally.
-2. Run the complete `micronaut-inject-scala-test-3.3.8` suite and
+2. Run the complete `micronaut-inject-scala-test-compiler` suite and
    `verifyCompilerArtifacts`.
 3. After Core publishes a release containing the SPI, replace branch
    substitution with that released Core baseline.

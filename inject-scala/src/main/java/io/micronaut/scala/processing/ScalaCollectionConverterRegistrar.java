@@ -24,12 +24,19 @@ import scala.jdk.javaapi.CollectionConverters;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
  * Converters for Scala collection types.
+ *
+ * <p>Every converter into a Scala collection produces an independent copy rather than a view over
+ * the Java collection it was given. Micronaut hands these converters a container-owned collection,
+ * and a view over it would let a later mutation change the value already injected into a bean. The
+ * mutable targets copy into a mutable Scala collection, so the bean still owns something it can
+ * modify; the mutation simply does not travel back. The two Scala-to-Java converters are the
+ * deliberate exception: there the caller owns the source, and wrapping is the cheaper, expected
+ * behaviour of {@code CollectionConverters.asJavaCollection}.</p>
  */
 @Internal
 public final class ScalaCollectionConverterRegistrar implements TypeConverterRegistrar {
@@ -64,7 +71,7 @@ public final class ScalaCollectionConverterRegistrar implements TypeConverterReg
     private static Optional<scala.collection.Iterable> toScalaIterable(Collection<?> collection,
                                                                        Class<scala.collection.Iterable> targetType,
                                                                        ConversionContext context) {
-        return Optional.of(CollectionConverters.asScala(collection));
+        return Optional.of(scala.collection.immutable.Iterable.from(toScalaIterableOnce(collection)));
     }
 
     private static Optional<scala.collection.Seq> toScalaSeq(Collection<?> collection,
@@ -161,13 +168,14 @@ public final class ScalaCollectionConverterRegistrar implements TypeConverterReg
     private static Optional<scala.collection.Map> toScalaMap(Map<?, ?> map,
                                                              Class<scala.collection.Map> targetType,
                                                              ConversionContext context) {
-        return Optional.of(CollectionConverters.asScala(map));
+        return Optional.of(scala.collection.immutable.Map.from(CollectionConverters.asScala(map)));
     }
 
+    @SuppressWarnings("unchecked")
     private static Optional<scala.collection.mutable.Map> toMutableMap(Map<?, ?> map,
                                                                        Class<scala.collection.mutable.Map> targetType,
                                                                        ConversionContext context) {
-        return Optional.of(CollectionConverters.asScala(map));
+        return Optional.of((scala.collection.mutable.Map) scala.collection.mutable.Map.from(CollectionConverters.asScala(map)));
     }
 
     private static Optional<scala.collection.immutable.Map> toImmutableMap(Map<?, ?> map,
@@ -187,9 +195,6 @@ public final class ScalaCollectionConverterRegistrar implements TypeConverterReg
     }
 
     private static scala.collection.mutable.Buffer<?> asMutableBuffer(Collection<?> collection) {
-        if (collection instanceof List<?> list) {
-            return CollectionConverters.asScala(list);
-        }
         return CollectionConverters.asScala(new ArrayList<>(collection));
     }
 }

@@ -40,13 +40,20 @@ During development of the Core SPI, IncludeGit can substitute the Core
 dependencies with a local Core checkout:
 
 ```bash
-./gradlew :micronaut-inject-scala-test-3.3.8:test \
+./gradlew :micronaut-inject-scala-test-compiler:test \
   -Plocal.git.micronaut-core=/path/to/micronaut-core
 ```
 
-The remote branch include is opt-in with `-PincludeMicronautCore=true`. Once a
-released Core version contains the SPI, use that released version in the
-catalog before publishing `1.0.0`.
+The remote branch include is opt-in with `-PincludeMicronautCore=true`, which
+clones the Core `5.2.x` branch (override with `-PmicronautCoreBranch=`) instead
+of using a local checkout.
+
+The catalog currently pins `micronaut-core = "5.2.0-SNAPSHOT"`, which is not
+published anywhere, so **one of the two Core includes is required** — a
+standalone `./gradlew check` configures but cannot resolve
+`io.micronaut:micronaut-core-processor`. CI therefore builds the composite.
+Once a released Core version contains the SPI, pin that released version in the
+catalog, drop `-PincludeMicronautCore` from CI, and publish `1.0.0`.
 
 The Scala compiler and integration versions are separate. Scala 2 and GraalPy
 are out of scope.

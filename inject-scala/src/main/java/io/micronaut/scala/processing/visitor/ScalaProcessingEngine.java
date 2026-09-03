@@ -44,7 +44,6 @@ import io.micronaut.inject.writer.AbstractBeanDefinitionBuilder;
 import io.micronaut.inject.writer.BeanDefinitionVisitor;
 import io.micronaut.inject.writer.BeanDefinitionWriter;
 import io.micronaut.inject.writer.ByteCodeWriterUtils;
-import io.micronaut.inject.writer.OriginatingElements;
 import io.micronaut.sourcegen.model.ObjectDef;
 import org.jspecify.annotations.Nullable;
 
@@ -108,7 +107,9 @@ public final class ScalaProcessingEngine {
      */
     public void addClasses(Collection<ScalaClassData> classData) {
         for (ScalaClassData sourceClass : classData) {
-            sourceClasses.putIfAbsent(sourceClass.name(), sourceClass);
+            // Last extraction wins. Each compilation unit is extracted once, so a repeated name
+            // means the model was re-extracted; keeping the first copy would pin the stale one.
+            sourceClasses.put(sourceClass.name(), sourceClass);
         }
     }
 
@@ -130,7 +131,9 @@ public final class ScalaProcessingEngine {
             } catch (ProcessingException e) {
                 reportProcessingException(e);
             } catch (Throwable e) {
-                context.warn("Error initializing type visitor [" + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), null);
+                // Fatal, matching inject-java and the finish() handling below: a visitor whose
+                // start() blew up must not go on to be used for the whole visit pass.
+                context.fail("Error initializing type visitor [" + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), null);
             }
         }
         for (LoadedScalaVisitor loadedVisitor : loadedVisitors) {
@@ -221,11 +224,15 @@ public final class ScalaProcessingEngine {
 
     private void writeBeanDefinition(OutputObjectDef outputObjectDef, ScalaVisitorContext context) throws IOException {
         ObjectDef objectDef = outputObjectDef.objectDef();
-        OriginatingElements originatingElements = outputObjectDef.originatingElements();
+        Element[] originating = outputObjectDef.originatingElements().getOriginatingElements();
         if (outputObjectDef.serviceClass() != null) {
-            context.visitServiceDescriptor(outputObjectDef.serviceClass(), objectDef.getName(), originatingElements.getOriginatingElements()[0]);
+            if (originating.length == 0) {
+                throw new IllegalStateException(
+                    "No originating element for generated class [" + objectDef.getName() + "]");
+            }
+            context.visitServiceDescriptor(outputObjectDef.serviceClass(), objectDef.getName(), originating[0]);
         }
-        try (var outputStream = context.visitClass(objectDef.getName(), originatingElements.getOriginatingElements())) {
+        try (var outputStream = context.visitClass(objectDef.getName(), originating)) {
             outputStream.write(ByteCodeWriterUtils.writeByteCode(objectDef, context));
         }
     }
@@ -257,9 +264,8 @@ public final class ScalaProcessingEngine {
         }
         try {
             loadedVisitor.getVisitor().visitClass(classElement, context);
-        } catch (ProcessingException e) {
-            throw processingException(classElement, e);
         } catch (Exception e) {
+            // ProcessingException is a RuntimeException and needs no separate clause.
             throw processingException(classElement, e);
         }
         if (query.includesConstructors()) {
@@ -267,9 +273,8 @@ public final class ScalaProcessingEngine {
                 if (loadedVisitor.matchesElement(constructorElement.getAnnotationMetadata())) {
                     try {
                         loadedVisitor.getVisitor().visitConstructor(constructorElement, context);
-                    } catch (ProcessingException e) {
-                        throw processingException(constructorElement, e);
                     } catch (Exception e) {
+                        // ProcessingException is a RuntimeException and needs no separate clause.
                         throw processingException(constructorElement, e);
                     }
                 }
@@ -304,9 +309,8 @@ public final class ScalaProcessingEngine {
                     } else if (memberElement instanceof MethodElement methodElement) {
                         loadedVisitor.getVisitor().visitMethod(methodElement, context);
                     }
-                } catch (ProcessingException e) {
-                    throw processingException(memberElement, e);
                 } catch (Exception e) {
+                    // ProcessingException is a RuntimeException and needs no separate clause.
                     throw processingException(memberElement, e);
                 }
             }

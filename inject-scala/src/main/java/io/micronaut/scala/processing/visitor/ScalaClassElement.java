@@ -351,14 +351,38 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             return Optional.empty();
         }
         if (classData.enumType()) {
-            return classData.methods().stream()
-                .filter(method -> "valueOf".equals(method.name()))
-                .filter(method -> method.parameters().size() == 1)
-                .filter(method -> String.class.getName().equals(method.parameters().get(0).type().name()))
-                .findFirst()
-                .map(this::methodElement);
+            return enumValueOfMethod();
         }
         return Optional.of(constructorElement(classData.constructors().get(0)));
+    }
+
+    /**
+     * The enum's value lookup method, validated the way Core's {@code BeanIntrospectionWriter}
+     * validates it: static, non-private, exactly one {@code String}/{@code CharSequence} parameter,
+     * and a return type assignable to the enum. Core turns an ill-formed method into a
+     * ProcessingException raised from deep inside the introspection writer, so rejecting it here
+     * instead means such a method is simply not a candidate.
+     *
+     * @return The lookup method, if the enum declares a valid one
+     */
+    final Optional<MethodElement> enumValueOfMethod() {
+        if (classData == null) {
+            return Optional.empty();
+        }
+        return classData.methods().stream()
+            .filter(method -> "valueOf".equals(method.name()))
+            .filter(method -> method.modifiers().contains(ElementModifier.STATIC))
+            .filter(method -> !method.modifiers().contains(ElementModifier.PRIVATE))
+            .filter(method -> method.parameters().size() == 1)
+            .filter(method -> {
+                String parameterType = method.parameters().get(0).type().name();
+                return String.class.getName().equals(parameterType)
+                    || CharSequence.class.getName().equals(parameterType);
+            })
+            .map(this::methodElement)
+            .filter(method -> method.getReturnType().isAssignable(this))
+            .findFirst()
+            .map(MethodElement.class::cast);
     }
 
     @Override
