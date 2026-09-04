@@ -1,0 +1,10 @@
+io.micronaut.scala.processing.test.ScalaAnnotatingVisitor
+io.micronaut.scala.processing.test.ScalaBeanElementBuilderVisitor
+io.micronaut.scala.processing.test.ScalaClassElementCaptureVisitor
+io.micronaut.scala.processing.test.ScalaElementMutationVisitor
+io.micronaut.scala.processing.test.ScalaEnumConstantCaptureVisitor
+io.micronaut.scala.processing.test.ScalaExpressionContextRegistrar
+io.micronaut.scala.processing.test.ScalaHighOrderVisitor
+io.micronaut.scala.processing.test.ScalaLowOrderVisitor
+io.micronaut.scala.processing.test.ScalaTypeElementQueryVisitor
+io.micronaut.scala.processing.test.ScalaVisitorContextCaptureVisitor

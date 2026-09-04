@@ -1,4 +1,4 @@
-# Contributing Code or Documentation to Micronaut
+# Contributing Code or Documentation to Micronaut Scala
 
 Sign the [Contributor License Agreement (CLA)](https://cla-assistant.io/micronaut-projects/micronaut-scala). This is required before any of your code or pull requests are accepted.
 
@@ -8,15 +8,15 @@ If you are interested in contributing to Micronaut and are looking for issues to
 
 ## JDK Setup
 
-Micronaut scala currently requires JDK 25.
+Micronaut Scala currently requires JDK 25.
 
 ## IDE Setup
 
-Micronaut scala can be imported into IntelliJ IDEA by opening the `build.gradle` file.
+Micronaut Scala can be imported into IntelliJ IDEA by opening the `build.gradle` file.
 
 ## Docker Setup
 
-Micronaut scala tests currently require Docker to be installed.
+The parity tests currently require Docker to be installed.
 
 ## Running Tests
 
@@ -26,7 +26,7 @@ To run the tests, use `./gradlew check`.
 
 The documentation sources are located at `src/main/docs/guide`.
 
-To build the documentation, run `./gradlew publishGuide` (or `./gradlew pG`), then open `build/docs/index.html`.
+To build the documentation, run `./gradlew publishGuide` (or `./gradlew pG`), then open `build/working/02-docs-raw/all/index.html`.
 
 To also build the Javadocs, run `./gradlew docs`.
 
@@ -34,13 +34,29 @@ To also build the Javadocs, run `./gradlew docs`.
 
 If you use IntelliJ IDEA, you can import the project using the IntelliJ Gradle Tooling ("File / Import Project" and selecting the `settings.gradle` file).
 
-To get a local development version of Micronaut scala working, first run the `publishToMavenLocal` task.
+To develop against the Core SPI branch, use IncludeGit with a local Core checkout:
 
 ```
-./gradlew pTML
+./gradlew check -Plocal.git.micronaut-core=/path/to/micronaut-core
 ```
 
-You can then reference the version specified with `projectVersion` in `gradle.properties` in a test project's `build.gradle` or `pom.xml`. If you use Gradle, add the `mavenLocal` repository (Maven automatically does this):
+The remote Core branch include is opt-in with `-PincludeMicronautCore=true`. A
+released build must use a released Core version containing the SPI before the
+Micronaut Scala `1.0.0` release.
+
+The compiler plugin is coupled to the full Scala compiler version. Keep
+`_3.9.0` in the initial artifact IDs and use `CrossVersion.full` in sbt or
+the full-cross `:::` form in Mill. Do not assume a plugin compiled for one
+Scala compiler release is binary compatible with another.
+
+If you need to test a locally published snapshot in another project, run:
+
+```
+./gradlew publishToMavenLocal
+```
+
+Then reference the version specified by `projectVersion` in `gradle.properties`.
+If you use Gradle, add the `mavenLocal` repository (Maven automatically does this):
 
 ```
 repositories {

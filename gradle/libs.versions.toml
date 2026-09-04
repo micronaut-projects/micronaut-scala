@@ -1,50 +1,87 @@
-#
-# This file is used to declare the list of libraries
-# which are used as dependencies in the project.
-# See https://docs.gradle.org/7.4.2/userguide/platforms.html#sub:central-declaration-of-dependencies
-#
-# For Micronaut, we have 3 kinds of dependencies:
-#   - managed dependencies, which are exposed to consumers via a BOM (or version catalog)
-#   - managed BOMs, which are imported into the BOM that we generate
-#   - all other dependencies, which are implementation details
-#
-# If a library needs to appear in the BOM of the project, then it must be
-# declared with the "managed-" prefix.
-# If a BOM needs to be imported in the BOM of the project, then it must be
-# declared with the "boms-" prefix.
-# Both managed dependencies and BOMs need to have their version declared via
-# a managed version (a version which alias starts with "managed-"
-
 [versions]
-micronaut = "5.1.11"
-micronaut-docs = "3.0.0"
-micronaut-test = "4.6.2"
-groovy = "4.0.24"
-spock = "2.3-groovy-4.0"
+asm = "9.10.1"
+caffeine = "2.9.3"
+scala3 = "3.9.0"
+micronaut-core = "5.2.0-SNAPSHOT"
 
-# Managed versions appear in the BOM
-# managed-somelib = "1.0"
-# managed-somebom = "1.1"
+geb = "7.0"
+htmlunit = "2.70.0"
+htmlsanitycheck = "1.1.6"
+japicmp-gradle-plugin="0.4.6"
+junit-platform="1.12.2"
+micronaut-test = "5.1.0"
+micronaut-validation = "5.1.0"
+native-gradle-plugin = "0.11.4"
+selenium = "4.27.0"
+slf4j = "2.0.17"
+spock = "2.4-groovy-5.0"
+tomlj="1.1.1"
+errorprone-gradle-plugin = "4.4.0"
+nullaway = "0.13.8"
+error_prone_core = "2.48.0"
+
+#
+# Versions which start with managed- are managed by Micronaut in the sense
+# that they will appear in the Micronaut BOM as <properties>
+#
+# be sure to update graal version in gradle.properties as well
+managed-graal = "25.0.3"
+managed-groovy = "5.0.8"
+sonatype-scan = "3.1.5"
+micronaut-docs = "3.0.0"
 
 [libraries]
-# Core
-micronaut-core = { module = 'io.micronaut:micronaut-core-bom', version.ref = 'micronaut' }
+test-boms-micronaut-validation = { module = "io.micronaut.validation:micronaut-validation-bom", version.ref = "micronaut-validation" }
+asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
 
-#
-# Managed dependencies appear in the BOM
-#
-# managed-somelib = { module = "group:artifact", version.ref = "managed-somelib" }
+managed-graalvm-nativeimage = { module = "org.graalvm.sdk:nativeimage", version.ref = "managed-graal" }
+managed-groovy = { module = "org.apache.groovy:groovy", version.ref = "managed-groovy" }
 
-#
-# Imported BOMs, also appearing in the generated BOM
-#
-# boms-somebom = { module = "com.foo:somebom", version.ref = "managed-somebom" }
+scala3-compiler = { module = "org.scala-lang:scala3-compiler_3", version.ref = "scala3" }
+scala3-library = { module = "org.scala-lang:scala3-library_3", version.ref = "scala3" }
+micronaut-core-processor = { module = "io.micronaut:micronaut-core-processor", version.ref = "micronaut-core" }
+micronaut-context = { module = "io.micronaut:micronaut-context", version.ref = "micronaut-core" }
+micronaut-retry = { module = "io.micronaut:micronaut-retry", version.ref = "micronaut-core" }
+micronaut-http = { module = "io.micronaut:micronaut-http", version.ref = "micronaut-core" }
 
-# Other libraries used by the project but non managed
+sonatype-scan = { module = "org.sonatype.gradle.plugins:scan-gradle-plugin", version.ref = "sonatype-scan" }
 
-# micronaut-bom = { module = "io.micronaut:micronaut-bom", version.ref = "micronaut" }
-# jdoctor = { module = "me.champeau.jdoctor:jdoctor-core", version.ref="jdoctor" }
+caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 
-[bundles]
+geb-spock = { module = "org.gebish:geb-spock", version.ref = "geb" }
+groovy-test-junit5 = { module = "org.apache.groovy:groovy-test-junit5", version.ref = "managed-groovy" }
 
-[plugins]
+htmlunit = { module = "net.sourceforge.htmlunit:htmlunit", version.ref = "htmlunit" }
+htmlsanitycheck = { module = "org.aim42:htmlSanityCheck", version.ref = "htmlsanitycheck"}
+japicmp-gradle-plugin = { module = "me.champeau.gradle:japicmp-gradle-plugin", version.ref = "japicmp-gradle-plugin"}
+
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
+
+micronaut-docs = { module = "io.micronaut.docs:micronaut-docs-asciidoc-config-props", version.ref = "micronaut-docs" }
+micronaut-test-core = { module = "io.micronaut.test:micronaut-test-core", version.ref = "micronaut-test" }
+micronaut-test-junit5 = { module = "io.micronaut.test:micronaut-test-junit5", version.ref = "micronaut-test" }
+micronaut-test-kotest5 = { module = "io.micronaut.test:micronaut-test-kotest5", version.ref = "micronaut-test" }
+micronaut-test-spock = { module = "io.micronaut.test:micronaut-test-spock", version.ref = "micronaut-test" }
+
+native-gradle-plugin = { module = "org.graalvm.buildtools.native:org.graalvm.buildtools.native.gradle.plugin", version.ref = "native-gradle-plugin"}
+
+selenium-remote-driver = { module = "org.seleniumhq.selenium:selenium-remote-driver", version.ref = "selenium" }
+selenium-api = { module = "org.seleniumhq.selenium:selenium-api", version.ref = "selenium" }
+selenium-support = { module = "org.seleniumhq.selenium:selenium-support", version.ref = "selenium" }
+selenium-driver-chrome = { module = "org.seleniumhq.selenium:selenium-chrome-driver", version.ref = "selenium" }
+selenium-driver-firefox = { module = "org.seleniumhq.selenium:selenium-firefox-driver", version.ref = "selenium" }
+selenium-driver-htmlunit = { module = "org.seleniumhq.selenium:htmlunit-driver", version.ref = "selenium" }
+
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+
+spock = { module = "org.spockframework:spock-core", version.ref = "spock" }
+
+tomlj = { module = "org.tomlj:tomlj", version.ref="tomlj"}
+
+micronaut-validation = { module = "io.micronaut.validation:micronaut-validation" }
+micronaut-validation-processor = { module = "io.micronaut.validation:micronaut-validation-processor" }
+
+nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
+error-prone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "error_prone_core" }
+
+gradle-errorprone = { module = "net.ltgt.errorprone:net.ltgt.errorprone.gradle.plugin", version.ref = "errorprone-gradle-plugin"}

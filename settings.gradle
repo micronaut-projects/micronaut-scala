@@ -6,16 +6,52 @@ pluginManagement {
 }
 
 plugins {
+    id 'me.champeau.includegit' version '0.3.2'
     id 'io.micronaut.build.shared.settings' version '8.0.1'
 }
 
-rootProject.name = 'project-template-parent'
+def localCore = providers.gradleProperty('local.git.micronaut-core')
+    .orElse(providers.environmentVariable('LOCAL_GIT_MICRONAUT_CORE'))
+def includeCore = providers.gradleProperty('includeMicronautCore')
+    .orElse(providers.environmentVariable('INCLUDE_MICRONAUT_CORE'))
+    .map { it.toBoolean() }
+    .orElse(localCore.map { true })
+    .getOrElse(false)
 
-include 'project-template'
-include 'project-template-bom'
+if (includeCore) {
+    if (localCore.isPresent()) {
+        includeBuild(file(localCore.get()))
+    } else {
+        gitRepositories {
+            include('micronaut-core') {
+                uri = 'https://github.com/micronaut-projects/micronaut-core.git'
+                branch = providers.gradleProperty('micronautCoreBranch').orElse('5.2.x').get()
+            }
+        }
+    }
+}
 
-enableFeaturePreview 'TYPESAFE_PROJECT_ACCESSORS'
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'micronaut-scala-parent'
+
+include 'inject-scala'
+include 'inject-scala-compiler'
+include 'inject-scala-test'
+include 'inject-scala-test-compiler'
+include 'micronaut-scala-bom'
+
+// The compiler plugin API is not binary compatible across compiler releases, so
+// the published Maven coordinates are fully crossed with the Scala version (see
+// the `pluginArtifactId`/`testArtifactId` values in the compiler subprojects).
+// The Gradle project names deliberately stay version-free: Core enables
+// TYPESAFE_PROJECT_ACCESSORS, which applies to the whole composite and rejects
+// any project name containing a dot.
 
 micronautBuild {
-    importMicronautCatalog()
+    useStandardizedProjectNames = true
 }
