@@ -2,20 +2,20 @@
 
 # Micronaut Scala
 
-[![Maven Central](https://img.shields.io/maven-central/v/io.micronaut.scala/micronaut-inject-scala_3.3.8.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.micronaut.scala/micronaut-inject-scala_3.3.8)
+[![Maven Central](https://img.shields.io/maven-central/v/io.micronaut.scala/micronaut-inject-scala_3.9.0.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.micronaut.scala/micronaut-inject-scala_3.9.0)
 [![Build Status](https://github.com/micronaut-projects/micronaut-scala/actions/workflows/gradle.yml/badge.svg)](https://github.com/micronaut-projects/micronaut-scala/actions/workflows/gradle.yml)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=micronaut-projects_micronaut-scala&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=micronaut-projects_micronaut-scala)
 [![Revved up by Develocity](https://img.shields.io/badge/Revved%20up%20by-Develocity-06A0CE?logo=Gradle&labelColor=02303A)](https://ge.micronaut.io/scans)
 
 Micronaut Scala contains the Scala 3 compiler plugin and its parity test
-harness. The initial supported compiler release is Scala 3.3.8.
+harness. The initial supported compiler release is Scala 3.9.0.
 
 Compiler-plugin APIs are not binary compatible across all Scala compiler
 releases. The complete compiler version is therefore part of the artifact
 coordinates:
 
-* `io.micronaut.scala:micronaut-inject-scala_3.3.8`
-* `io.micronaut.scala:micronaut-inject-scala-test_3.3.8`
+* `io.micronaut.scala:micronaut-inject-scala_3.9.0`
+* `io.micronaut.scala:micronaut-inject-scala-test_3.9.0`
 
 The Micronaut Scala version is independent of the Micronaut Core version.
 
@@ -75,4 +75,4 @@ Releases are completely automated. To perform a release use the following steps:
 
 Each compiler-plugin release must retain the full Scala compiler suffix. For
 example, support for another compiler release adds a parallel artifact instead
-of replacing `micronaut-inject-scala_3.3.8`.
+of replacing `micronaut-inject-scala_3.9.0`.

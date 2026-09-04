@@ -10,9 +10,9 @@ Scala compiler APIs are not a binary-compatible API surface. Every compiler
 plugin publication therefore targets one exact Scala compiler release and uses
 the full compiler suffix. The initial line is:
 
-* Scala compiler: `3.3.8`
-* plugin: `io.micronaut.scala:micronaut-inject-scala_3.3.8`
-* test support: `io.micronaut.scala:micronaut-inject-scala-test_3.3.8`
+* Scala compiler: `3.9.0`
+* plugin: `io.micronaut.scala:micronaut-inject-scala_3.9.0`
+* test support: `io.micronaut.scala:micronaut-inject-scala-test_3.9.0`
 
 When a later Scala release is supported, add a parallel source-compiling
 variant and publication. Do not replace or republish the existing artifact

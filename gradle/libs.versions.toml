@@ -9,7 +9,7 @@ bytebuddy = "1.18.12"
 caffeine = "2.9.3"
 classgraph = "4.8.192"
 compile-testing = "0.21.0"
-scala3 = "3.3.8"
+scala3 = "3.9.0"
 micronaut-core = "5.2.0-SNAPSHOT"
 
 geb = "7.0"

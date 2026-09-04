@@ -8,6 +8,6 @@ together. A `1.0.0` release is published only after a released Micronaut Core
 version contains the required SPI.
 
 Each Scala compiler-plugin release remains coupled to its full Scala compiler
-version. For example, Scala 3.3.8 uses
-`micronaut-inject-scala_3.3.8`; future compiler releases receive parallel
+version. For example, Scala 3.9.0 uses
+`micronaut-inject-scala_3.9.0`; future compiler releases receive parallel
 artifacts rather than replacing this coordinate.

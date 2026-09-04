@@ -4,13 +4,13 @@ application.
 
 == Gradle
 
-For Scala 3.3.8, add the following plugin artifact to the Scala compiler
+For Scala 3.9.0, add the following plugin artifact to the Scala compiler
 plugin configuration and runtime dependencies:
 
 [source,kotlin]
 ----
-scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.3.8:1.0.0-SNAPSHOT")
-runtimeOnly("io.micronaut.scala:micronaut-inject-scala_3.3.8:1.0.0-SNAPSHOT")
+scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
+runtimeOnly("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
 ----
 
 Use a released Micronaut Scala version in published applications. During
@@ -31,7 +31,7 @@ runtime dependency declarations:
 ----
 <dependency>
   <groupId>io.micronaut.scala</groupId>
-  <artifactId>micronaut-inject-scala_3.3.8</artifactId>
+  <artifactId>micronaut-inject-scala_3.9.0</artifactId>
   <version>1.0.0-SNAPSHOT</version>
 </dependency>
 ----
@@ -45,7 +45,7 @@ version independently from the Scala compiler version.
 
 == Compiler compatibility
 
-Do not replace `_3.3.8` with a binary Scala line suffix. Compiler plugin APIs
+Do not replace `_3.9.0` with a binary Scala line suffix. Compiler plugin APIs
 can change between compiler releases, so a plugin built for one full compiler
 version must not be assumed to work with another. See the
 https://docs.scala-lang.org/overviews/plugins/index.html#binary-compatibility-of-compiler-plugins[Scala compiler-plugin binary-compatibility guidance].

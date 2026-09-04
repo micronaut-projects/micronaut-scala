@@ -45,7 +45,7 @@ released build must use a released Core version containing the SPI before the
 Micronaut Scala `1.0.0` release.
 
 The compiler plugin is coupled to the full Scala compiler version. Keep
-`_3.3.8` in the initial artifact IDs and use `CrossVersion.full` in sbt or
+`_3.9.0` in the initial artifact IDs and use `CrossVersion.full` in sbt or
 the full-cross `:::` form in Mill. Do not assume a plugin compiled for one
 Scala compiler release is binary compatible with another.
 
