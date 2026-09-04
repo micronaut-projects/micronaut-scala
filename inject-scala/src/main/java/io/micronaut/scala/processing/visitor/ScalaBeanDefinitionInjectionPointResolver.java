@@ -62,10 +62,7 @@ final class ScalaBeanDefinitionInjectionPointResolver implements BeanDefinitionI
         }
         if (isInjectableScalaMap(requestedType)) {
             ClassElement objectType = visitorContext.getClassElement(Object.class).orElseThrow();
-            ClassElement beanValueType = requestedType.getTypeArguments().values().stream()
-                .skip(1)
-                .findFirst()
-                .orElse(objectType);
+            ClassElement beanValueType = requestedType.getTypeArguments().getOrDefault("V", objectType);
             return Optional.of(new BeanDefinitionInjectionPoint.MapOfBeansInjectionPoint<>(
                 requestedType,
                 annotationMetadata,
@@ -106,7 +103,7 @@ final class ScalaBeanDefinitionInjectionPointResolver implements BeanDefinitionI
             return false;
         }
         Map<String, ClassElement> typeArguments = type.getTypeArguments();
-        ClassElement keyType = typeArguments.values().stream().findFirst().orElse(null);
+        ClassElement keyType = typeArguments.get("K");
         return keyType != null && keyType.isAssignable(CharSequence.class);
     }
 }
