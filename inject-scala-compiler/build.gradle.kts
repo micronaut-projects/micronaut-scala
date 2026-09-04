@@ -10,12 +10,18 @@ plugins {
 
 val scalaVersion = libs.versions.scala3.get()
 val pluginArtifactId = "micronaut-inject-scala_$scalaVersion"
+val pluginModuleId = "io.micronaut.scala:$pluginArtifactId"
 
 description = "Micronaut Scala compiler plugin for Scala $scalaVersion"
 
 micronautBuild {
     core {
         usesMicronautTest()
+    }
+    descriptor {
+        // This is the root published module for this standalone repository.
+        // Micronaut Build treats a self-parent as having no parent module.
+        parentModuleId = pluginModuleId
     }
     binaryCompatibility.enabledAfter("1.0.0")
 }

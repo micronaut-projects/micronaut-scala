@@ -7,12 +7,16 @@ plugins {
 }
 
 val scalaVersion = libs.versions.scala3.get()
+val pluginArtifactId = "micronaut-inject-scala_$scalaVersion"
 val testArtifactId = "micronaut-inject-scala-test_$scalaVersion"
 val scalaPluginProject = project(":micronaut-inject-scala-compiler")
 
 description = "Micronaut Scala compiler-plugin tests for Scala $scalaVersion"
 
 micronautBuild {
+    descriptor {
+        parentModuleId = "io.micronaut.scala:$pluginArtifactId"
+    }
     binaryCompatibility.enabledAfter("1.0.0")
 }
 
