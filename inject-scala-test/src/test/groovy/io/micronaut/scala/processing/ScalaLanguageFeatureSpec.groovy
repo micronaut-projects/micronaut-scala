@@ -130,4 +130,23 @@ class Secondary(val name: String) {
         element.getEnclosedElements(ElementQuery.of(ConstructorElement)).size() == 2
         element.defaultConstructor.isPresent()
     }
+
+    void "test by-name constructor parameter is modelled as its JVM type"() {
+        given:
+        ClassElement element = buildClassElement('test.ByName', '''
+package test
+
+import jakarta.inject.Singleton
+
+@Singleton
+class ByName(value: => String)
+''')
+
+        expect:
+        element != null
+        element.primaryConstructor.isPresent()
+        def parameter = element.primaryConstructor.get().parameters[0]
+        parameter.type.name == 'scala.Function0'
+        parameter.type.firstTypeArgument.get().name == 'java.lang.String'
+    }
 }

@@ -26,6 +26,7 @@ import dotty.tools.dotc.core.Types.AnnotatedType
 import dotty.tools.dotc.core.Types.AndType
 import dotty.tools.dotc.core.Types.AppliedType
 import dotty.tools.dotc.core.Types.ConstantType
+import dotty.tools.dotc.core.Types.ExprType
 import dotty.tools.dotc.core.Types.MethodType
 import dotty.tools.dotc.core.Types.OrType
 import dotty.tools.dotc.core.Types.Type
@@ -789,7 +790,7 @@ private object ScalaModelExtractor:
       !hasFlag(symbol, Flags.Method)
 
   private def parameterData(parameter: tpd.ValDef)(using Context, AnnotationDefaults): ScalaParameterData =
-    val parameterType = typeData(parameter.tpt)
+    val parameterType = byNameTypeData(parameter.tpt.tpe).getOrElse(typeData(parameter.tpt))
     val parameterAnnotations = annotations(parameter.symbol) ++ typeUseNullabilityAnnotations(parameterType)
     ScalaParameterData(
       parameter.name.toString,
@@ -799,13 +800,23 @@ private object ScalaModelExtractor:
     )
 
   private def parameterData(name: String, tpe: Type, nativeType: Object)(using Context, AnnotationDefaults): ScalaParameterData =
-    val parameterType = typeData(tpe)
+    val parameterType = byNameTypeData(tpe).getOrElse(typeData(tpe))
     ScalaParameterData(
       name,
       parameterType,
       typeUseNullabilityAnnotations(parameterType).asJava,
       nativeType
     )
+
+  // A Scala by-name parameter `x: => T` carries an `ExprType`, and `widenDealias` reduces that to
+  // `T`. The JVM signature of such a parameter is `scala.Function0[T]`, so reporting `T` would
+  // describe an argument type the generated bean definition cannot bind against the bytecode.
+  private def byNameTypeData(tpe: Type)(using Context, AnnotationDefaults): Option[ScalaTypeData] =
+    tpe match
+      case exprType: ExprType =>
+        Some(typeData(AppliedType(Symbols.requiredClassRef("scala.Function0"), List(exprType.resType))))
+      case _ =>
+        None
 
   private def typeData(tpe: Type)(using Context, AnnotationDefaults): ScalaTypeData =
     typeData(tpe, Set.empty)
