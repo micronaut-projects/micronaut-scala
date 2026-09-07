@@ -1589,11 +1589,17 @@ private object ScalaModelExtractor:
     }
     erased.toString
 
+  // `Flags.EnumValue` (`Enum | StableRealizable`) covers simple Scala enum cases and
+  // `Flags.EnumCase` (`Case | Enum`) the parameterised ones. Java enum constants are read by
+  // dotty's classfile parser, which translates `ACC_ENUM` to a bare `Enum` flag without
+  // `StableRealizable`, so `Flags.JavaEnumValue` never matches one; `Flags.JavaEnum`
+  // (`JavaDefined | Enum`) is the correct set, narrowed to term symbols so the enum class
+  // itself is not mistaken for one of its constants.
   private def isEnumConstant(symbol: Symbol)(using Context): Boolean =
     symbol != Symbols.NoSymbol &&
-      (hasFlag(symbol, Flags.EnumValue) ||
-        hasFlag(symbol, Flags.JavaEnumValue) ||
-        hasFlag(symbol, Flags.EnumCase))
+      (hasAllFlags(symbol, Flags.EnumValue) ||
+        (symbol.isTerm && hasAllFlags(symbol, Flags.JavaEnum)) ||
+        hasAllFlags(symbol, Flags.EnumCase))
 
   private def modifiers(symbol: Symbol)(using Context): Set[ElementModifier] =
     val modifiers = LinkedHashSet[ElementModifier]()
@@ -1611,7 +1617,7 @@ private object ScalaModelExtractor:
 
   private def isInterfaceSymbol(symbol: Symbol)(using Context): Boolean =
     symbol != Symbols.NoSymbol &&
-      (hasFlag(symbol, Flags.Trait) || (hasFlag(symbol, Flags.JavaDefined) && hasFlag(symbol, Flags.JavaInterface)))
+      (hasFlag(symbol, Flags.Trait) || hasAllFlags(symbol, Flags.JavaInterface))
 
   private def classSymbolForName(name: String)(using Context): Symbol =
     val symbol = Symbols.getClassIfDefined(name)
@@ -1644,3 +1650,12 @@ private object ScalaModelExtractor:
 
   private def hasFlag(symbol: Symbol, flag: Flags.FlagSet)(using Context): Boolean =
     symbol != Symbols.NoSymbol && symbol.denot.isOneOf(flag)
+
+  // Several `Flags.FlagSet` constants are conjunctions rather than unions:
+  // `JavaInterface = JavaDefined | NoInits | Trait`, `JavaEnumValue = JavaDefined | EnumValue`,
+  // `EnumValue = Enum | StableRealizable` and `EnumCase = Case | Enum`. `isOneOf` tests for a
+  // non-empty intersection, so testing those with `hasFlag` matches far too much: every
+  // `JavaDefined` symbol would satisfy `JavaInterface`, and every stable val would satisfy
+  // `EnumValue`. Conjunction sets must go through `isAllOf`, as dotty itself does.
+  private def hasAllFlags(symbol: Symbol, flags: Flags.FlagSet)(using Context): Boolean =
+    symbol != Symbols.NoSymbol && symbol.denot.isAllOf(flags)
