@@ -85,6 +85,29 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         this.elementFactory = visitorContext.getElementFactory();
     }
 
+    /**
+     * A source class element re-parameterised, or re-dimensioned, without losing its
+     * members. Copying through the {@code typeData}-only constructor drops
+     * {@code classData}, and with it every method, field and property.
+     */
+    private ScalaClassElement(
+        ScalaClassData classData,
+        ScalaTypeData typeData,
+        ScalaVisitorContext visitorContext,
+        AnnotationMetadata annotationMetadata) {
+        super(
+            classData.name(),
+            classData.nativeType(),
+            classData.modifiers(),
+            MutableAnnotationMetadata.of(annotationMetadata),
+            visitorContext.getScalaAnnotationMetadataBuilder()
+        );
+        this.visitorContext = visitorContext;
+        this.classData = classData;
+        this.typeData = typeData;
+        this.elementFactory = visitorContext.getElementFactory();
+    }
+
     ScalaClassElement(ScalaTypeData typeData, ScalaVisitorContext visitorContext, AnnotationMetadata annotationMetadata) {
         super(
             typeData.name(),
@@ -770,7 +793,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         if (arrayDimensions == getArrayDimensions()) {
             return this;
         }
-        return new ScalaClassElement(typeData.withArrayDimensions(arrayDimensions), visitorContext, getAnnotationMetadata());
+        return copy(typeData.withArrayDimensions(arrayDimensions), getAnnotationMetadata());
     }
 
     @Override
@@ -791,7 +814,46 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
 
     @Override
     public ClassElement withTypeArguments(Map<String, ClassElement> typeArguments) {
-        return this;
+        if (typeArguments == null || typeArguments.isEmpty()) {
+            return this;
+        }
+        // Micronaut calls this wherever it resolves generics -- `foldBoundGenericTypes`,
+        // factory return types, `AstBeanPropertiesUtils`. Returning `this` handed the
+        // caller back the unsubstituted type with no way to tell that nothing happened.
+        Map<String, ScalaTypeData> resolved = new LinkedHashMap<>();
+        typeArguments.forEach((name, element) -> resolved.put(name, typeDataOf(element)));
+        return copy(typeData.withTypeArguments(resolved), getAnnotationMetadata());
+    }
+
+    private ClassElement copy(ScalaTypeData newTypeData, AnnotationMetadata annotationMetadata) {
+        if (classData == null) {
+            return new ScalaClassElement(newTypeData, visitorContext, annotationMetadata);
+        }
+        return new ScalaClassElement(classData, newTypeData, visitorContext, annotationMetadata);
+    }
+
+    /**
+     * The {@link ScalaTypeData} behind a class element. Elements from outside this
+     * compilation carry no Scala type data, so a minimal one is built from the Element API
+     * itself; their native type is deliberately not borrowed, since only a dotty tree or
+     * symbol is usable as one.
+     */
+    private static ScalaTypeData typeDataOf(ClassElement element) {
+        if (element instanceof ScalaClassElement scalaClassElement) {
+            return scalaClassElement.typeData;
+        }
+        return new ScalaTypeData(
+            element.getName(),
+            element.isPrimitive(),
+            element.getArrayDimensions(),
+            element.isInterface(),
+            Map.of(),
+            null,
+            List.of(),
+            List.of(),
+            false,
+            null
+        );
     }
 
     @Override

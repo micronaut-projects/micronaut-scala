@@ -128,6 +128,18 @@ public record ScalaTypeData(
         this(name, primitive, arrayDimensions, interfaceType, typeArguments, null, Collections.emptyList());
     }
 
+    /**
+     * A copy of this type with its type arguments replaced. This is how a generic type is
+     * resolved against a concrete parameterisation.
+     *
+     * @param newTypeArguments The resolved type arguments
+     * @return The copy
+     */
+    public ScalaTypeData withTypeArguments(Map<String, ScalaTypeData> newTypeArguments) {
+        return new ScalaTypeData(name, primitive, arrayDimensions, interfaceType, newTypeArguments, superType, interfaces, annotations, annotatedTypeUse, nativeType,
+            genericPlaceholder, variableName, bounds, wildcard, upperBounds, lowerBounds);
+    }
+
     public ScalaTypeData withArrayDimensions(int dimensions) {
         return new ScalaTypeData(name, primitive, dimensions, interfaceType, typeArguments, superType, interfaces, annotations, annotatedTypeUse, nativeType, genericPlaceholder,
             variableName, bounds, wildcard, upperBounds, lowerBounds);
