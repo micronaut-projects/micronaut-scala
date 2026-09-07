@@ -36,6 +36,8 @@ import dotty.tools.dotc.plugins.StandardPlugin
 import dotty.tools.dotc.report
 import dotty.tools.dotc.transform.Pickler
 import dotty.tools.dotc.transform.PostTyper
+import dotty.tools.dotc.util.NoSourcePosition
+import dotty.tools.dotc.util.SrcPos
 import io.micronaut.inject.ast.ElementModifier
 import io.micronaut.inject.processing.ProcessingException
 import io.micronaut.scala.processing.visitor.ScalaAnnotationData
@@ -213,9 +215,9 @@ private final class ProcessingState(options: JMap[String, String]):
         outputDirectory,
         classpath.asJava,
         options,
-        message => report.inform(message),
-        message => report.warning(message),
-        message => report.error(message)
+        (message, element) => report.inform(message, sourcePosition(element)),
+        (message, element) => report.warning(message, sourcePosition(element)),
+        (message, element) => report.error(message, sourcePosition(element))
       )
       engine = current
     current
@@ -232,10 +234,22 @@ private final class ProcessingState(options: JMap[String, String]):
 
   private def reportProcessingException(exception: ProcessingException)(using Context): Unit =
     val message = exception.getMessage
+    val position = sourcePosition(exception.getOriginatingElement)
     if message != null && !message.isBlank then
-      report.error(message)
+      report.error(message, position)
     else
-      report.error(processingExceptionMessage(exception))
+      report.error(processingExceptionMessage(exception), position)
+
+  // Every extracted record keeps the dotty tree or symbol it came from as its native
+  // type, and both `Positioned` and `Symbol` are already `SrcPos`. Without this the
+  // whole diagnostic channel is just strings, so `report.error` falls back to
+  // `NoSourcePosition` and every Micronaut error -- `@Inject` on a final field, an
+  // invalid `@ConfigurationProperties`, any visitor `fail(...)` -- is printed with no
+  // file, line or caret.
+  private def sourcePosition(nativeType: Object | Null): SrcPos =
+    nativeType match
+      case position: SrcPos => position
+      case _ => NoSourcePosition
 
   private def processingExceptionMessage(exception: ProcessingException): String =
     val element = exception.getElement

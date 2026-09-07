@@ -57,7 +57,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * Executes Micronaut's visitor and bean-definition pipeline for Scala compiler data.
@@ -67,9 +67,9 @@ public final class ScalaProcessingEngine {
     private final File outputDirectory;
     private final Collection<File> classpath;
     private final Map<String, String> options;
-    private final Consumer<String> infoReporter;
-    private final Consumer<String> warningReporter;
-    private final Consumer<String> errorReporter;
+    private final BiConsumer<String, Object> infoReporter;
+    private final BiConsumer<String, Object> warningReporter;
+    private final BiConsumer<String, Object> errorReporter;
     private final Map<String, ScalaClassData> sourceClasses = new LinkedHashMap<>();
     private final Set<String> generatedBeanDefinitions = new HashSet<>();
     private final Set<String> visitedTypes = new HashSet<>();
@@ -89,9 +89,9 @@ public final class ScalaProcessingEngine {
         File outputDirectory,
         Collection<File> classpath,
         Map<String, String> options,
-        Consumer<String> infoReporter,
-        Consumer<String> warningReporter,
-        Consumer<String> errorReporter) {
+        BiConsumer<String, Object> infoReporter,
+        BiConsumer<String, Object> warningReporter,
+        BiConsumer<String, Object> errorReporter) {
         this.outputDirectory = outputDirectory;
         this.classpath = List.copyOf(classpath);
         this.options = Map.copyOf(options);
@@ -319,10 +319,11 @@ public final class ScalaProcessingEngine {
 
     private void reportProcessingException(ProcessingException exception) {
         String message = exception.getMessage();
+        Object originatingElement = exception.getOriginatingElement();
         if (message != null && !message.isBlank()) {
-            errorReporter.accept(message);
+            errorReporter.accept(message, originatingElement);
         } else {
-            errorReporter.accept(processingExceptionMessage(exception));
+            errorReporter.accept(processingExceptionMessage(exception), originatingElement);
         }
     }
 
@@ -336,7 +337,7 @@ public final class ScalaProcessingEngine {
             try {
                 visitor = definition.load();
             } catch (Throwable e) {
-                warningReporter.accept("TypeElementVisitor [" + definition.getName() + "] will be ignored due to loading error: " + exceptionMessage(e));
+                warningReporter.accept("TypeElementVisitor [" + definition.getName() + "] will be ignored due to loading error: " + exceptionMessage(e), null);
                 continue;
             }
             if (visitor == null || !visitor.isEnabled() || !meetsRequires(visitor)) {
@@ -365,7 +366,7 @@ public final class ScalaProcessingEngine {
         if (StringUtils.isEmpty(version) || VersionUtils.isAtLeastMicronautVersion(version)) {
             return true;
         }
-        warningReporter.accept("TypeElementVisitor [" + visitor.getClass().getName() + "] will be ignored because Micronaut version [" + VersionUtils.MICRONAUT_VERSION + "] must be at least " + version);
+        warningReporter.accept("TypeElementVisitor [" + visitor.getClass().getName() + "] will be ignored because Micronaut version [" + VersionUtils.MICRONAUT_VERSION + "] must be at least " + version, null);
         return false;
     }
 

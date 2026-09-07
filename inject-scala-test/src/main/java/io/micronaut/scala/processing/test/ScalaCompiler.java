@@ -292,6 +292,31 @@ public final class ScalaCompiler {
             .start();
     }
 
+    /**
+     * Compiles the source and returns every diagnostic the compiler produced, without
+     * failing on errors. A diagnostic's position is the point of this: an error reported
+     * against an element the visitor named should carry that element's file, line and
+     * column, not {@code NoSourcePosition}.
+     *
+     * @param className The class name
+     * @param source The source
+     * @return The warnings and errors, as {@code file:line:column: message} where a
+     *     position exists
+     */
+    public static Diagnostics buildAndGetDiagnostics(String className, String source) {
+        try {
+            Path workDirectory = Files.createTempDirectory("micronaut-scala-test");
+            registerForCleanup(workDirectory);
+            Path sourceDirectory = Files.createDirectories(workDirectory.resolve("src"));
+            Path outputDirectory = Files.createDirectories(workDirectory.resolve("classes"));
+            Path sourceFile = sourceDirectory.resolve(NameUtils.getSimpleName(className) + ".scala");
+            Files.writeString(sourceFile, source, StandardCharsets.UTF_8);
+            return runCompiler(outputDirectory, List.of(sourceFile), List.of(), false);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     static Compilation compile(String className, String source, Consumer<ClassElement> classElementConsumer) {
         return compile(className, source, List.of(), classElementConsumer);
     }
@@ -357,6 +382,14 @@ public final class ScalaCompiler {
     }
 
     private static List<String> compileSources(Path outputDirectory, List<Path> sourceFiles, List<String> compilerOptions) {
+        return runCompiler(outputDirectory, sourceFiles, compilerOptions, true).warnings();
+    }
+
+    private static Diagnostics runCompiler(
+        Path outputDirectory,
+        List<Path> sourceFiles,
+        List<String> compilerOptions,
+        boolean failOnError) {
         String classpath = System.getProperty("micronaut.scala.test.classpath");
         String pluginJar = System.getProperty("micronaut.scala.plugin.jar");
         if (classpath == null || pluginJar == null) {
@@ -376,11 +409,14 @@ public final class ScalaCompiler {
             arguments.add(sourceFile.toString());
         }
         Reporter reporter = Main.process(arguments.toArray(String[]::new));
-        List<String> warnings = formatDiagnostics(CollectionConverters.asJava(reporter.allWarnings()));
-        if (reporter.hasErrors()) {
+        Diagnostics diagnostics = new Diagnostics(
+            formatDiagnostics(CollectionConverters.asJava(reporter.allWarnings())),
+            formatDiagnostics(CollectionConverters.asJava(reporter.allErrors()))
+        );
+        if (failOnError && reporter.hasErrors()) {
             throw new IllegalStateException(errorMessage(reporter));
         }
-        return warnings;
+        return diagnostics;
     }
 
     private static String errorMessage(Reporter reporter) {
@@ -473,6 +509,15 @@ public final class ScalaCompiler {
         } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
             throw new IllegalStateException("Generated class [" + name + "] could not be instantiated", e);
         }
+    }
+
+    /**
+     * The diagnostics a compilation produced.
+     *
+     * @param warnings The formatted warnings
+     * @param errors The formatted errors
+     */
+    public record Diagnostics(List<String> warnings, List<String> errors) {
     }
 
     /**

@@ -51,7 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * Visitor context for Scala compiler plugin processing.
@@ -71,9 +71,9 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
     private final IdentityHashMap<Object, MutableAnnotationMetadata> elementAnnotationMetadata = new IdentityHashMap<>();
     private final List<AbstractBeanDefinitionBuilder> beanDefinitionBuilders = new ArrayList<>();
     private final Map<String, String> options;
-    private final Consumer<String> infoReporter;
-    private final Consumer<String> warningReporter;
-    private final Consumer<String> errorReporter;
+    private final BiConsumer<String, Object> infoReporter;
+    private final BiConsumer<String, Object> warningReporter;
+    private final BiConsumer<String, Object> errorReporter;
     private final ClassLoader classLoader;
     private TypeElementVisitor.VisitorKind visitorKind = TypeElementVisitor.VisitorKind.ISOLATING;
 
@@ -82,9 +82,9 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         Collection<ScalaClassData> sourceClasses,
         Collection<File> classpath,
         Map<String, String> options,
-        Consumer<String> infoReporter,
-        Consumer<String> warningReporter,
-        Consumer<String> errorReporter) {
+        BiConsumer<String, Object> infoReporter,
+        BiConsumer<String, Object> warningReporter,
+        BiConsumer<String, Object> errorReporter) {
         this.outputDirectory = outputDirectory;
         this.outputVisitor = new DirectoryClassWriterOutputVisitor(outputDirectory);
         this.options = options == null ? Collections.emptyMap() : Map.copyOf(options);
@@ -313,23 +313,34 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
 
     @Override
     public void info(String message, @Nullable Element element) {
-        infoReporter.accept(message);
+        infoReporter.accept(message, nativeTypeOf(element));
     }
 
     @Override
     public void info(String message) {
-        infoReporter.accept(message);
+        infoReporter.accept(message, null);
     }
 
     @Override
     public void fail(String message, @Nullable Element element) {
-        errorReporter.accept(message);
+        errorReporter.accept(message, nativeTypeOf(element));
         throw new ProcessingException(element, message);
     }
 
     @Override
     public void warn(String message, @Nullable Element element) {
-        warningReporter.accept(message);
+        warningReporter.accept(message, nativeTypeOf(element));
+    }
+
+    /**
+     * The element the caller blamed, reduced to the dotty tree or symbol it was built
+     * from. That is the only thing the compiler can turn back into a source position.
+     *
+     * @param element The element, or {@code null}
+     * @return The native type, or {@code null} when there is nothing to point at
+     */
+    private static @Nullable Object nativeTypeOf(@Nullable Element element) {
+        return element == null ? null : element.getNativeType();
     }
 
     @Override
