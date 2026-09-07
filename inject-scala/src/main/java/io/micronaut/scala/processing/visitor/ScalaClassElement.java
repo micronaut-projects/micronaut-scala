@@ -282,6 +282,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             .map(this::propertyElement)
             .filter(propertyElement -> matches(propertyElementQuery, propertyElement))
             .forEach(propertyElement -> properties.put(propertyElement.getName(), propertyElement));
+        collectInheritedProperties(propertyElementQuery, properties, new HashSet<>());
         AstBeanPropertiesUtils.resolveBeanProperties(
             propertyElementQuery,
             this,
@@ -294,6 +295,79 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             this::mapBeanPropertyElement
         ).forEach(propertyElement -> properties.putIfAbsent(propertyElement.getName(), propertyElement));
         return List.copyOf(properties.values());
+    }
+
+    /**
+     * Merges bean properties declared by source supertypes. Scala property accessors are filtered
+     * out of the extracted method list and re-attached as {@link ScalaPropertyData}, so
+     * {@link AstBeanPropertiesUtils} cannot rediscover an inherited property from its getter the
+     * way the Java implementation does. Without this, a property declared on a Scala superclass or
+     * on a trait (including a Scala 3 trait parameter) is invisible on the implementing class.
+     *
+     * @param propertyElementQuery The query
+     * @param properties The properties collected so far, keyed by name; declared properties win
+     * @param visited Guards against cycles in the type hierarchy
+     */
+    private void collectInheritedProperties(
+        PropertyElementQuery propertyElementQuery,
+        Map<String, PropertyElement> properties,
+        Set<String> visited) {
+        ScalaClassData data = classData;
+        if (data == null) {
+            return;
+        }
+        List<ScalaTypeData> supertypes = new ArrayList<>();
+        if (data.superType() != null) {
+            supertypes.add(data.superType());
+        }
+        supertypes.addAll(data.interfaces());
+        for (ScalaTypeData supertype : supertypes) {
+            if (!visited.add(supertype.name())) {
+                continue;
+            }
+            Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(supertype.name());
+            if (sourceElement.isEmpty()) {
+                continue;
+            }
+            ScalaClassElement inherited = sourceElement.get();
+            ScalaClassData inheritedData = inherited.classData;
+            if (inheritedData == null) {
+                continue;
+            }
+            Map<String, ScalaTypeData> substitutions = supertype.typeArguments();
+            inheritedData.properties().stream()
+                .map(property -> inherited.propertyElement(substitute(property, substitutions)))
+                .filter(propertyElement -> matches(propertyElementQuery, propertyElement))
+                .forEach(propertyElement -> properties.putIfAbsent(propertyElement.getName(), propertyElement));
+            inherited.collectInheritedProperties(propertyElementQuery, properties, visited);
+        }
+    }
+
+    /**
+     * Resolves a supertype's declared property against that supertype's type arguments, so a
+     * property declared as {@code T} on a generic parent is reported with the argument the subclass
+     * supplies. Only the property type is substituted: the accessor methods are re-resolved through
+     * the declaring element, which already substitutes them on the method path.
+     *
+     * @param property The inherited property
+     * @param substitutions The supertype's type arguments
+     * @return The resolved property
+     */
+    private ScalaPropertyData substitute(ScalaPropertyData property, Map<String, ScalaTypeData> substitutions) {
+        ScalaTypeData resolvedType = substitute(property.type(), substitutions);
+        if (substitutions.isEmpty() || resolvedType == null || resolvedType.equals(property.type())) {
+            return property;
+        }
+        return new ScalaPropertyData(
+            property.name(),
+            resolvedType,
+            property.readMethod(),
+            property.writeMethod(),
+            property.field(),
+            property.annotations(),
+            property.modifiers(),
+            property.nativeType()
+        );
     }
 
     private List<FieldElement> beanPropertyFields(Set<BeanProperties.AccessKind> accessKinds) {

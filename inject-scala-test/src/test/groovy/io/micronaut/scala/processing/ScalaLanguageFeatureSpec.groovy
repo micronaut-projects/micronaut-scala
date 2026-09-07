@@ -149,4 +149,40 @@ class ByName(value: => String)
         parameter.type.name == 'scala.Function0'
         parameter.type.firstTypeArgument.get().name == 'java.lang.String'
     }
+
+    void "test trait parameters are exposed on the implementing class"() {
+        given:
+        ClassElement element = buildClassElement('test.Impl', '''
+package test
+
+import io.micronaut.core.annotation.Introspected
+
+trait Base(val identifier: String)
+
+@Introspected
+class Impl extends Base("value")
+''')
+
+        expect:
+        element != null
+        element.beanProperties.any { it.name == 'identifier' }
+    }
+
+    void "test properties declared on a Scala superclass are inherited"() {
+        given:
+        ClassElement element = buildClassElement('test.Child', '''
+package test
+
+import io.micronaut.core.annotation.Introspected
+
+abstract class Parent(val parentName: String)
+
+@Introspected
+class Child(val childName: String) extends Parent("parent")
+''')
+
+        expect:
+        element != null
+        element.beanProperties*.name as Set == ['childName', 'parentName'] as Set
+    }
 }
