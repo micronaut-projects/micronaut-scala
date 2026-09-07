@@ -308,10 +308,31 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
     protected RetentionPolicy getRetentionPolicy(Object annotation) {
         AnnotationTypeElement annotationType = annotationType(annotationTypeName(annotation), annotation);
         ScalaAnnotationTypeData nativeType = annotationType.nativeType();
-        if (nativeType != null && nativeType.retentionPolicyName() != null) {
-            return RetentionPolicy.valueOf(nativeType.retentionPolicyName());
+        if (nativeType == null) {
+            return RetentionPolicy.RUNTIME;
         }
-        return RetentionPolicy.RUNTIME;
+        if (nativeType.retentionPolicyName() != null) {
+            try {
+                return RetentionPolicy.valueOf(nativeType.retentionPolicyName());
+            } catch (IllegalArgumentException e) {
+                // A retention that does not name a policy must not throw out of the compiler.
+                return defaultRetentionPolicy(nativeType);
+            }
+        }
+        return defaultRetentionPolicy(nativeType);
+    }
+
+    /**
+     * The retention of an annotation type that declares none.
+     *
+     * <p>For a Java annotation the JLS says {@code CLASS}. A Scala annotation -- a class
+     * extending {@code StaticAnnotation} -- is not a Java annotation type and has no JLS
+     * retention at all; it exists purely as compile-time metadata that Micronaut bakes into the
+     * generated bean definition, so treating it as {@code CLASS} would drop it. A
+     * {@code @Qualifier} declared that way simply stopped being a qualifier.
+     */
+    private static RetentionPolicy defaultRetentionPolicy(ScalaAnnotationTypeData nativeType) {
+        return nativeType.javaDefined() ? RetentionPolicy.CLASS : RetentionPolicy.RUNTIME;
     }
 
     @Override

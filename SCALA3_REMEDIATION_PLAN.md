@@ -409,8 +409,24 @@ plugin. `@Target` is captured nowhere at all — which matters more in Scala tha
 in Java, because Scala copies an annotation on a `val` onto the field, the getter
 and the constructor parameter unless meta-annotations restrict it.
 
-**Fix.** Default to `CLASS`, guard the `valueOf`, capture `targetNames` on
-`ScalaAnnotationTypeData` and filter by element kind in `getAnnotationsForType`.
+**Fix — retention done, `@Target` still open.** `valueOf` is guarded, and the
+default is now `CLASS` *for Java annotation types only*.
+
+Defaulting everything to `CLASS`, as the finding says, is wrong and breaks a real
+case: a Scala annotation is a class extending `StaticAnnotation`, not a Java
+annotation type, and has no JLS retention at all -- it exists purely as
+compile-time metadata that Micronaut bakes into the generated definition. Applying
+the JLS default to it made `@Qualifier class MyQualifier extends StaticAnnotation`
+stop being a qualifier, which the existing suite caught. `ScalaAnnotationTypeData`
+therefore carries `javaDefined`, and only Java annotation types get `CLASS`.
+
+Pinned by `ScalaRetentionSpec`, which asserts all three: a Java annotation with no
+retention is not written into the bean definition, one declaring `RUNTIME` is, and
+a Scala annotation with no retention still reaches the runtime.
+
+`@Target` is still not captured. That remains worth doing -- it matters more in
+Scala than in Java, because Scala copies an annotation on a `val` onto the field,
+the getter and the constructor parameter unless meta-annotations restrict it.
 
 ### A13 (MAJOR, confirmed) Field annotations are dropped when the getter has any annotation
 

@@ -1329,7 +1329,7 @@ private object ScalaModelExtractor:
     else
       val name = className(symbol)
       if visitedAnnotationTypes.contains(name) then
-        ScalaAnnotationTypeData(name, java.util.List.of(), java.util.Map.of(), null, null, symbol)
+        ScalaAnnotationTypeData(name, java.util.List.of(), java.util.Map.of(), null, null, hasFlag(symbol, Flags.JavaDefined), symbol)
       else
         val nextVisited = visitedAnnotationTypes + name
         val annotations = symbol.denot.annotations
@@ -1342,6 +1342,7 @@ private object ScalaModelExtractor:
           members,
           retentionPolicyName(annotations).orNull,
           repeatableContainerName(annotations).orNull,
+          hasFlag(symbol, Flags.JavaDefined),
           symbol
         )
 

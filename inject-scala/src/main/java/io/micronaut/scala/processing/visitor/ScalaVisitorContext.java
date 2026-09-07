@@ -184,6 +184,7 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
             members,
             annotationType.retentionPolicyName(),
             annotationType.repeatableContainerName(),
+            annotationType.javaDefined(),
             annotationType.nativeType()
         );
     }
