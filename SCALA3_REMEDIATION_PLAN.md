@@ -125,25 +125,29 @@ units — override `runOn(units)` rather than `run` — and make
 `processBeanDefinitions()` unconditionally ensure `processTypeVisitors()` has
 run first, so the ordering invariant cannot be violated by any future change.
 
-### A3 (BLOCKER, confirmed) State is not keyed per `Run`
+### A3 (WITHDRAWN -- not a defect) State is not keyed per `Run`
 
-`MicronautScalaCompilerPlugin.scala:180`
+This finding was wrong and no fix is needed. Re-checked against the 3.9.0
+compiler sources while implementing A2.
 
-```scala
-private var typeUnitsSeen = 0
-private var typeVisitorsProcessed = false
-private var beanDefinitionsProcessed = false
-```
+The claim was that plugin phase instances are memoised in `ContextBase`, so the
+`ProcessingState` booleans would already be `true` for the second `Run` that
+`Driver.finish` creates for macro-suspended units, and those units would be
+collected and silently discarded.
 
-Plugin phase instances are memoised in `ContextBase`, and `Driver.finish`
-re-runs macro-suspended units in a new `Run` against the same compiler. Both
-booleans are already `true` on that second run (as are the equivalents at
-`ScalaProcessingEngine.java:76`), so suspended units are collected and then
-silently discarded. Inline/macro expansion suspending a unit is ordinary in
-Scala 3; the test harness compiles one file per test and so never reaches this.
+What is memoised on `ContextBase` is the `Plugin` *instance* (`Plugins._plugins`),
+not the phases or their state. `Run.compileUnits` calls
+`ctx.base.addPluginPhases(...)` (`Run.scala:379`), which calls
+`plug.initialize(options)` -> `init(options)` on every run, and this plugin's
+`init` (`MicronautScalaCompilerPlugin.scala:73`) constructs a fresh
+`MicronautScalaPluginClassLoader`, a fresh `MicronautScalaCompilerPluginImpl` and
+therefore a fresh `ProcessingState` and `ScalaProcessingEngine` each time. The
+second `Run` starts clean.
 
-**Fix.** Key `ProcessingState` on `ctx.run` identity (or attach it to the `Run`),
-and reset the engine when a new run is observed.
+The genuine costs in this area are a new classloader and a fully reloaded
+Micronaut adapter per run -- see B4 (classloader leaks) and B6 (static caches),
+which remain open. The correction does not affect A2, which was confirmed and is
+fixed independently.
 
 ### A4 (BLOCKER, confirmed) `withTypeArguments` discards generics
 
@@ -1091,7 +1095,10 @@ limitations page.
   `ServiceLoader` over the compile classpath. This is a materially different mental
   model from javac/kapt and needs its own section. The build demonstrates it at
   `inject-scala-test-compiler/build.gradle.kts:55`.
-- The plugin jar is built `-release:17`; the build and tests only run on JDK 25.
+- The plugin jar targets Java 17; the build and tests only run on JDK 25. Note that
+  until this was fixed only the *Scala* sources honoured it -- `-release:17` was set
+  on `ScalaCompile` alone, and the 64 Java classes were emitted at class file
+  version 69, so the jar could not load on a Java 17 or 21 compiler at all.
 - Scala 2 is out of scope.
 
 ### E4 Target documentation set
@@ -1113,28 +1120,56 @@ system properties) · `limitations` (distilled from `DISABLED_TESTS.md` and B11/
 
 Each wave is independently mergeable and leaves the build green.
 
-### Wave 0 — make the build honest (prerequisite)
+### Wave 0 — make the build honest (prerequisite) — **done**
 
-1. Wire `verifyCompilerArtifacts` into `check` and CI; delete its two dead
-   assertions; add the four missing ones (D4).
-2. Add JDK 17 and 21 to the CI matrix (D6).
-3. Add `-PincludeMicronautCore=true` to the publishing workflows, or mark the
-   module unpublishable until Core is pinned (D1).
-4. Rewrite `AGENTS.md` for this repository; fix the `CONTRIBUTING.md` Docker and
-   `githubCoreBranch` claims; remove template residue from `README.md`,
-   `suppressions.xml` and `buildSrc` (D7).
+1. **Done.** `verifyCompilerArtifacts` is a dependency of `check`, the two dead
+   assertions are replaced with an input-side check on what the jar task actually
+   bundles, and the four missing assertions are in (D4). The service-descriptor
+   assertion failed on the first run: `DuplicatesStrategy.EXCLUDE` had been
+   dropping Core's `AnnotationConvertersRegistrar`,
+   `ReactiveTypeConverterRegistrar` and `ReactiveStreamsTypeInformationProvider`
+   from every plugin jar ever built, so the merge fix from D3 came forward into
+   the same commit.
+2. **Not possible as written; the underlying defect is fixed.** 17 and 21 cannot
+   be added to the CI matrix: `micronaut-gradle-plugins` 8.0.1 refuses to run on
+   anything below JVM 25, so the Gradle build cannot start there. The real
+   problem D6 pointed at turned out to be worse than a missing matrix entry --
+   `-release:17` was applied only to `ScalaCompile`, so 64 of the plugin's 87
+   classes were emitted at class file version 69 and the jar could not load on a
+   Java 17 or 21 compiler at all. `JavaCompile` now sets `options.release` to 17,
+   and `verifyCompilerArtifacts` reads the class file version of every entry.
+3. **Done, by refusing to publish.** Passing `-PincludeMicronautCore=true` to the
+   publishing workflows would have made them succeed while uploading POMs
+   declaring an unresolvable Core version, which is worse than the current
+   failure. A task-graph check now fails any Sonatype or Maven Central
+   publication while the Core version ends in `-SNAPSHOT`, naming the catalog
+   entry to change. `publishToMavenLocal` is unaffected (D1).
+4. **Done.** `AGENTS.md` is rewritten for the real repository; the
+   `CONTRIBUTING.md` Docker and `githubCoreBranch` claims are corrected, as is
+   the `TESTCONTAINERS_RYUK_DISABLED` env that expressed the Docker claim in CI;
+   the README checklist and Examples residue, the `doc-examples` checkstyle
+   suppression and `convention-base.gradle`'s micronaut-core spotless excludes
+   and `--enable-preview` are gone. `config/accepted-api-changes.json` now
+   exists, having been a declared japicmp input that did not. The unused
+   `convention-geb-base.gradle` and its eight catalog aliases are deleted (D7).
 
 Rationale: without this, later waves cannot tell a real regression from an
 already-broken guard.
 
 ### Wave 1 — confirmed correctness defects
 
-5. `hasAllFlags` and the four composite-flag call sites (A1), with a regression
-   test asserting a Scala class extending a Java class reports it as a super type.
-6. Drive the pipeline from `runOn` and key state per `Run` (A2, A3); make
-   `processBeanDefinitions` depend on `processTypeVisitors` having run.
-7. Widen the reporter to carry native elements and resolve `srcPos` (A8); extend
-   the harness to expose diagnostics with positions and warnings (C1).
+5. **Done** (`e55b469`). `hasAllFlags` and the four composite-flag call sites (A1).
+6. **Done.** Both phases now override `runOn`, which the compiler calls exactly
+   once per phase per run; the unit counter and the duplicated `processed`
+   booleans are gone, and `processBeanDefinitions` starts by calling the
+   idempotent `processTypeVisitors` so the ordering invariant lives in the engine
+   (A2). A3 needs no work -- see its section above, the state was never shared
+   across runs. Pinned by `ScalaPipelineOrderingSpec`.
+7. **Done.** The reporter channel is `BiConsumer<String, Object>` carrying the
+   native type, and the plugin resolves it to a `SrcPos` -- both `Positioned` and
+   `Symbol` already extend it (A8). `ScalaCompiler.buildAndGetDiagnostics` exposes
+   errors, which were previously observable only as a thrown exception. Pinned by
+   `ScalaDiagnosticPositionSpec`.
 8. Stop fabricating annotation values from printed tree text; report an error
    instead (A9). Remove the `classOf`-substring scan.
 9. `withTypeArguments` (A4), `overrides`/`hides` (A5).
