@@ -1171,7 +1171,7 @@ Each wave is independently mergeable and leaves the build green.
 Rationale: without this, later waves cannot tell a real regression from an
 already-broken guard.
 
-### Wave 1 — confirmed correctness defects
+### Wave 1 — confirmed correctness defects — **done**, except A6's classpath half
 
 5. **Done** (`e55b469`). `hasAllFlags` and the four composite-flag call sites (A1).
 6. **Done.** Both phases now override `runOn`, which the compiler calls exactly
@@ -1185,8 +1185,11 @@ already-broken guard.
    `Symbol` already extend it (A8). `ScalaCompiler.buildAndGetDiagnostics` exposes
    errors, which were previously observable only as a thrown exception. Pinned by
    `ScalaDiagnosticPositionSpec`.
-8. Stop fabricating annotation values from printed tree text; report an error
-   instead (A9). Remove the `classOf`-substring scan.
+8. **Done.** Annotation values are read from the typed tree: class literals from
+   the `ClazzTag` constant on the tree's type, default arguments from the callee's
+   symbol name, anything else reported as an error at the argument position (A9).
+   Both `classOf`-substring scans and all three text-scanning helpers are gone.
+   Pinned by `ScalaAnnotationValueSpec`.
 9. **Done.** `withTypeArguments` (A4), `overrides`/`hides` (A5). Both copy paths on
    `ScalaClassElement` also stopped discarding the class's members. Pinned by
    `ScalaGenericsAndOverridesSpec`.
