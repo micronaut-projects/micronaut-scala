@@ -58,6 +58,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -220,24 +221,90 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         Class<T> elementType = result.getElementType();
         List<Element> elements = new ArrayList<>();
         if (elementType == ConstructorElement.class) {
-            Constructor<?>[] constructors = result.isOnlyDeclared() ? componentType.getDeclaredConstructors() : componentType.getConstructors();
-            Arrays.stream(constructors).map(this::constructorElement).forEach(elements::add);
+            // Constructors are never inherited, so the declared set is always the right one.
+            // `getConstructors()` would additionally have hidden the non-public ones.
+            Arrays.stream(componentType.getDeclaredConstructors()).map(this::constructorElement).forEach(elements::add);
         } else if (elementType == MethodElement.class) {
-            Method[] methods = result.isOnlyDeclared() ? componentType.getDeclaredMethods() : componentType.getMethods();
-            Arrays.stream(methods).map(this::methodElement).forEach(elements::add);
+            collectMethods(result, elements);
         } else if (elementType == FieldElement.class) {
-            Field[] fields = result.isOnlyDeclared() ? componentType.getDeclaredFields() : componentType.getFields();
-            Arrays.stream(fields).map(this::fieldElement).forEach(elements::add);
+            collectFields(result, elements);
         } else if (elementType == MemberElement.class) {
-            Field[] fields = result.isOnlyDeclared() ? componentType.getDeclaredFields() : componentType.getFields();
-            Method[] methods = result.isOnlyDeclared() ? componentType.getDeclaredMethods() : componentType.getMethods();
-            Arrays.stream(fields).map(this::fieldElement).forEach(elements::add);
-            Arrays.stream(methods).map(this::methodElement).forEach(elements::add);
+            collectFields(result, elements);
+            collectMethods(result, elements);
         }
         return elements.stream()
             .filter(element -> matches(result, element))
             .map(elementType::cast)
             .toList();
+    }
+
+    /**
+     * Walks the hierarchy with {@code getDeclaredMethods()} rather than using
+     * {@code getMethods()}.
+     *
+     * <p>{@code getMethods()} returns only *public* members, so protected, package-private
+     * and declared private methods were invisible on a classpath type, and it includes
+     * {@code java.lang.Object}'s methods, which the source path never produces -- so the two
+     * element kinds disagreed about what a class declares.
+     */
+    private <T extends Element> void collectMethods(ElementQuery.Result<T> result, List<Element> elements) {
+        Set<MethodKey> seen = new HashSet<>();
+        for (Class<?> current : hierarchy(result.isOnlyDeclared())) {
+            ClassElement declaring = declaringElement(current);
+            for (Method method : current.getDeclaredMethods()) {
+                if (method.isSynthetic() || !seen.add(new MethodKey(method.getName(), List.of(method.getParameterTypes())))) {
+                    continue;
+                }
+                elements.add(methodElement(method, declaring));
+            }
+        }
+    }
+
+    private <T extends Element> void collectFields(ElementQuery.Result<T> result, List<Element> elements) {
+        Set<String> seen = new HashSet<>();
+        for (Class<?> current : hierarchy(result.isOnlyDeclared())) {
+            ClassElement declaring = declaringElement(current);
+            for (Field field : current.getDeclaredFields()) {
+                // A field hides rather than overloads, so a name is enough to de-duplicate.
+                if (field.isSynthetic() || !seen.add(field.getName())) {
+                    continue;
+                }
+                elements.add(fieldElement(field, declaring));
+            }
+        }
+    }
+
+    /**
+     * The classes to take declared members from, nearest first. {@code java.lang.Object} is
+     * excluded: its members are not part of what a class declares, and the source path never
+     * reports them.
+     */
+    private List<Class<?>> hierarchy(boolean onlyDeclared) {
+        if (onlyDeclared) {
+            return List.of(componentType);
+        }
+        List<Class<?>> hierarchy = new ArrayList<>();
+        Set<Class<?>> visited = new HashSet<>();
+        collectHierarchy(componentType, hierarchy, visited);
+        return hierarchy;
+    }
+
+    private static void collectHierarchy(@Nullable Class<?> type, List<Class<?>> hierarchy, Set<Class<?>> visited) {
+        if (type == null || type == Object.class || !visited.add(type)) {
+            return;
+        }
+        hierarchy.add(type);
+        collectHierarchy(type.getSuperclass(), hierarchy, visited);
+        for (Class<?> interfaceType : type.getInterfaces()) {
+            collectHierarchy(interfaceType, hierarchy, visited);
+        }
+    }
+
+    private ClassElement declaringElement(Class<?> declaring) {
+        return declaring == componentType ? this : new ScalaLoadedClassElement(declaring, visitorContext);
+    }
+
+    private record MethodKey(String name, List<Class<?>> parameterTypes) {
     }
 
     @Override
@@ -308,18 +375,18 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         return new ScalaLoadedClassElement(type, visitorContext, annotationMetadata, typeArguments);
     }
 
-    private LoadedMethodElement methodElement(Method method) {
-        return new LoadedMethodElement(this, this, method, parameters(method), visitorContext, loadedMetadata(method.getName(), method, ClasspathAnnotationMetadataReader.methodAnnotations(method), visitorContext));
+    private LoadedMethodElement methodElement(Method method, ClassElement declaringType) {
+        return new LoadedMethodElement(this, declaringType, method, parameters(method), visitorContext, loadedMetadata(method.getName(), method, ClasspathAnnotationMetadataReader.methodAnnotations(method), visitorContext));
     }
 
     private LoadedConstructorElement constructorElement(Constructor<?> constructor) {
         return new LoadedConstructorElement(this, this, constructor, parameters(constructor), visitorContext, loadedMetadata("<init>", constructor, ClasspathAnnotationMetadataReader.constructorAnnotations(constructor), visitorContext));
     }
 
-    private LoadedFieldElement fieldElement(Field field) {
+    private LoadedFieldElement fieldElement(Field field, ClassElement declaringType) {
         return new LoadedFieldElement(
             this,
-            this,
+            declaringType,
             field,
             classElement(field.getType(), visitorContext),
             classElement(field.getGenericType(), field.getType(), visitorContext),

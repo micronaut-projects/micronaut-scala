@@ -582,9 +582,22 @@ the source path never produces; and `methodElement`/`fieldElement` pass
 `this, this` as owning *and* declaring type, so an inherited method reports the
 subclass as its declaring type, defeating inheritance and override logic.
 
-**Fix.** Walk the superclass/interface chain explicitly with `getDeclaredMethods()`/
-`getDeclaredFields()`, stop before `java.lang.Object`, and pass the real declaring
-element.
+**Fix — done.** The hierarchy is walked explicitly with `getDeclaredMethods()`/
+`getDeclaredFields()`, stopping before `java.lang.Object`, de-duplicating methods by
+name and erased parameter types and fields by name, and each element is given the
+class element that actually declares it. Constructors always use
+`getDeclaredConstructors()`, since constructors are not inherited and the previous
+non-declared branch was additionally hiding the non-public ones.
+
+Measured before and after on a two-level classpath fixture. Before: `ALL_METHODS`
+returned two of the four real methods plus eight `java.lang.Object` methods, all
+claiming the queried class as their declaring type; `ALL_FIELDS` returned *one*
+field -- the public inherited one -- omitting even the class's own private field,
+which is what made field injection on a classpath type impossible. After: all four
+methods with their real declaring types, no `Object` methods, and all four fields.
+
+Pinned by `ScalaClasspathEnumerationSpec`; all four cases fail against the previous
+code.
 
 ---
 
