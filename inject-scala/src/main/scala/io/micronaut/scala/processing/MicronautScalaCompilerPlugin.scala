@@ -18,6 +18,7 @@ package io.micronaut.scala.processing
 import dotty.tools.dotc.CompilationUnit
 import dotty.tools.dotc.ast.tpd
 import dotty.tools.dotc.core.Annotations.Annotation
+import dotty.tools.dotc.core.Constants
 import dotty.tools.dotc.core.Contexts.Context
 import dotty.tools.dotc.core.Flags
 import dotty.tools.dotc.core.Symbols
@@ -734,7 +735,7 @@ private object ScalaModelExtractor:
       case classValue: ScalaClassValueData =>
         Some(classValueTypeData(classValue.name()))
       case value: String if value.nonEmpty =>
-        Some(classValueTypeData(renderedClassLiteralValue(value).getOrElse(value)))
+        Some(classValueTypeData(value))
       case _ =>
         None
 
@@ -1300,6 +1301,11 @@ private object ScalaModelExtractor:
       .flatMap(annotation => annotationValue(annotation, "value"))
       .map(classValueName)
 
+  private val ConstructorDefaultGetterPrefix = "$lessinit$greater$default$"
+
+  /** A reference to an annotation constructor's default-argument getter. */
+  private final case class DefaultGetterReference(index: Int)
+
   private def annotationValue(annotation: ScalaAnnotationData, memberName: String): Option[Object] =
     annotation.values().asScala.collectFirst {
       case (key, value) if memberName.contentEquals(key) => value
@@ -1342,25 +1348,30 @@ private object ScalaModelExtractor:
     else if annotationType == null then
       val normalized = LinkedHashMap[String, Object]()
       values.asScala.foreach { case (key, value) =>
-        normalized.put(legacyPositionalAnnotationMemberName(key).getOrElse(key), value)
+        if defaultGetterReferenceIndex(value).isEmpty then
+          normalized.put(legacyPositionalAnnotationMemberName(key).getOrElse(key), value)
       }
       normalized
     else
       val normalized = LinkedHashMap[String, Object]()
       val memberNames = annotationType.members().keySet().asScala.toList
       values.asScala.foreach { case (key, value) =>
-        val defaultIndex = defaultGetterReferenceIndex(value, annotationType.name())
+        val defaultIndex = defaultGetterReferenceIndex(value)
         val memberName = defaultIndex
           .flatMap(index => memberNames.lift(index - 1))
           .orElse(positionalAnnotationMemberName(key, memberNames))
           .getOrElse(key)
-        val memberValue = defaultIndex
-          .map(_ => annotationType.members().get(memberName))
-          .filter(_ != null)
-          .map(_.defaultValue())
-          .filter(_ != null)
-          .getOrElse(value)
-        normalized.put(memberName, memberValue)
+        defaultIndex match
+          case None =>
+            normalized.put(memberName, value)
+          case Some(_) =>
+            // The member was not supplied. Its value is the annotation's own default, and
+            // if the annotation declares none there is no value to record -- storing the
+            // getter reference itself would put a synthetic method name into the metadata.
+            annotationType.members().asScala.get(memberName)
+              .map(_.defaultValue())
+              .filter(_ != null)
+              .foreach(defaultValue => normalized.put(memberName, defaultValue))
       }
       normalized
 
@@ -1379,24 +1390,44 @@ private object ScalaModelExtractor:
         case index => "value" + index
       }
 
-  private def defaultGetterReferenceIndex(value: Object, annotationName: String): Option[Int] =
+  private def defaultGetterReferenceIndex(value: Object): Option[Int] =
     value match
-      case rendered: String =>
-        val prefix = annotationName + ".$lessinit$greater$default$"
-        if rendered.startsWith(prefix) then
-          rendered.stripPrefix(prefix).toIntOption
-        else
-          None
-      case _ =>
+      case reference: DefaultGetterReference => Some(reference.index)
+      case _ => None
+
+  // Scala passes a call to the annotation constructor's default-argument getter for every
+  // member the author did not supply. That call is not a value -- the annotation's own
+  // declared default is -- so it is recognised from the callee's *symbol name*, which the
+  // compiler encodes stably, rather than from the printed form of the tree.
+  private def defaultGetterReference(tree: tpd.Tree)(using Context): Option[DefaultGetterReference] =
+    val symbol = tree.symbol
+    if symbol == Symbols.NoSymbol then
+      None
+    else
+      val name = symbol.name.toString
+      if name.startsWith(ConstructorDefaultGetterPrefix) then
+        name.stripPrefix(ConstructorDefaultGetterPrefix).toIntOption.map(DefaultGetterReference.apply)
+      else
         None
 
+  // Wrappers the typer adds around an annotation argument that carry no value of their
+  // own. Unwrapping them structurally is what lets the cases below stay exact.
+  private def unwrapAnnotationTree(tree: tpd.Tree): tpd.Tree =
+    tree match
+      case typed: tpd.Typed => unwrapAnnotationTree(typed.expr)
+      case inlined: tpd.Inlined => unwrapAnnotationTree(inlined.expansion)
+      case block: tpd.Block if block.stats.isEmpty => unwrapAnnotationTree(block.expr)
+      case _ => tree
+
   private def annotationValue(tree: tpd.Tree)(using Context, AnnotationDefaults): Object | Null =
-    arrayLiteralValues(tree)
-      .orElse(classLiteralValue(tree))
-      .orElse(nestedAnnotationValue(tree))
-      .orElse(typedConstantValue(tree))
+    val unwrapped = unwrapAnnotationTree(tree)
+    arrayLiteralValues(unwrapped)
+      .orElse(classLiteralValue(unwrapped))
+      .orElse(nestedAnnotationValue(unwrapped))
+      .orElse(typedConstantValue(unwrapped))
+      .orElse(defaultGetterReference(unwrapped))
       .getOrElse {
-        tree match
+        unwrapped match
           case literal: tpd.Literal =>
             annotationConstantValue(literal.const.value).orNull
           case select: tpd.Select if isEnumConstant(select.symbol) =>
@@ -1406,7 +1437,19 @@ private object ScalaModelExtractor:
           case ident: tpd.Ident if isEnumConstant(ident.symbol) =>
             ident.name.toString
           case _ =>
-            renderedClassLiteralValue(tree.show).map(name => classValueData(name)).getOrElse(tree.show)
+            // Previously this stored the compiler's *display string* for the argument, so
+            // `@Value(Foo.BAR)` -- where `BAR` is a plain `val`, which in Scala 3 has no
+            // `ConstantType` -- was baked into the bean definition as the literal text
+            // "Foo.BAR". Silently recording something that was never the author's value is
+            // worse than refusing, so say so, at the argument's own position.
+            report.error(
+              "Unsupported Scala annotation value: " + unwrapped.show +
+                ". Annotation members must be compile-time constants, class literals, enum " +
+                "constants, arrays or nested annotations. A plain `val` is not a constant in " +
+                "Scala 3; declare it `final val` to use it here.",
+              unwrapped.srcPos
+            )
+            null
       }
 
   private def typedConstantValue(tree: tpd.Tree)(using Context, AnnotationDefaults): Option[Object] =
@@ -1444,7 +1487,7 @@ private object ScalaModelExtractor:
   private def annotationConstantValue(value: Any)(using Context, AnnotationDefaults): Option[Object] =
     value match
       case null => None
-      case value: String => Some(renderedClassLiteralValue(value).map(name => classValueData(name)).getOrElse(value))
+      case value: String => Some(value)
       case value: java.lang.Boolean => Some(value)
       case value: java.lang.Byte => Some(value)
       case value: java.lang.Short => Some(value)
@@ -1470,10 +1513,7 @@ private object ScalaModelExtractor:
         None
 
   private def annotationArray(values: List[Object])(using Context, AnnotationDefaults): Object =
-    val normalized = values.map {
-      case value: String => renderedClassLiteralValue(value).map(name => classValueData(name)).getOrElse(value)
-      case value => value
-    }
+    val normalized = values
     if normalized.forall(_.isInstanceOf[String]) then
       normalized.map(_.asInstanceOf[String]).toArray[String]
     else if normalized.forall(_.isInstanceOf[ScalaAnnotationData]) then
@@ -1519,7 +1559,8 @@ private object ScalaModelExtractor:
         tree.tpe.classSymbol
 
   private def isClassOf(typeApply: tpd.TypeApply)(using Context): Boolean =
-    typeApply.args.nonEmpty && typeApply.fun.symbol != Symbols.NoSymbol && typeApply.fun.symbol.showFullName == "scala.Predef.classOf"
+    typeApply.args.nonEmpty && typeApply.fun.symbol != Symbols.NoSymbol &&
+      (typeApply.fun.symbol.showFullName == "scala.Predef.classOf" || typeApply.fun.symbol.name.toString == "classOf")
 
   private def annotationValuesFromArguments(
       arguments: List[tpd.Tree],
@@ -1527,7 +1568,24 @@ private object ScalaModelExtractor:
   )(using Context, AnnotationDefaults): JMap[String, Object] =
     normalizeAnnotationArgumentValues(annotationArgumentValues(arguments), annotationType)
 
+  // A class literal carries its referenced type in a `ClazzTag` constant on the tree's
+  // *type*, whatever tree shape it takes -- `classOf[Foo]` types as
+  // `ConstantType(Constant(Foo, ClazzTag))`. Reading it here is what makes recognising a
+  // class literal exact, where matching the callee symbol is not: the symbol of
+  // `classOf` reports its name as plain `classOf`, not `scala.Predef.classOf`.
+  private def classConstantType(tpe: Type)(using Context): Option[Type] =
+    tpe match
+      case constant: ConstantType if constant.value.tag == Constants.ClazzTag =>
+        Some(constant.value.typeValue)
+      case _ =>
+        None
+
   private def classLiteralValue(tree: tpd.Tree)(using Context, AnnotationDefaults): Option[ScalaClassValueData] =
+    classConstantType(tree.tpe)
+      .map(referenced => classValueData(classLiteralTypeName(referenced), referenced.classSymbol))
+      .orElse(classLiteralValueFromTree(tree))
+
+  private def classLiteralValueFromTree(tree: tpd.Tree)(using Context, AnnotationDefaults): Option[ScalaClassValueData] =
     tree match
       case typeApply: tpd.TypeApply if isClassOf(typeApply) =>
         val name = classLiteralTypeName(typeApply.args.head.tpe)
@@ -1539,7 +1597,7 @@ private object ScalaModelExtractor:
       case typeApply: tpd.TypeApply =>
         classLiteralValue(typeApply.fun)
       case _ =>
-        renderedClassLiteralValue(tree.show).map(name => classValueData(name))
+        None
 
   private def classValueData(name: String, fallback: Symbol = Symbols.NoSymbol)(using Context, AnnotationDefaults): ScalaClassValueData =
     val resolvedName = resolveClassLiteralName(name, fallback)
@@ -1555,8 +1613,7 @@ private object ScalaModelExtractor:
     val rawName = tpe.widenDealias match
       case applied: AppliedType if typeName(applied.tycon) != "scala.Array" => typeName(applied.tycon)
       case widened => typeName(widened)
-    val erasedName = renderedClassLiteralValue(rawName).getOrElse(rawName)
-    ScalaPrimitiveNames.getOrElse(erasedName, erasedName)
+    ScalaPrimitiveNames.getOrElse(rawName, rawName)
 
   private def resolveClassLiteralName(name: String, fallback: Symbol)(using Context): String =
     if fallback != Symbols.NoSymbol then
@@ -1590,46 +1647,6 @@ private object ScalaModelExtractor:
           if symbol != Symbols.NoSymbol then Some(className(symbol)) else None
         }
         .collectFirst { case Some(resolved) => resolved }
-
-  private def renderedClassLiteralValue(rendered: String): Option[String] =
-    val sanitized = rendered
-      .replaceAll("\u001B\\[[;\\d]*m", "")
-      .replaceAll("\\[[;\\d]*m", "")
-    val start = sanitized.indexOf("classOf")
-    val open = if start > -1 then sanitized.indexOf('[', start) else -1
-    val end = if open > -1 then matchingBracketIndex(sanitized, open) else -1
-    if start > -1 && open > start && end > open then
-      val rawName = eraseRenderedTypeArguments(sanitized.substring(open + 1, end))
-      val name = rawName
-        .replace('/', '.')
-        .replaceAll("[^A-Za-z0-9_.$]", "")
-      Some(ScalaClassLiteralAliases.getOrElse(name, name))
-    else
-      None
-
-  private def matchingBracketIndex(value: String, open: Int): Int =
-    var depth = 0
-    var index = open
-    while index < value.length do
-      value.charAt(index) match
-        case '[' => depth += 1
-        case ']' =>
-          depth -= 1
-          if depth == 0 then return index
-        case _ =>
-      index += 1
-    -1
-
-  private def eraseRenderedTypeArguments(value: String): String =
-    val erased = StringBuilder()
-    var depth = 0
-    value.foreach {
-      case '[' => depth += 1
-      case ']' if depth > 0 => depth -= 1
-      case character if depth == 0 => erased.append(character)
-      case _ =>
-    }
-    erased.toString
 
   // `Flags.EnumValue` (`Enum | StableRealizable`) covers simple Scala enum cases and
   // `Flags.EnumCase` (`Case | Enum`) the parameterised ones. Java enum constants are read by
