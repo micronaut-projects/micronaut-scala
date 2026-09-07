@@ -869,6 +869,10 @@ scalar converters.
   annotation type is unresolved (`:1331`).
 - `excludedHierarchyType` (`:653`) excludes only `Object` and `Enum`; add
   `scala.Any`, `scala.AnyRef`, `scala.Product`, `scala.Equals`, `java.io.Serializable`.
+- **Found while fixing B11, now done:** `annotations(symbol)` returned the compiler's own
+  `scala.annotation.internal.*` bookkeeping. dotty attaches `SourceFile` to every class it
+  compiles, so that annotation was written into the metadata of every generated bean
+  definition. Filtered out at extraction; pinned by `ScalaRetentionSpec`.
 - Cycle guards in `exceptionMessage` (`MicronautScalaCompilerPlugin.scala:244`,
   `ScalaProcessingEngine.java:426`) only compare against the head exception and
   loop forever on a deeper cycle.

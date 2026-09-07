@@ -69,6 +69,35 @@ class Target
                 .hasAnnotation('io.micronaut.scala.processing.fixtures.ExternalDefaulted')
     }
 
+    void 'compiler-internal annotations are not part of the model'() {
+        given:
+        def definition = buildBeanDefinition('probe.Target', '''
+package probe
+
+import jakarta.inject.Singleton
+
+@Singleton
+class Target
+''')
+        def element = buildClassElement('probe.Target', '''
+package probe
+
+import jakarta.inject.Singleton
+
+@Singleton
+class Target
+''')
+
+        expect: 'dotty attaches SourceFile to every class it compiles; that is its bookkeeping, not the user model'
+        definition.getAnnotationMetadata().getAnnotationNames().every {
+            !it.startsWith('scala.annotation.internal.')
+        }
+        element.getAnnotationNames().every { !it.startsWith('scala.annotation.internal.') }
+
+        and: 'the user annotation is still there'
+        definition.getAnnotationMetadata().hasAnnotation('jakarta.inject.Singleton')
+    }
+
     void 'a Scala annotation declaring no retention still reaches the runtime'() {
         given:
         def definition = buildBeanDefinition('probe.Target', '''

@@ -471,13 +471,7 @@ private object ScalaModelExtractor:
     else
       None
 
-  // dotty attaches `scala.annotation.internal.SourceFile` to every module class, so
-  // "declares an annotation" has to mean one the author wrote, or every companion object
-  // in the compilation would be treated as a bean declaration.
   private val InternalAnnotationPrefix = "scala.annotation.internal."
-
-  private def userAnnotations(symbol: Symbol)(using Context, AnnotationDefaults): List[ScalaAnnotationData] =
-    annotations(symbol).filterNot(_.name().startsWith(InternalAnnotationPrefix))
 
   private val FactoryAnnotationName = "io.micronaut.context.annotation.Factory"
   private val BeanAnnotationName = "io.micronaut.context.annotation.Bean"
@@ -501,8 +495,7 @@ private object ScalaModelExtractor:
     val instanceField = ScalaFieldData(
       ModuleInstanceFieldName,
       instanceType,
-      (data.annotations().asScala.toList.filterNot(_.name().startsWith(InternalAnnotationPrefix))
-        :+ syntheticAnnotation(BeanAnnotationName)).asJava,
+      (data.annotations().asScala.toList :+ syntheticAnnotation(BeanAnnotationName)).asJava,
       java.util.Set.of(ElementModifier.PUBLIC, ElementModifier.STATIC, ElementModifier.FINAL),
       false,
       null,
@@ -1294,7 +1287,13 @@ private object ScalaModelExtractor:
     if symbol == Symbols.NoSymbol then
       Nil
     else
-      symbol.denot.annotations.map(annotationData(_, Set.empty))
+      // `scala.annotation.internal.*` is the compiler's own bookkeeping -- dotty attaches
+      // `SourceFile` to every class it compiles, for instance. It is not part of the user's
+      // model, and leaving it in wrote it into the annotation metadata of every generated
+      // bean definition.
+      symbol.denot.annotations
+        .filterNot(annotation => className(annotation.symbol).startsWith(InternalAnnotationPrefix))
+        .map(annotationData(_, Set.empty))
 
   private def annotationData(
       annotation: dotty.tools.dotc.core.Annotations.Annotation,
@@ -1812,7 +1811,7 @@ private object ScalaModelExtractor:
       // `object` is the idiomatic Scala singleton, so a module class carrying annotations
       // is processed. An unannotated one -- the ordinary companion of a class -- is still
       // skipped, since it declares no beans and processing it would generate nothing.
-      (hasFlag(symbol, Flags.ModuleClass) && userAnnotations(symbol).isEmpty)
+      (hasFlag(symbol, Flags.ModuleClass) && annotations(symbol).isEmpty)
 
   private def skipMethod(symbol: Symbol)(using Context): Boolean =
     symbol == Symbols.NoSymbol ||
