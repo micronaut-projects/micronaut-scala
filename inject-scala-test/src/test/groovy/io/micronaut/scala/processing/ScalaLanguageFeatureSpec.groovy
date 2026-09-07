@@ -185,4 +185,148 @@ class Child(val childName: String) extends Parent("parent")
         element != null
         element.beanProperties*.name as Set == ['childName', 'parentName'] as Set
     }
+
+    void "test constructor default arguments do not produce spurious members"() {
+        given:
+        ClassElement element = buildClassElement('test.Defaulted', '''
+package test
+
+import jakarta.inject.Singleton
+
+@Singleton
+class Defaulted(val name: String = "fallback")
+''')
+
+        expect:
+        element != null
+        element.primaryConstructor.isPresent()
+        element.primaryConstructor.get().parameters.length == 1
+        element.beanProperties.size() == 1
+        element.beanProperties[0].name == 'name'
+        and: 'the synthetic $default$N accessor is not exposed'
+        element.getEnclosedElements(ElementQuery.ALL_METHODS).every { !it.name.contains('$default$') }
+    }
+
+    void "test varargs method parameter is modelled as its erased Seq type"() {
+        given:
+        ClassElement element = buildClassElement('test.Varargs', '''
+package test
+
+import io.micronaut.context.annotation.Executable
+import jakarta.inject.Singleton
+
+@Singleton
+class Varargs {
+  @Executable
+  def sizeOf(values: String*): Int = values.size
+}
+''')
+
+        expect: 'Scala 3 erases a repeated parameter to scala.collection.immutable.Seq rather than\n        to an array, so that is what the JVM signature and the element model must agree on'
+        element != null
+        def method = element.getEnclosedElements(ElementQuery.ALL_METHODS).find { it.name == 'sizeOf' }
+        method != null
+        method.parameters.length == 1
+        method.parameters[0].type.name == 'scala.collection.immutable.Seq'
+        method.parameters[0].type.firstTypeArgument.get().name == 'java.lang.String'
+    }
+
+    void "test contextual using parameters are injection points"() {
+        given:
+        def definition = buildBeanDefinition('test.Contextual', '''
+package test
+
+import jakarta.inject.Singleton
+
+@Singleton
+class Dependency
+
+@Singleton
+class Contextual(using val dependency: Dependency)
+''')
+
+        expect:
+        definition != null
+        definition.constructor.arguments.length == 1
+        definition.constructor.arguments[0].type.name == 'test.Dependency'
+    }
+
+    void "test multiple parameter lists are flattened into one constructor"() {
+        given:
+        def definition = buildBeanDefinition('test.Curried', '''
+package test
+
+import jakarta.inject.Singleton
+
+@Singleton
+class First
+
+@Singleton
+class Second
+
+@Singleton
+class Curried(first: First)(second: Second)
+''')
+
+        expect:
+        definition != null
+        definition.constructor.arguments.length == 2
+        definition.constructor.arguments[0].type.name == 'test.First'
+        definition.constructor.arguments[1].type.name == 'test.Second'
+    }
+
+    void "test lazy val is exposed as a single read-only property"() {
+        given:
+        ClassElement element = buildClassElement('test.Lazily', '''
+package test
+
+import io.micronaut.core.annotation.Introspected
+
+@Introspected
+class Lazily {
+  lazy val name: String = "lazy"
+}
+''')
+
+        expect:
+        element != null
+        element.beanProperties.size() == 1
+        element.beanProperties[0].name == 'name'
+        element.beanProperties[0].readOnly
+    }
+
+    void "test BeanProperty accessors are used for introspection"() {
+        given:
+        def introspection = buildBeanIntrospection('test.Bean', '''
+package test
+
+import io.micronaut.core.annotation.Introspected
+import scala.beans.BeanProperty
+
+@Introspected
+class Bean(@BeanProperty var name: String)
+''')
+
+        expect:
+        introspection != null
+        introspection.propertyNames as Set == ['name'] as Set
+    }
+
+    void "test top level definitions do not produce a bean definition"() {
+        given:
+        def definition = buildBeanDefinition('test.TopLevel', '''
+package test
+
+import jakarta.inject.Singleton
+
+def helper(): String = "helper"
+
+@Singleton
+class TopLevel
+''')
+
+        expect:
+        definition != null
+        definition.beanType.name == 'test.TopLevel'
+    }
 }
