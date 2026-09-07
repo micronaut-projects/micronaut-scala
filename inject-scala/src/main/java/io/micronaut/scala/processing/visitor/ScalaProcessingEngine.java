@@ -176,6 +176,11 @@ public final class ScalaProcessingEngine {
             return;
         }
         beanDefinitionsProcessed = true;
+        // Generating definitions without having run the visitors produces beans with no
+        // AOP, no introspections, no validation and no user visitors, and reports nothing.
+        // Keeping the ordering invariant here rather than in the caller means no future
+        // change to the phase wiring can violate it. processTypeVisitors() is idempotent.
+        processTypeVisitors();
         ScalaVisitorContext context = visitorContext();
         startBeanElementVisitors(context);
         for (ScalaClassData classData : new LinkedHashSet<>(sourceClasses.values())) {

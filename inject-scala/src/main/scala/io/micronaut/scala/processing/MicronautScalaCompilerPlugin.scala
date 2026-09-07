@@ -180,33 +180,27 @@ final class MicronautScalaCompilerPluginImpl:
 private final class ProcessingState(options: JMap[String, String]):
 
   private var engine: ScalaProcessingEngine | Null = null
-  private var typeUnitsSeen = 0
-  private var typeVisitorsProcessed = false
-  private var beanDefinitionsProcessed = false
 
   def addClasses(classes: List[ScalaClassData])(using ctx: Context): Unit =
     try
       engineInstance.addClasses(classes.asJava)
-      typeUnitsSeen += 1
-      if !typeVisitorsProcessed && typeUnitsSeen >= unitCount then
-        typeVisitorsProcessed = true
-        engineInstance.processTypeVisitors()
-        processBeanDefinitions()
+    catch
+      case exception: ProcessingException =>
+        reportProcessingException(exception)
+
+  def processTypeVisitors()(using ctx: Context): Unit =
+    try
+      engineInstance.processTypeVisitors()
     catch
       case exception: ProcessingException =>
         reportProcessingException(exception)
 
   def processBeanDefinitions()(using ctx: Context): Unit =
     try
-      if !beanDefinitionsProcessed then
-        beanDefinitionsProcessed = true
-        engineInstance.processBeanDefinitions()
+      engineInstance.processBeanDefinitions()
     catch
       case exception: ProcessingException =>
         reportProcessingException(exception)
-
-  private def unitCount(using ctx: Context): Int =
-    math.max(1, ctx.run.units.size)
 
   private def engineInstance(using ctx: Context): ScalaProcessingEngine =
     var current = engine
@@ -281,6 +275,16 @@ private final class TypeVisitorPhase(state: ProcessingState) extends PluginPhase
     val classes = ScalaModelExtractor.collect(summon[Context].compilationUnit)
     state.addClasses(classes)
 
+  // `Phase.runOn` invokes `run` only for units that pass `ctx.run.enterUnit(unit)`, and a
+  // unit that suspends on a macro is dropped from the list entirely, so counting `run`
+  // calls against `ctx.run.units.size` is not a reliable "seen them all" signal. `runOn`
+  // itself is called exactly once per phase per run, after every unit, which is the point
+  // the visitor pass actually wants.
+  override def runOn(units: List[CompilationUnit])(using Context): List[CompilationUnit] =
+    val processed = super.runOn(units)
+    state.processTypeVisitors()
+    processed
+
 private object BeanDefinitionPhase:
   val PhaseName = "micronaut-scala-bean-definitions"
 
@@ -290,8 +294,13 @@ private final class BeanDefinitionPhase(state: ProcessingState) extends PluginPh
   override val runsAfter: Set[String] = Set(TypeVisitorPhase(state).phaseName)
   override val runsBefore: Set[String] = Set(Pickler.name)
 
-  override def run(using Context): Unit =
+  // Generation is a whole-compilation step, not a per-unit one.
+  override def run(using Context): Unit = ()
+
+  override def runOn(units: List[CompilationUnit])(using Context): List[CompilationUnit] =
+    val processed = super.runOn(units)
     state.processBeanDefinitions()
+    processed
 
 private object ScalaModelExtractor:
 
