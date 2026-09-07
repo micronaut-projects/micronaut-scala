@@ -135,6 +135,38 @@ tasks.named("check") {
     dependsOn("verifyCompilerArtifacts")
 }
 
+// The catalog pins micronaut-core to 5.2.0-SNAPSHOT, which is published nowhere,
+// so `-PincludeMicronautCore=true` builds it from source. That works for `check`,
+// but it must not be mistaken for a releasable state: the generated POMs would
+// still declare a Core version no consumer can resolve. The publishing workflows
+// do not pass that flag and already fail on every push to master; failing here
+// instead says why, and says it before anything is uploaded.
+def micronautCoreVersion = libs.versions.micronaut.core.get()
+
+gradle.taskGraph.whenReady { graph ->
+    if (!micronautCoreVersion.endsWith("-SNAPSHOT")) {
+        return
+    }
+    // Only remote publication. `publishToMavenLocal` is how CONTRIBUTING.md tells
+    // contributors to test a snapshot in another project, and the Build repository is a
+    // local directory the build itself inspects; neither puts anything in front of a
+    // consumer.
+    def remotePublishTasks = graph.allTasks.findAll { task ->
+        (task.name.startsWith("publish") &&
+            (task.name.contains("Sonatype") || task.name.contains("MavenCentral"))) ||
+            task.name.startsWith("closeAndReleaseSonatype")
+    }
+    if (!remotePublishTasks.empty) {
+        throw new GradleException(
+            "Refusing to publish: the version catalog pins micronaut-core to ${micronautCoreVersion}, " +
+                "which is not resolvable from any configured repository, so the published POMs would " +
+                "declare a dependency no consumer can resolve. Pin a released Core version in " +
+                "gradle/libs.versions.toml before releasing. Requested: ${remotePublishTasks*.path.join(', ')}. " +
+                "publishToMavenLocal is unaffected and remains available for local testing."
+        )
+    }
+}
+
 static Set<String> serviceEntries(String text) {
     text.readLines()*.trim().findAll { !it.isEmpty() && !it.startsWith("#") } as Set
 }
