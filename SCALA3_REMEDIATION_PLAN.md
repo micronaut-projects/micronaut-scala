@@ -436,8 +436,27 @@ call. `SEALED`, `TRANSIENT`, `VOLATILE`, `SYNCHRONIZED` and `NATIVE` are not
 mapped at all on the source path while `ScalaLoadedClassElement.java:512` maps
 them faithfully — another source/classpath divergence.
 
-**Fix.** Check `symbol.privateWithin` before emitting `PRIVATE`/`PROTECTED`, and
-map the remaining modifiers.
+**Fix — done, but the finding was half wrong.** Checked against the emitted
+bytecode rather than assumed:
+
+| declaration | bytecode | was reported |
+| --- | --- | --- |
+| `private def` | private | private (correct) |
+| `private[pkg] def` | public | public (already correct) |
+| `protected def` | **public** | protected (wrong) |
+| `protected[pkg] def` | **public** | protected (wrong) |
+
+`private[pkg]` was never affected: dotty leaves `Flags.Private` unset for a
+qualified private, so no `privateWithin` check is needed. The real defect is
+wider than the finding says — *plain* `protected` is also emitted as public,
+because Scala's `protected` means subclass-only and JVM `protected` additionally
+grants package access, so scalac emits public and enforces at compile time.
+`PROTECTED` is now emitted only for a `JavaDefined` symbol, which really is
+JVM-protected. `SEALED` is now mapped too.
+
+`TRANSIENT`, `VOLATILE`, `SYNCHRONIZED` and `NATIVE` are still unmapped: in Scala
+these come from `@transient`/`@volatile` annotations rather than symbol flags, so
+they need their own verification against emitted bytecode before being mapped.
 
 ### A17 (MAJOR, confirmed) Every Scala field claims to require reflection and to be private
 

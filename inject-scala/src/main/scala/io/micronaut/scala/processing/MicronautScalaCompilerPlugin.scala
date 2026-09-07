@@ -1726,10 +1726,18 @@ private object ScalaModelExtractor:
 
   private def modifiers(symbol: Symbol)(using Context): Set[ElementModifier] =
     val modifiers = LinkedHashSet[ElementModifier]()
+    // dotty leaves `Flags.Private` unset for a qualified `private[pkg]`, which is already
+    // the right answer: it compiles to a public member.
     if hasFlag(symbol, Flags.Private) then modifiers.add(ElementModifier.PRIVATE)
-    if hasFlag(symbol, Flags.Protected) then modifiers.add(ElementModifier.PROTECTED)
+    // Scala's `protected` means subclass-only, which the JVM cannot express -- JVM
+    // `protected` also grants package access -- so scalac emits both `protected` and
+    // `protected[pkg]` members as *public* and enforces the restriction at compile time.
+    // Reporting them as protected made Micronaut refuse to inject or introspect members it
+    // could legally call. A Java-defined member really is JVM-protected.
+    if hasFlag(symbol, Flags.Protected) && hasFlag(symbol, Flags.JavaDefined) then modifiers.add(ElementModifier.PROTECTED)
     if hasFlag(symbol, Flags.Deferred) || hasFlag(symbol, Flags.Abstract) then modifiers.add(ElementModifier.ABSTRACT)
     if hasFlag(symbol, Flags.Final) then modifiers.add(ElementModifier.FINAL)
+    if symbol.isClass && hasFlag(symbol, Flags.Sealed) then modifiers.add(ElementModifier.SEALED)
     if hasFlag(symbol, Flags.JavaStatic) || hasFlag(symbol, Flags.Module) then modifiers.add(ElementModifier.STATIC)
     if !modifiers.contains(ElementModifier.PRIVATE) && !modifiers.contains(ElementModifier.PROTECTED) then modifiers.add(ElementModifier.PUBLIC)
     modifiers.asScala.toSet
