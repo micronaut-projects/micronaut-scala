@@ -21,6 +21,7 @@ import io.micronaut.core.annotation.Generated;
 import io.micronaut.core.annotation.Vetoed;
 import io.micronaut.core.io.service.ServiceDefinition;
 import io.micronaut.core.io.service.SoftServiceLoader;
+import io.micronaut.core.naming.NameUtils;
 import io.micronaut.core.order.OrderUtil;
 import io.micronaut.core.util.StringUtils;
 import io.micronaut.core.version.VersionUtils;
@@ -63,6 +64,8 @@ import java.util.function.BiConsumer;
  * Executes Micronaut's visitor and bean-definition pipeline for Scala compiler data.
  */
 public final class ScalaProcessingEngine {
+
+    private static final String MODULE_INSTANCE_FIELD = "MODULE$";
 
     private final File outputDirectory;
     private final Collection<File> classpath;
@@ -193,7 +196,11 @@ public final class ScalaProcessingEngine {
             }
             try {
                 DefaultElementBeanDefinitionBuilderFactory beanDefinitionBuilderFactory = new DefaultElementBeanDefinitionBuilderFactory(context);
+                String suppressedDefinition = scalaObjectSelfDefinitionName(classData);
                 for (OutputObjectDef outputObjectDef : BeanDefinitionCreatorFactory.produce(classElement, beanDefinitionBuilderFactory, context)) {
+                    if (outputObjectDef.objectDef().getName().equals(suppressedDefinition)) {
+                        continue;
+                    }
                     if (generatedBeanDefinitions.add(outputObjectDef.objectDef().getName())) {
                         writeBeanDefinition(outputObjectDef, context);
                     }
@@ -320,6 +327,31 @@ public final class ScalaProcessingEngine {
                 }
             }
         }
+    }
+
+    /**
+     * The definition Micronaut would generate for a Scala {@code object}'s own class, which
+     * must not be written.
+     *
+     * <p>An {@code object} compiles to a class with a private constructor and a public
+     * static {@code MODULE$} holding the one instance, so it is modelled as a factory
+     * producing that field. {@code DeclaredBeanElementCreator} always emits the factory
+     * class's own bean definition too, and here that definition has the same bean type as
+     * the produced one and would be constructed through the private constructor -- so
+     * resolving the bean fails with {@code NonUniqueBeanException}. Only the {@code MODULE$}
+     * instance is a bean.
+     *
+     * @param classData The class
+     * @return The definition name to suppress, or {@code null} for an ordinary class
+     */
+    private static @Nullable String scalaObjectSelfDefinitionName(ScalaClassData classData) {
+        boolean isModuleClass = classData.name().endsWith("$")
+            && classData.fields().stream().anyMatch(field -> MODULE_INSTANCE_FIELD.equals(field.name()));
+        if (!isModuleClass) {
+            return null;
+        }
+        return NameUtils.getPackageName(classData.name())
+            + ".$" + NameUtils.getSimpleName(classData.name()) + BeanDefinitionWriter.CLASS_SUFFIX;
     }
 
     private void reportProcessingException(ProcessingException exception) {

@@ -48,7 +48,7 @@ public final class ScalaFieldElement extends AbstractScalaMemberElement implemen
             declaringType,
             fieldData.name(),
             fieldData.nativeType(),
-            fieldModifiers(fieldData.modifiers()),
+            fieldData.modifiers(),
             MutableAnnotationMetadata.of(annotationMetadata),
             visitorContext.getScalaAnnotationMetadataBuilder()
         );
@@ -72,24 +72,19 @@ public final class ScalaFieldElement extends AbstractScalaMemberElement implemen
 
     @Override
     public boolean isReflectionRequired() {
-        return true;
+        return isReflectionRequired(declaringType);
     }
 
     @Override
     public boolean isReflectionRequired(ClassElement callingType) {
-        return true;
+        // Answering true unconditionally -- and ignoring the calling type entirely -- made
+        // Micronaut emit reflective access and GraalVM reflection metadata for every field,
+        // including ones it could read directly.
+        return !isAccessible(callingType);
     }
 
     @Override
     public FieldElement withAnnotationMetadata(AnnotationMetadata annotationMetadata) {
         return new ScalaFieldElement(declaringType, fieldData, visitorContext, annotationMetadata);
-    }
-
-    private static Set<ElementModifier> fieldModifiers(Set<ElementModifier> modifiers) {
-        Set<ElementModifier> fieldModifiers = new LinkedHashSet<>(modifiers);
-        fieldModifiers.remove(ElementModifier.PUBLIC);
-        fieldModifiers.remove(ElementModifier.PROTECTED);
-        fieldModifiers.add(ElementModifier.PRIVATE);
-        return fieldModifiers;
     }
 }

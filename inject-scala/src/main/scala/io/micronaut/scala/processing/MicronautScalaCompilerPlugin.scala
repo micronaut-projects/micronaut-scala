@@ -453,6 +453,61 @@ private object ScalaModelExtractor:
     else
       None
 
+  // dotty attaches `scala.annotation.internal.SourceFile` to every module class, so
+  // "declares an annotation" has to mean one the author wrote, or every companion object
+  // in the compilation would be treated as a bean declaration.
+  private val InternalAnnotationPrefix = "scala.annotation.internal."
+
+  private def userAnnotations(symbol: Symbol)(using Context, AnnotationDefaults): List[ScalaAnnotationData] =
+    annotations(symbol).filterNot(_.name().startsWith(InternalAnnotationPrefix))
+
+  private val FactoryAnnotationName = "io.micronaut.context.annotation.Factory"
+  private val BeanAnnotationName = "io.micronaut.context.annotation.Bean"
+  private val ModuleInstanceFieldName = "MODULE$"
+
+  private def syntheticAnnotation(name: String)(using Context, AnnotationDefaults): ScalaAnnotationData =
+    val symbol = classSymbolForName(name)
+    val annotationType = if isAnnotationSymbol(symbol) then annotationTypeData(symbol, Set.empty) else null
+    ScalaAnnotationData(name, java.util.Map.of[CharSequence, Object](), annotationType)
+
+  /**
+   * A Scala `object` compiles to a class with a private constructor and a public static
+   * `MODULE$` holding the single instance, so Micronaut cannot instantiate it the way it
+   * instantiates a class. It is modelled instead as a factory that produces that field:
+   * the synthetic `MODULE$` field carries the object's own annotations, so the bean keeps
+   * its scope and qualifiers, and the class carries only `@Factory` -- annotating the
+   * class itself would make Micronaut try to construct the private constructor.
+   */
+  private def moduleClassData(data: ScalaClassData, symbol: Symbol)(using Context, AnnotationDefaults): ScalaClassData =
+    val instanceType = ScalaTypeData(data.name(), primitive = false, arrayDimensions = 0, interfaceType = false, java.util.Map.of())
+    val instanceField = ScalaFieldData(
+      ModuleInstanceFieldName,
+      instanceType,
+      (data.annotations().asScala.toList.filterNot(_.name().startsWith(InternalAnnotationPrefix))
+        :+ syntheticAnnotation(BeanAnnotationName)).asJava,
+      java.util.Set.of(ElementModifier.PUBLIC, ElementModifier.STATIC, ElementModifier.FINAL),
+      false,
+      null,
+      symbol
+    )
+    ScalaClassData(
+      data.name(),
+      List(syntheticAnnotation(FactoryAnnotationName)).asJava,
+      data.modifiers(),
+      data.annotationType(),
+      data.interfaceType(),
+      data.enumType(),
+      data.typeParameters(),
+      data.superType(),
+      data.interfaces(),
+      data.constructors(),
+      data.methods(),
+      (data.fields().asScala.toList :+ instanceField).asJava,
+      data.properties(),
+      data.enclosingTypeName(),
+      data.nativeType()
+    )
+
   private def toClassData(typeDef: tpd.TypeDef, enclosingTypeName: String | Null)(using Context, AnnotationDefaults): Option[ScalaClassData] =
     val symbol = typeDef.symbol
     if skipClass(symbol) then
@@ -500,7 +555,7 @@ private object ScalaModelExtractor:
             .map(typeData)
           val superType = parents.find(parent => !parent.interfaceType()).orNull
           val interfaces = parents.filter(_.interfaceType())
-          Some(ScalaClassData(
+          val classData = ScalaClassData(
             className(symbol),
             annotations(symbol).asJava,
             modifiers(symbol).asJava,
@@ -516,7 +571,8 @@ private object ScalaModelExtractor:
             properties.asJava,
             enclosingTypeName,
             typeDef
-          ))
+          )
+          Some(if hasFlag(symbol, Flags.ModuleClass) then moduleClassData(classData, symbol) else classData)
         case _ =>
           None
 
@@ -739,6 +795,14 @@ private object ScalaModelExtractor:
       case _ =>
         None
 
+  // A Scala `val`/`var` is a private backing field plus accessors, whatever the
+  // declaration's own visibility says, so the emitted field is always private. This lives
+  // here rather than in `ScalaFieldElement` because it is a fact about how the compiler
+  // emits *these* declarations, not about fields in general -- a synthetic field the
+  // extractor builds itself keeps the modifiers it was given.
+  private def backingFieldModifiers(symbol: Symbol)(using Context): Set[ElementModifier] =
+    modifiers(symbol) - ElementModifier.PUBLIC - ElementModifier.PROTECTED + ElementModifier.PRIVATE
+
   private def fieldData(field: tpd.ValDef)(using Context, AnnotationDefaults): ScalaFieldData =
     val fieldType = typeData(field.tpt)
     val fieldAnnotations = annotations(field.symbol) ++ typeUseNullabilityAnnotations(fieldType)
@@ -746,7 +810,7 @@ private object ScalaModelExtractor:
       field.name.toString,
       fieldType,
       fieldAnnotations.asJava,
-      modifiers(field.symbol).asJava,
+      backingFieldModifiers(field.symbol).asJava,
       isEnumConstant(field.symbol),
       fieldConstantValue(field),
       field
@@ -1685,12 +1749,15 @@ private object ScalaModelExtractor:
     else
       Symbols.getClassIfDefined(name.replace('$', '.'))
 
-  private def skipClass(symbol: Symbol)(using Context): Boolean =
+  private def skipClass(symbol: Symbol)(using Context, AnnotationDefaults): Boolean =
     symbol == Symbols.NoSymbol ||
-      hasFlag(symbol, Flags.ModuleClass) ||
       hasFlag(symbol, Flags.PackageClass) ||
       hasFlag(symbol, Flags.Synthetic) ||
-      hasFlag(symbol, Flags.Artifact)
+      hasFlag(symbol, Flags.Artifact) ||
+      // `object` is the idiomatic Scala singleton, so a module class carrying annotations
+      // is processed. An unannotated one -- the ordinary companion of a class -- is still
+      // skipped, since it declares no beans and processing it would generate nothing.
+      (hasFlag(symbol, Flags.ModuleClass) && userAnnotations(symbol).isEmpty)
 
   private def skipMethod(symbol: Symbol)(using Context): Boolean =
     symbol == Symbols.NoSymbol ||

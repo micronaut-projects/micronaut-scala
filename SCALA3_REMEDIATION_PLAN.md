@@ -461,9 +461,13 @@ for every field, `ElementQuery.ALL_FIELDS.modifiers(...)` can never match a
 public field, and `PropertyElementQuery` visibility filtering rejects
 field-backed properties.
 
-**Fix.** Implement `isReflectionRequired(callingType)` as `!isAccessible(callingType)`,
-and keep the real modifier set, special-casing the backing-field case only where
-it is actually needed.
+**Fix — done.** `isReflectionRequired(callingType)` is now
+`!isAccessible(callingType)`, and `ScalaFieldElement` keeps the modifier set it is
+given. The backing-field rule moved into the extractor, where it belongs: a Scala
+`val`/`var` really is emitted as a private field plus accessors whatever the
+declaration's visibility says, but that is a fact about *those* declarations, not
+about fields in general — and forcing it in the element made every synthetic field
+private too, which is what blocked `object` support in B11.
 
 ### A18 (MAJOR, confirmed) Classpath enumeration uses `getMethods()`/`getFields()`
 
@@ -634,10 +638,26 @@ descends into a skipped module class and derives `enclosingTypeName` from
 `companionClassName` — the module name with `$` stripped — so a class nested in a
 companion-less `object Foo` gets an enclosing type that does not exist.
 
-**Fix.** Decide the policy explicitly. Either map module classes to their
-`MODULE$` singleton and support them as beans, or reject them with a clear
-diagnostic when they carry a bean stereotype — and in either case stop
-synthesising a non-existent enclosing type name.
+**Fix — done; objects are supported as beans.** A module class carrying a
+user-written annotation is now extracted. An `object` compiles to a class with a
+*private* constructor plus a public static `MODULE$` holding the one instance
+(verified from the emitted bytecode), so Micronaut cannot construct it: it is
+modelled as a `@Factory` whose synthetic `MODULE$` field carries the object's own
+annotations and produces the bean. The injected bean is therefore the same
+instance Scala code reaches through `Config`, which a constructed bean would not
+be.
+
+Two things this required. `DeclaredBeanElementCreator` always emits the factory
+class's own bean definition, which here has the same bean type as the produced one
+and would be built through the private constructor, so resolution failed with
+`NonUniqueBeanException`; that one definition is suppressed for module classes.
+And the gate cannot be "has annotations": dotty attaches
+`scala.annotation.internal.SourceFile` to *every* module class, so an unfiltered
+check treats every companion object in the compilation as a bean declaration.
+
+The `companionClassName` half of this finding is **not** a defect and was left
+alone — companion-less objects legitimately enclose their nested classes, and
+guarding it breaks their bean introspection.
 
 ### B12 (MAJOR) Placeholders and wildcards compare equal to their erasure
 
@@ -1207,9 +1227,11 @@ already-broken guard.
 12. Write the P-1 Scala-native specs (C4/C5), starting with `object` beans,
     default arguments, varargs, by-name parameters and secondary constructors —
     these will fail, and the failures define the next fixes.
-13. Fix B11 (`object` policy), B13 (by-name, varargs, defaults), A15 (secondary
-    constructors), A14 (accessor collisions), A16 (qualified access), A17 (field
-    modifiers and reflection).
+13. B11 (`object` as a bean) and A17 (field modifiers and reflection) are
+    **done**, pinned by `ScalaObjectBeanSpec`. A15 (secondary constructors) and
+    the by-name part of B13 landed earlier on this branch. Still open: the varargs
+    and default-argument parts of B13, A14 (accessor collisions) and A16
+    (qualified access).
 
 ### Wave 3 — annotation metadata unification
 
