@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * Executes Micronaut's visitor and bean-definition pipeline for Scala compiler data.
@@ -70,6 +71,7 @@ public final class ScalaProcessingEngine {
     private final File outputDirectory;
     private final Collection<File> classpath;
     private final Map<String, String> options;
+    private final Function<String, ScalaAnnotationTypeData> annotationTypeResolver;
     private final BiConsumer<String, Object> infoReporter;
     private final BiConsumer<String, Object> warningReporter;
     private final BiConsumer<String, Object> errorReporter;
@@ -84,6 +86,8 @@ public final class ScalaProcessingEngine {
      * @param outputDirectory The compiler class output directory
      * @param classpath The compilation classpath
      * @param options Micronaut processing options
+     * @param annotationTypeResolver Resolves an annotation type by name, for annotations never
+     *     seen on an extracted element
      * @param infoReporter The info reporter
      * @param warningReporter The warning reporter
      * @param errorReporter The error reporter
@@ -92,12 +96,14 @@ public final class ScalaProcessingEngine {
         File outputDirectory,
         Collection<File> classpath,
         Map<String, String> options,
+        Function<String, ScalaAnnotationTypeData> annotationTypeResolver,
         BiConsumer<String, Object> infoReporter,
         BiConsumer<String, Object> warningReporter,
         BiConsumer<String, Object> errorReporter) {
         this.outputDirectory = outputDirectory;
         this.classpath = List.copyOf(classpath);
         this.options = Map.copyOf(options);
+        this.annotationTypeResolver = annotationTypeResolver;
         this.infoReporter = infoReporter;
         this.warningReporter = warningReporter;
         this.errorReporter = errorReporter;
@@ -257,6 +263,7 @@ public final class ScalaProcessingEngine {
                 sourceClasses.values(),
                 classpath,
                 options,
+                annotationTypeResolver,
                 infoReporter,
                 warningReporter,
                 errorReporter

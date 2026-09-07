@@ -210,6 +210,7 @@ private final class ProcessingState(options: JMap[String, String]):
         outputDirectory,
         classpath.asJava,
         options,
+        name => ScalaModelExtractor.resolveAnnotationType(name),
         (message, element) => report.inform(message, sourcePosition(element)),
         (message, element) => report.warning(message, sourcePosition(element)),
         (message, element) => report.error(message, sourcePosition(element))
@@ -1290,6 +1291,20 @@ private object ScalaModelExtractor:
       annotationValues(annotation, annotationType).asInstanceOf[JMap[CharSequence, Object]],
       annotationType
     )
+
+  /**
+   * Resolves an annotation type by name, for annotations that were never seen on an
+   * extracted element -- one a visitor added programmatically, or one read from a class
+   * file. Without this the metadata builder has no mirror for such an annotation and
+   * silently resolves none of its meta-annotations.
+   *
+   * Member defaults are not available here: they are harvested per compilation unit (A10),
+   * and this type may not be in the compilation at all.
+   */
+  def resolveAnnotationType(name: String)(using Context): ScalaAnnotationTypeData | Null =
+    given AnnotationDefaults = AnnotationDefaults(Map.empty)
+    val symbol = classSymbolForName(name)
+    if isAnnotationSymbol(symbol) then annotationTypeData(symbol, Set.empty) else null
 
   private def annotationTypeData(symbol: Symbol, visitedAnnotationTypes: Set[String])(using Context, AnnotationDefaults): ScalaAnnotationTypeData | Null =
     if !isAnnotationSymbol(symbol) then

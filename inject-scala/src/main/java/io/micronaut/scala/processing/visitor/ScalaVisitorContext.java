@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * Visitor context for Scala compiler plugin processing.
@@ -71,6 +72,7 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
     private final IdentityHashMap<Object, MutableAnnotationMetadata> elementAnnotationMetadata = new IdentityHashMap<>();
     private final List<AbstractBeanDefinitionBuilder> beanDefinitionBuilders = new ArrayList<>();
     private final Map<String, String> options;
+    private final Function<String, ScalaAnnotationTypeData> annotationTypeResolver;
     private final BiConsumer<String, Object> infoReporter;
     private final BiConsumer<String, Object> warningReporter;
     private final BiConsumer<String, Object> errorReporter;
@@ -82,12 +84,14 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         Collection<ScalaClassData> sourceClasses,
         Collection<File> classpath,
         Map<String, String> options,
+        Function<String, ScalaAnnotationTypeData> annotationTypeResolver,
         BiConsumer<String, Object> infoReporter,
         BiConsumer<String, Object> warningReporter,
         BiConsumer<String, Object> errorReporter) {
         this.outputDirectory = outputDirectory;
         this.outputVisitor = new DirectoryClassWriterOutputVisitor(outputDirectory);
         this.options = options == null ? Collections.emptyMap() : Map.copyOf(options);
+        this.annotationTypeResolver = annotationTypeResolver;
         this.infoReporter = infoReporter;
         this.warningReporter = warningReporter;
         this.errorReporter = errorReporter;
@@ -125,6 +129,17 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
             return Optional.empty();
         }
         return Optional.of(sourceElements.computeIfAbsent(name, ignored -> elementFactory.newClassElementForData(classData)));
+    }
+
+    /**
+     * Resolves an annotation type by name through the compiler, for annotations that were
+     * never seen on an extracted element.
+     *
+     * @param annotationName The annotation type name
+     * @return The annotation type, or {@code null} if it is not an annotation on this classpath
+     */
+    @Nullable ScalaAnnotationTypeData resolveAnnotationType(String annotationName) {
+        return annotationTypeResolver.apply(annotationName);
     }
 
     Optional<ScalaClassData> sourceClassData(String name) {

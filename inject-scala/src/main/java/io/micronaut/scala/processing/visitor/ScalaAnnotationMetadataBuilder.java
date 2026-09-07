@@ -42,6 +42,8 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
 
     private final VisitorContext visitorContext;
     private final Map<String, ScalaAnnotationTypeData> nativeAnnotationTypes = new LinkedHashMap<>();
+    /** Names already looked up and not resolvable, so the compiler is asked only once each. */
+    private final Set<String> unresolvableAnnotationTypes = new HashSet<>();
 
     public ScalaAnnotationMetadataBuilder(VisitorContext visitorContext) {
         this.visitorContext = visitorContext;
@@ -268,7 +270,7 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
 
     @Override
     protected Optional<Object> getAnnotationMirror(String annotationName) {
-        return Optional.ofNullable(nativeAnnotationTypes.get(annotationName))
+        return Optional.ofNullable(nativeAnnotationType(annotationName))
             .map(nativeType -> new AnnotationTypeElement(annotationName, nativeType));
     }
 
@@ -557,8 +559,36 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
     }
 
     private AnnotationTypeElement annotationType(String annotationName) {
+        return new AnnotationTypeElement(annotationName, nativeAnnotationType(annotationName));
+    }
+
+    /**
+     * The annotation type for a name, resolving it through the compiler if it has not been
+     * seen on an extracted element.
+     *
+     * <p>{@code nativeAnnotationTypes} is populated as elements are visited, so an annotation
+     * added programmatically -- by {@code element.annotate(...)}, a mapper or a
+     * bean-definition builder -- had no mirror unless something else in the compilation
+     * happened to use it first. Its meta-annotations were then silently not processed, so
+     * whether an added annotation carried its stereotypes depended on compilation order.
+     */
+    private @Nullable ScalaAnnotationTypeData nativeAnnotationType(String annotationName) {
         ScalaAnnotationTypeData nativeType = nativeAnnotationTypes.get(annotationName);
-        return new AnnotationTypeElement(annotationName, nativeType);
+        if (nativeType != null || !unresolvableAnnotationTypes.add(annotationName)) {
+            return nativeType;
+        }
+        if (!(visitorContext instanceof ScalaVisitorContext scalaVisitorContext)) {
+            return null;
+        }
+        ScalaAnnotationTypeData resolved = scalaVisitorContext.resolveAnnotationType(annotationName);
+        if (resolved == null) {
+            return null;
+        }
+        // Registering pulls in the type's own meta-annotations and members, which is what
+        // makes stereotype resolution work for it.
+        registerAnnotationType(resolved);
+        unresolvableAnnotationTypes.remove(annotationName);
+        return nativeAnnotationTypes.get(annotationName);
     }
 
     private AnnotationTypeElement annotationType(String annotationName, @Nullable Object annotationType) {

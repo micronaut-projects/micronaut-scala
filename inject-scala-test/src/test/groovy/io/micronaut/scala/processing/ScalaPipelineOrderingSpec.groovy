@@ -21,6 +21,7 @@ import io.micronaut.scala.processing.visitor.ScalaProcessingEngine
 
 import java.nio.file.Files
 import java.util.function.BiConsumer
+import java.util.function.Function
 
 /**
  * Bean definitions must never be generated without the type visitors having run.
@@ -41,10 +42,12 @@ class ScalaPipelineOrderingSpec extends AbstractScalaTypeElementSpec {
                 .findAll { it }
                 .collect { new File(it) }
         def noop = { String message, Object element -> } as BiConsumer<String, Object>
+        // No compiler Context here, so no annotation type can be resolved on demand.
+        def noAnnotationTypes = { String name -> null } as Function
 
         when: 'bean definition generation is driven without processTypeVisitors() ever being called'
         def events = ScalaVisitorOrderRecorder.withRecording {
-            def engine = new ScalaProcessingEngine(outputDirectory, classpath, [:], noop, noop, noop)
+            def engine = new ScalaProcessingEngine(outputDirectory, classpath, [:], noAnnotationTypes, noop, noop, noop)
             engine.processBeanDefinitions()
             ScalaVisitorOrderRecorder.events()
         }
@@ -65,10 +68,12 @@ class ScalaPipelineOrderingSpec extends AbstractScalaTypeElementSpec {
                 .findAll { it }
                 .collect { new File(it) }
         def noop = { String message, Object element -> } as BiConsumer<String, Object>
+        // No compiler Context here, so no annotation type can be resolved on demand.
+        def noAnnotationTypes = { String name -> null } as Function
 
         when: 'the visitor pass is requested explicitly and then again through generation'
         def events = ScalaVisitorOrderRecorder.withRecording {
-            def engine = new ScalaProcessingEngine(outputDirectory, classpath, [:], noop, noop, noop)
+            def engine = new ScalaProcessingEngine(outputDirectory, classpath, [:], noAnnotationTypes, noop, noop, noop)
             engine.processTypeVisitors()
             engine.processBeanDefinitions()
             ScalaVisitorOrderRecorder.events()

@@ -340,9 +340,21 @@ If the type has not been seen yet, no meta-annotations are processed — so
 and whether it does depends on compilation-unit order. `getRepeatableContainerNameForType`
 (`:265`) and `getRetentionPolicy` (`:306`) have the same shape.
 
-**Fix.** Fall back to resolving the annotation type by name through the dotty
-context (`Symbols.getClassIfDefined`, already used at `:1616`) and build a
-`ScalaAnnotationTypeData` on demand.
+**Fix — done.** The plugin now exposes `resolveAnnotationType(name)`, which looks the
+type up through the dotty context and builds a `ScalaAnnotationTypeData` from the
+symbol. The builder calls it whenever a name is not already in
+`nativeAnnotationTypes`, registering the result so the type's own meta-annotations
+and members are pulled in, and remembering names that do not resolve so the
+compiler is asked only once each.
+
+Reproduced before fixing: a visitor adding `@Location` -- a fixture annotation
+meta-annotated `@Qualifier` -- to a class in a compilation that never mentions it
+gave `hasStereotype(QUALIFIER) == false`. It is now true, and the annotation is
+additionally wrapped in its `@Repeatable` container, which also depended on the
+mirror. Pinned by `ScalaAnnotationMirrorSpec`.
+
+Member defaults are not available through this path, since those are harvested per
+compilation unit -- that is A10, still open.
 
 ### A12 (MAJOR, confirmed) Retention defaults to RUNTIME, and `valueOf` is unguarded
 
