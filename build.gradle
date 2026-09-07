@@ -14,6 +14,11 @@ def scalaVersion = libs.versions.scala3.get()
 def scalaPluginProjectPath = ":micronaut-inject-scala-compiler"
 def scalaTestProjectPath = ":micronaut-inject-scala-test-compiler"
 
+// The jar task bundles this configuration, so it is the real input to every
+// packaging question below: what gets shaded in, and which service descriptors
+// collide while it is merged.
+def pluginRuntimeClasspath = project(scalaPluginProjectPath).configurations.named("runtimeClasspath")
+
 tasks.register("verifyCompilerArtifacts") {
     dependsOn(
         "${scalaPluginProjectPath}:jar",
@@ -42,12 +47,77 @@ tasks.register("verifyCompilerArtifacts") {
         assert !bomPom.contains("<artifactId>${scalaPluginProjectPath.substring(1)}</artifactId>")
         assert !bomPom.contains("<artifactId>${scalaTestProjectPath.substring(1)}</artifactId>")
 
+        // The test artifact must depend on the plugin by its published, crossed
+        // coordinate. Gradle project dependencies serialize to the *project* name by
+        // default, and `micronaut-inject-scala-compiler` resolves for nobody.
+        assert testPom.contains("<artifactId>${pluginArtifactId}</artifactId>"):
+            "${testArtifactId} POM does not depend on ${pluginArtifactId}"
+
+        // scala3-compiler is `compileOnly`: the host compiler supplies it. Leaking it
+        // into the POM would drag a second compiler onto the user's compile classpath.
+        assert !pluginPom.contains("scala3-compiler_3"):
+            "scala3-compiler_3 leaked into the ${pluginArtifactId} POM"
+
+        // Registering the plugin at all depends on this file being at the jar root;
+        // without it `-Xplugin:` fails with "Missing plugin descriptor".
+        def pluginDescriptor = zipTree(pluginJar).matching { include("plugin.properties") }.files
+        assert !pluginDescriptor.empty: "plugin.properties is missing from the root of ${pluginJar.name}"
+
+        // `scala3-library_3-*` and `scala-library-*` were jar *file names*. Inside a jar
+        // the entries are class paths, so those two patterns matched nothing under any
+        // circumstances and the guard only ever tested `scala/**` and `dotty/**`.
         def forbiddenPluginEntries = zipTree(pluginJar).matching {
             include("scala/**")
             include("dotty/**")
-            include("scala3-library_3-*")
-            include("scala-library-*")
+            include("META-INF/versions/*/scala/**")
+            include("META-INF/versions/*/dotty/**")
         }.files
         assert forbiddenPluginEntries.empty: "Compiler runtime classes leaked into ${pluginJar.name}: ${forbiddenPluginEntries}"
+
+        // scala3-library and scala-library are legitimate `api` dependencies; the jar task
+        // drops them from the bundle by file name because the host compiler provides them.
+        // Whatever survives that filter *is* bundled, so no Scala artifact may remain --
+        // scala3-compiler in particular is `compileOnly` and must never reach here.
+        def bundledJars = pluginRuntimeClasspath.get().files.findAll { file ->
+            file.isFile() && file.name.endsWith(".jar") &&
+                !file.name.startsWith("scala3-library_3-") &&
+                !file.name.startsWith("scala-library-")
+        }
+        def bundledScalaJars = bundledJars.findAll { it.name.startsWith("scala3-") || it.name.startsWith("scala-") }
+        assert bundledScalaJars.empty:
+            "Scala artifacts survive the bundling filter and would be packaged into ${pluginArtifactId}: ${bundledScalaJars*.name}"
+
+        // The jar merges every runtime jar with DuplicatesStrategy.EXCLUDE, so when two
+        // inputs declare the same service the first one silently wins and the rest of the
+        // implementations disappear. Visitors are found by ServiceLoader, so a dropped
+        // descriptor is a missing visitor with no build error at all.
+        def declaredServices = [:].withDefault { [] as Set }
+        bundledJars.each { jar ->
+            zipTree(jar).matching { include("META-INF/services/*") }.each { serviceFile ->
+                declaredServices["META-INF/services/${serviceFile.name}"].addAll(serviceEntries(serviceFile.text))
+            }
+        }
+        def droppedServices = [:]
+        declaredServices.each { path, expected ->
+            def packagedFiles = zipTree(pluginJar).matching { include(path) }.files
+            def packaged = packagedFiles.empty ? ([] as Set) : serviceEntries(packagedFiles.first().text)
+            def missing = expected - packaged
+            if (!missing.isEmpty()) {
+                droppedServices[path] = missing
+            }
+        }
+        assert droppedServices.isEmpty():
+            "Service implementations were dropped while merging ${pluginJar.name}: ${droppedServices}"
     }
+}
+
+// Packaging and publication are the two things this repository cannot test any
+// other way, and until now the only guard for them ran solely if a human typed
+// the task name.
+tasks.named("check") {
+    dependsOn("verifyCompilerArtifacts")
+}
+
+static Set<String> serviceEntries(String text) {
+    text.readLines()*.trim().findAll { !it.isEmpty() && !it.startsWith("#") } as Set
 }

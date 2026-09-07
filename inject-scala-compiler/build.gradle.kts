@@ -74,22 +74,68 @@ tasks.withType<ScalaCompile>().configureEach {
     scalaCompileOptions.forkOptions.jvmArgs = (scalaCompileOptions.forkOptions.jvmArgs ?: emptyList()) + "--add-modules=java.compiler"
 }
 
+// The Scala compiler plugin is loaded by a compiler-owned classloader. Keep
+// Micronaut and ASM implementation classes in the plugin, but let the host
+// compiler provide scala-library and scala3-library.
+fun bundledRuntimeJars(): List<File> =
+    configurations.runtimeClasspath.get()
+        .filter { it.isFile && it.extension == "jar" }
+        .filterNot {
+            it.name.startsWith("scala3-library_3-") ||
+                it.name.startsWith("scala-library-")
+        }
+
+val ownServiceDirectory = layout.projectDirectory.dir("../inject-scala/src/main/resources/META-INF/services")
+val mergedServiceDirectory = layout.buildDirectory.dir("merged-service-files")
+
+// `DuplicatesStrategy.EXCLUDE` keeps the first entry for a path and drops the rest
+// with no message. For `META-INF/services/**` that is silent data loss: this
+// project's own single-line `TypeConverterRegistrar` descriptor was winning over
+// Core's, so `AnnotationConvertersRegistrar` and `ReactiveTypeConverterRegistrar`
+// never reached the plugin jar. Services are resolved by `ServiceLoader`, so a
+// dropped descriptor is a missing implementation with no build error anywhere.
+// Union every descriptor instead, and let the jar take services only from here.
+val mergeServiceFiles = tasks.register("mergeServiceFiles") {
+    val serviceDirectory = ownServiceDirectory
+    val outputDirectory = mergedServiceDirectory
+    inputs.files(configurations.runtimeClasspath)
+    inputs.dir(serviceDirectory).withPropertyName("ownServiceDescriptors")
+    outputs.dir(outputDirectory)
+    doLast {
+        fun entries(text: String) =
+            text.lines().map(String::trim).filter { it.isNotEmpty() && !it.startsWith("#") }
+
+        val merged = linkedMapOf<String, LinkedHashSet<String>>()
+        // This project's own implementations come first so they lead each descriptor.
+        serviceDirectory.asFile.listFiles().orEmpty().filter { it.isFile }.forEach { file ->
+            merged.getOrPut(file.name) { LinkedHashSet() }.addAll(entries(file.readText()))
+        }
+        bundledRuntimeJars().forEach { jar ->
+            zipTree(jar).matching { include("META-INF/services/*") }.forEach { file ->
+                merged.getOrPut(file.name) { LinkedHashSet() }.addAll(entries(file.readText()))
+            }
+        }
+
+        val target = outputDirectory.get().asFile
+        target.deleteRecursively()
+        target.mkdirs()
+        merged.forEach { (name, implementations) ->
+            target.resolve(name).writeText(implementations.joinToString("\n", postfix = "\n"))
+        }
+    }
+}
+
 tasks.named<Jar>("jar") {
     archiveBaseName.set(pluginArtifactId)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     exclude("META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.SF")
-    // The Scala compiler plugin is loaded by a compiler-owned classloader. Keep
-    // Micronaut and ASM implementation classes in the plugin, but let the host
-    // compiler provide scala-library and scala3-library.
-    from({
-        configurations.runtimeClasspath.get()
-            .filter { it.isFile && it.extension == "jar" }
-            .filterNot {
-                it.name.startsWith("scala3-library_3-") ||
-                    it.name.startsWith("scala-library-")
-            }
-            .map { zipTree(it) }
-    })
+    // Taken from the merged descriptors below instead.
+    exclude("META-INF/services/**")
+    from({ bundledRuntimeJars().map { zipTree(it) } })
+    // Sourced flat and mapped in, so the exclusion above does not match them.
+    from(mergeServiceFiles) {
+        into("META-INF/services")
+    }
 }
 
 publishing {
