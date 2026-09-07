@@ -854,15 +854,24 @@ scalar converters.
 - Neither implementation overrides `getTypeArguments(String)` / `getAllTypeArguments()`,
   which is how Micronaut answers "what is `T` for the `EventListener<T>` this bean
   implements".
-- `isValidDefaultValue` (`ScalaAnnotationMetadataBuilder.java:542`) drops
+- **Done.** `isValidDefaultValue` (`ScalaAnnotationMetadataBuilder.java:542`) dropped
   empty-string defaults, which are extremely common (`@Named`, `@Property`,
-  `@Requires.property`).
-- `annotationClassValue` / `enumValue` coerce arbitrary values with
-  `String.valueOf` (`:480`, `:502`), producing `AnnotationClassValue("null")` that
-  fails only at runtime.
-- `normalizeLooseValue` (`:438`) does not handle `ScalaAnnotationData`,
-  `ScalaAnnotationData[]` or `ScalaClassValueData[]`, so unresolved members leak
-  raw records into metadata.
+  `@Requires.property`). An empty string is a real default, not the absence of one.
+  Pinned by `ScalaAnnotationDefaultsSpec`.
+- **Does not reproduce; left alone.** `annotationClassValue` / `enumValue` coerce with
+  `String.valueOf` (`:480`, `:502`). Instrumented across the whole suite: the
+  `annotationClassValue` fallback is never reached at all, and the `enumValue` fallback
+  receives only `String` values that are already correct enum constant names
+  (`RUNTIME`, `TYPE`, `AROUND`...), for which `String.valueOf` is a no-op. The
+  `AnnotationClassValue("null")` the finding describes needs a null value, and none
+  arrives -- null values are filtered before reaching either. Worth re-checking if a
+  future change lets nulls through.
+- **Does not reproduce; left alone.** `normalizeLooseValue` (`:438`) does not handle
+  `ScalaAnnotationData`, `ScalaAnnotationData[]` or `ScalaClassValueData[]`.
+  Instrumented across the whole suite: no raw Scala record ever reaches the
+  fall-through. The "loose" path is only taken when a member has no resolved mirror,
+  and A11 made mirrors resolve on demand, so that is now rare. Re-check alongside any
+  change to mirror resolution.
 - Positional annotation arguments are matched against `symbol.info.decls`
   iteration order (`MicronautScalaCompilerPlugin.scala:1325`) rather than the
   primary constructor's parameter list, and invent names like `value1` when the

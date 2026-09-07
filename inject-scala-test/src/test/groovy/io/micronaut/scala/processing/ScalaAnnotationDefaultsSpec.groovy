@@ -84,6 +84,10 @@ class Target
         def defaults = element.getAnnotation(EXTERNAL_DEFAULTED).getDefaultValues()
         defaults['value'] == 'fallback'
         defaults['enabled'] == true
+
+        and: 'an empty-string default is a real default -- @Named and @Property both have one'
+        defaults.containsKey('qualifier')
+        defaults['qualifier'] == ''
     }
 
     void 'an explicit value still overrides the classpath default'() {

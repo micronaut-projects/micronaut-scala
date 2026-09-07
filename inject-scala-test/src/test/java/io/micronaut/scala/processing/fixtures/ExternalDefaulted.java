@@ -35,4 +35,10 @@ public @interface ExternalDefaulted {
      * @return Whether it is enabled
      */
     boolean enabled() default true;
+
+    /**
+     * @return A member whose default is the empty string, as {@code @Named} and
+     *     {@code @Property} have.
+     */
+    String qualifier() default "";
 }

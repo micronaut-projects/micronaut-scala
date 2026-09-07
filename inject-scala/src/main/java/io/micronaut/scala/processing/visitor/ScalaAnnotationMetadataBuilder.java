@@ -562,11 +562,14 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
         return false;
     }
 
+    /**
+     * An empty string is a real default, not the absence of one. Treating it as absent
+     * dropped the declared default of some of the most common annotations there are --
+     * {@code @Named}, {@code @Property} and {@code @Requires.property} all default to it --
+     * so Micronaut could not tell that an explicitly empty value matched the default.
+     */
     private boolean isValidDefaultValue(@Nullable Object defaultValue) {
-        if (defaultValue == null) {
-            return false;
-        }
-        return !(defaultValue instanceof String string) || !string.isEmpty();
+        return defaultValue != null;
     }
 
     private AnnotationTypeElement annotationType(ScalaAnnotationData annotation) {
