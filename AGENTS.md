@@ -1,38 +1,114 @@
 # Repository Guidance
 
-This repository is the Micronaut template for generated module repositories. Keep root guidance short and update it when the template workflow changes.
+This repository is Micronaut Scala: a Scala 3 compiler plugin that runs
+Micronaut's `TypeElementVisitor` and bean-definition pipeline during `dotc`
+compilation, plus the test harness that exercises it. Keep root guidance short
+and update it when the build or module layout changes.
 
 ## Repository Shape
 
-- `project-template/` is the generated module placeholder. Changes here should make sense after `template-cleanup.yml` renames it to `micronaut-<slug>/`.
-- `project-template-bom/` is the generated BOM placeholder. Keep dependency-management changes separate from module implementation changes when possible.
-- `buildSrc/src/main/groovy/io.micronaut.build.internal.project-template-*.gradle` contains template convention plugins that are also renamed by the cleanup workflow.
-- `.agents/skills/` is shared agent guidance. Skill changes are validated by `.github/workflows/skills-validation.yml`.
+Sources and published artifacts are deliberately separated. The two
+`*-compiler` projects own the published, fully-crossed Maven coordinates; the
+two source projects apply only the `base` plugin and publish nothing.
 
-## Template And Sync Rules
+- `inject-scala/` — the plugin implementation. `src/main/scala` holds the dotty
+  driver and model extractor (`MicronautScalaCompilerPlugin.scala`);
+  `src/main/java` holds the Micronaut Element API adapter and annotation
+  pipeline under `io.micronaut.scala.processing.visitor`.
+- `inject-scala-test/` — the test harness (`ScalaCompiler`, the Spock base spec,
+  the always-on test visitors) and the Spock parity suites.
+- `inject-scala-compiler/` — compiles the `inject-scala` source trees and
+  publishes `io.micronaut.scala:micronaut-inject-scala_<scalaVersion>`.
+- `inject-scala-test-compiler/` — compiles the `inject-scala-test` source trees,
+  publishes `micronaut-inject-scala-test_<scalaVersion>`, and **runs the test
+  suite**.
+- `micronaut-scala-bom/` — the published platform.
 
-- Treat `.github/workflows/files-sync.yml` as the source of truth for files copied from this template to other Micronaut repositories.
-- Before editing synced files, check whether the file is copied by `files-sync.yml`, excluded by `.github/workflows/.rsync-filter`, or rewritten by `.github/workflows/template-cleanup.yml`.
-- `CONTRIBUTING.md` is rewritten by `template-cleanup.yml` when a repository is created from the template, but it is not copied by the recurring files-sync workflow. Existing downstream copies need repo-specific PRs.
-- Do not add project-specific assumptions to files that will be synced broadly unless the cleanup workflow rewrites them correctly for generated repositories.
-- When changing placeholder names, update every cleanup substitution and related file move in `.github/workflows/template-cleanup.yml`.
+The Scala compiler version comes from one place, `gradle/libs.versions.toml`
+(`scala3`), and is crossed into the artifact IDs because compiler-plugin APIs
+are not binary compatible across compiler releases. Gradle project names stay
+version-free: Core enables `TYPESAFE_PROJECT_ACCESSORS` across the whole
+composite, and it rejects project names containing a dot.
+
+Micronaut Build's `useStandardizedProjectNames` prefixes every project with
+`micronaut-`, so task paths are `:micronaut-inject-scala-compiler:jar`,
+`:micronaut-inject-scala-test-compiler:test`, and so on — not the directory
+names above.
+
+## Building And Testing
+
+The build requires **JDK 25**. Set `LANG=C.UTF-8` (or another UTF-8 locale) or
+settings evaluation fails on a non-ASCII test resource inside micronaut-core.
+
+```
+export JAVA_HOME=/path/to/jdk-25
+export LANG=C.UTF-8 LC_ALL=C.UTF-8
+./gradlew -PincludeMicronautCore=true :micronaut-inject-scala-test-compiler:test
+```
+
+`-PincludeMicronautCore=true` is currently **required**: the catalog pins
+`micronaut-core = "5.2.0-SNAPSHOT"`, which is published nowhere, so the build
+clones micronaut-core `5.2.x` into `checkouts/` via IncludeGit and builds it
+from source. The first such build is slow. To develop against a local Core
+checkout instead, use `-Plocal.git.micronaut-core=/path/to/micronaut-core`; to
+select a different Core branch, use `-PmicronautCoreBranch=<branch>`.
+
+`buildSrc/settings.gradle` includes a sibling micronaut-build checkout
+(`../../build`) when one exists, so a stale local copy of micronaut-build can
+break the build in a way CI never sees. Override it with
+`-PmicronautBuildCheckout=<path>` (or `MICRONAUT_BUILD_CHECKOUT`) pointing
+somewhere that does not exist to force the published plugins.
+
+- `./gradlew check` for general validation.
+- `./gradlew verifyCompilerArtifacts` for the packaging and publication guards.
+- `./gradlew publishGuide` (or `pG`) after guide or `toc.yml` changes;
+  `./gradlew docs` when Javadoc output matters.
+
+There is no `doc-examples/` module and there are no native or Testcontainers
+tests. The test harness runs `dotty.tools.dotc.Main` in-process; Docker is
+needed only by the vulnerability-audit script.
+
+## Working On The Plugin
+
+- The compiler plugin is named `micronaut-scala`, registered through
+  `inject-scala/src/main/resources/plugin.properties`. Its options are therefore
+  spelled `-P:micronaut-scala:<key>=<value>`.
+- It inserts two phases: `micronaut-scala-type-visitors` (after `PostTyper`) and
+  `micronaut-scala-bean-definitions` (before `Pickler`). Both are useful targets
+  for `-Xprint` when troubleshooting.
+- Add-on `TypeElementVisitor`s are discovered by `ServiceLoader` over the
+  **compile classpath**, not an `annotationProcessor` configuration. This is a
+  materially different model from javac/kapt.
+- The only runtime contribution is `ScalaCollectionConverterRegistrar`.
+- Tests drive `dotc` with `-Xplugin:<the built jar>` through two system
+  properties (`micronaut.scala.plugin.jar`, `micronaut.scala.test.classpath`)
+  that this repository's build sets.
+- Behaviour claims about dotty must be checked against the compiler sources for
+  the pinned release, not assumed:
+  `org.scala-lang:scala3-compiler_3:<scala3>:sources`. Composite `FlagSet`s in
+  particular need `isAllOf`, not `isOneOf`.
+
+## Planning Documents
+
+- `SCALA3_SUPPORT_PLAN.md` — compatibility policy, release sequencing,
+  packaging rules.
+- `SCALA3_REMEDIATION_PLAN.md` — the reviewed gap analysis and the wave-ordered
+  work plan. Findings are marked *confirmed* or *suspected*; re-verify the
+  suspected ones against primary sources before acting.
+- `inject-scala-test/DISABLED_TESTS.md` — parity coverage against the Java,
+  Groovy and Kotlin suites, with the P-1..P3 priority buckets.
 
 ## Contributing Guidelines
 
-- Before opening or updating a pull request, read this repository's `CONTRIBUTING.md` and follow every repo-specific PR requirement it names.
-- Treat contributor-checklist items as handoff requirements. If a requirement is not applicable, state that explicitly in the PR description or handoff note.
-- For UI-visible changes, confirm whether screenshots or other visual evidence are required and include them in the PR description; if screenshots cannot be provided, explain why and describe the verification that was performed.
+- Before opening or updating a pull request, read `CONTRIBUTING.md` and follow
+  every repo-specific requirement it names.
+- Run the test task after every change; do not push a red build.
+- When a fix changes observable behaviour, add or update a test that pins it,
+  and say so in the commit message.
 
 ## Documentation
 
-- User guide sources live in `src/main/docs/guide`, with navigation in `src/main/docs/guide/toc.yml`.
-- Build guide output with `./gradlew publishGuide` or `./gradlew pG`; build guide plus Javadocs with `./gradlew docs`.
-- There are currently no `doc-examples/` snippets or shared docs images in this template. Prefer runnable snippets if examples are introduced.
-- Release-note behavior is maintained through `.github/release.yml`, `.github/workflows/release.yml`, and the release process documented in `MAINTAINING.md`.
-
-## Verification
-
-- Use `./gradlew check` for general validation.
-- Use `./gradlew publishGuide` after guide or `toc.yml` changes.
-- Use `./gradlew docs` when API docs or release documentation output matters.
-- For `.agents/skills/**` changes, run the same validation as `skills-validation.yml` for the touched skill directories.
+- User guide sources live in `src/main/docs/guide`, with navigation in
+  `src/main/docs/guide/toc.yml`.
+- Release-note behaviour is maintained through `.github/release.yml`,
+  `.github/workflows/release.yml`, and the process in `MAINTAINING.md`.

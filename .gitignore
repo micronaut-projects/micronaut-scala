@@ -9,6 +9,8 @@ build/
 !buildSrc/src/main/groovy/io/micronaut/build
 classes/
 out/
+# IncludeGit clones micronaut-core here under -PincludeMicronautCore=true.
+checkouts/
 *.db
 *.log
 *.iml

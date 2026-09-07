@@ -4,15 +4,12 @@ caffeine = "2.9.3"
 scala3 = "3.9.0"
 micronaut-core = "5.2.0-SNAPSHOT"
 
-geb = "7.0"
-htmlunit = "2.70.0"
 htmlsanitycheck = "1.1.6"
 japicmp-gradle-plugin="0.4.6"
 junit-platform="1.12.2"
 micronaut-test = "5.1.0"
 micronaut-validation = "5.1.0"
 native-gradle-plugin = "0.11.4"
-selenium = "4.27.0"
 slf4j = "2.0.17"
 spock = "2.4-groovy-5.0"
 tomlj="1.1.1"
@@ -48,10 +45,8 @@ sonatype-scan = { module = "org.sonatype.gradle.plugins:scan-gradle-plugin", ver
 
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 
-geb-spock = { module = "org.gebish:geb-spock", version.ref = "geb" }
 groovy-test-junit5 = { module = "org.apache.groovy:groovy-test-junit5", version.ref = "managed-groovy" }
 
-htmlunit = { module = "net.sourceforge.htmlunit:htmlunit", version.ref = "htmlunit" }
 htmlsanitycheck = { module = "org.aim42:htmlSanityCheck", version.ref = "htmlsanitycheck"}
 japicmp-gradle-plugin = { module = "me.champeau.gradle:japicmp-gradle-plugin", version.ref = "japicmp-gradle-plugin"}
 
@@ -64,13 +59,6 @@ micronaut-test-kotest5 = { module = "io.micronaut.test:micronaut-test-kotest5", 
 micronaut-test-spock = { module = "io.micronaut.test:micronaut-test-spock", version.ref = "micronaut-test" }
 
 native-gradle-plugin = { module = "org.graalvm.buildtools.native:org.graalvm.buildtools.native.gradle.plugin", version.ref = "native-gradle-plugin"}
-
-selenium-remote-driver = { module = "org.seleniumhq.selenium:selenium-remote-driver", version.ref = "selenium" }
-selenium-api = { module = "org.seleniumhq.selenium:selenium-api", version.ref = "selenium" }
-selenium-support = { module = "org.seleniumhq.selenium:selenium-support", version.ref = "selenium" }
-selenium-driver-chrome = { module = "org.seleniumhq.selenium:selenium-chrome-driver", version.ref = "selenium" }
-selenium-driver-firefox = { module = "org.seleniumhq.selenium:selenium-firefox-driver", version.ref = "selenium" }
-selenium-driver-htmlunit = { module = "org.seleniumhq.selenium:htmlunit-driver", version.ref = "selenium" }
 
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 
