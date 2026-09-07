@@ -745,7 +745,8 @@ plus a synthetic `$default` overload. Scala's convention is unrelated — a
 that interface would make Core emit calls to methods that do not exist. Honouring
 Scala defaults at injection points needs a language-neutral SPI in Core, or a
 Scala equivalent of the Kotlin one. This is out of scope for this repository and
-should be raised against Core.
+is tracked in **F2. Blocked on Micronaut Core**, with an investigation open
+against micronaut-core.
 
 **Fix.** For the rest: diagnose with a clear "unsupported for Scala" error rather
 than silently producing a wrong model.
@@ -1324,6 +1325,48 @@ already-broken guard.
 27. Multi-Scala-variant build layout (D8).
 28. Visitor dispatch order and the remaining engine hygiene items (B1, B2, B3,
     B6, B7, B8, B9).
+
+---
+
+## F2. Blocked on Micronaut Core
+
+Items that cannot be closed in this repository. Each needs a change to Core
+first; they are listed here so they are not mistaken for oversights.
+
+### Scala default arguments at injection points (from B13)
+
+A parameter with a default is treated as required, so a Scala bean whose
+constructor or `@Executable` method relies on defaults cannot be satisfied the
+way the source implies.
+
+Core models optional parameters only through
+`io.micronaut.inject.ast.KotlinParameterElement`, and the blocker is the
+*generated code* rather than the marker interface:
+`inject/writer/MethodGenUtils` builds an integer bitmask and calls Kotlin's
+synthetic `$default` overload, which is Kotlin's calling convention. Scala emits
+a separate zero-argument `<method>$default$<n>` getter per defaulted parameter
+(`$lessinit$greater$default$<n>` for constructors), with no mask and no overload,
+so implementing the Kotlin interface here would make Core generate calls to
+methods that do not exist.
+
+**Blocked on:** a language-neutral optional-parameter SPI in Core — either
+`ParameterElement.hasDefault()` plus a per-language way to supply the default
+value, or a narrower "this parameter is optional" signal if relaxing
+required-ness is useful on its own. An investigation is open against
+micronaut-core.
+
+**Come back when:** Core exposes such an SPI. The work here is then small —
+recognise the `$default$` getters in the extractor (the symbol-name detection
+added for annotation members in `defaultGetterReference` is the same mechanism)
+and implement the new interface on `ScalaParameterElement`. Add specs for a
+constructor default and an `@Executable` method default, and move this item back
+into a numbered wave.
+
+### Classpath supertypes contributing inherited members (the second half of A6)
+
+Blocked on A7 and A18, which are already in Waves 3 and 4 of this plan rather
+than on Core. Recorded here only so the two blocked halves are visible together;
+see A6 for the detail.
 
 ---
 
