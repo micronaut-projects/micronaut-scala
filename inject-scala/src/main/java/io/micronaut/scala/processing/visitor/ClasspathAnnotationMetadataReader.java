@@ -18,7 +18,6 @@ package io.micronaut.scala.processing.visitor;
 import io.micronaut.core.annotation.AnnotationClassValue;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationValue;
-import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import org.jspecify.annotations.Nullable;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
@@ -63,39 +62,39 @@ final class ClasspathAnnotationMetadataReader {
     private ClasspathAnnotationMetadataReader() {
     }
 
-    static AnnotationMetadata classMetadata(Class<?> type) {
-        return metadata(type).classMetadata();
+    static List<AnnotationValue<?>> classAnnotations(Class<?> type) {
+        return metadata(type).classAnnotations();
     }
 
-    static AnnotationMetadata methodMetadata(Method method) {
+    static List<AnnotationValue<?>> methodAnnotations(Method method) {
         return metadata(method.getDeclaringClass())
             .methods()
-            .getOrDefault(memberKey(method.getName(), Type.getMethodDescriptor(method)), AnnotationMetadata.EMPTY_METADATA);
+            .getOrDefault(memberKey(method.getName(), Type.getMethodDescriptor(method)), List.of());
     }
 
-    static AnnotationMetadata constructorMetadata(Constructor<?> constructor) {
+    static List<AnnotationValue<?>> constructorAnnotations(Constructor<?> constructor) {
         return metadata(constructor.getDeclaringClass())
             .methods()
-            .getOrDefault(memberKey("<init>", Type.getConstructorDescriptor(constructor)), AnnotationMetadata.EMPTY_METADATA);
+            .getOrDefault(memberKey("<init>", Type.getConstructorDescriptor(constructor)), List.of());
     }
 
-    static AnnotationMetadata fieldMetadata(Field field) {
+    static List<AnnotationValue<?>> fieldAnnotations(Field field) {
         return metadata(field.getDeclaringClass())
             .fields()
-            .getOrDefault(memberKey(field.getName(), Type.getDescriptor(field.getType())), AnnotationMetadata.EMPTY_METADATA);
+            .getOrDefault(memberKey(field.getName(), Type.getDescriptor(field.getType())), List.of());
     }
 
-    static AnnotationMetadata parameterMetadata(Executable executable, int parameterIndex) {
+    static List<AnnotationValue<?>> parameterAnnotations(Executable executable, int parameterIndex) {
         if (parameterIndex < 0) {
-            return AnnotationMetadata.EMPTY_METADATA;
+            return List.of();
         }
-        AnnotationMetadata[] metadata = metadata(executable.getDeclaringClass())
+        List<AnnotationValue<?>>[] annotations = metadata(executable.getDeclaringClass())
             .parameters()
             .get(memberKey(executable instanceof Constructor<?> ? "<init>" : executable.getName(), methodDescriptor(executable)));
-        if (metadata == null || parameterIndex >= metadata.length) {
-            return AnnotationMetadata.EMPTY_METADATA;
+        if (annotations == null || parameterIndex >= annotations.length) {
+            return List.of();
         }
-        return metadata[parameterIndex];
+        return annotations[parameterIndex];
     }
 
     private static LoadedClassMetadata metadata(Class<?> type) {
@@ -149,17 +148,8 @@ final class ClasspathAnnotationMetadataReader {
         return new MemberKey(name, descriptor);
     }
 
-    private static AnnotationVisitor annotationVisitor(
-        MutableAnnotationMetadata annotationMetadata,
-        String descriptor,
-        boolean visible) {
-        return new AnnotationValueVisitor(descriptor, annotationValue ->
-            annotationMetadata.addDeclaredAnnotation(
-                annotationValue.getAnnotationName(),
-                annotationValue.getValues(),
-                visible ? RetentionPolicy.RUNTIME : RetentionPolicy.CLASS
-            )
-        );
+    private static AnnotationVisitor annotationVisitor(List<AnnotationValue<?>> sink, String descriptor) {
+        return new AnnotationValueVisitor(descriptor, sink::add);
     }
 
     private static Object normalizeValue(Object value) {
@@ -193,14 +183,19 @@ final class ClasspathAnnotationMetadataReader {
         return name == null ? AnnotationMetadata.VALUE_MEMBER : name;
     }
 
+    /**
+     * Raw annotation values as they appear in the class file. Deliberately not resolved
+     * metadata: resolution needs the annotation types of the compilation currently running,
+     * and this is cached across compilations.
+     */
     private record LoadedClassMetadata(
-        AnnotationMetadata classMetadata,
-        Map<MemberKey, AnnotationMetadata> methods,
-        Map<MemberKey, AnnotationMetadata[]> parameters,
-        Map<MemberKey, AnnotationMetadata> fields) {
+        List<AnnotationValue<?>> classAnnotations,
+        Map<MemberKey, List<AnnotationValue<?>>> methods,
+        Map<MemberKey, List<AnnotationValue<?>>[]> parameters,
+        Map<MemberKey, List<AnnotationValue<?>>> fields) {
 
         private static final LoadedClassMetadata EMPTY = new LoadedClassMetadata(
-            AnnotationMetadata.EMPTY_METADATA,
+            List.of(),
             Map.of(),
             Map.of(),
             Map.of()
@@ -211,10 +206,10 @@ final class ClasspathAnnotationMetadataReader {
     }
 
     private static final class MetadataClassVisitor extends ClassVisitor {
-        private final MutableAnnotationMetadata classMetadata = new MutableAnnotationMetadata();
-        private final Map<MemberKey, AnnotationMetadata> methods = new LinkedHashMap<>();
-        private final Map<MemberKey, AnnotationMetadata[]> parameters = new LinkedHashMap<>();
-        private final Map<MemberKey, AnnotationMetadata> fields = new LinkedHashMap<>();
+        private final List<AnnotationValue<?>> classAnnotations = new ArrayList<>();
+        private final Map<MemberKey, List<AnnotationValue<?>>> methods = new LinkedHashMap<>();
+        private final Map<MemberKey, List<AnnotationValue<?>>[]> parameters = new LinkedHashMap<>();
+        private final Map<MemberKey, List<AnnotationValue<?>>> fields = new LinkedHashMap<>();
 
         private MetadataClassVisitor() {
             super(Opcodes.ASM9);
@@ -222,64 +217,64 @@ final class ClasspathAnnotationMetadataReader {
 
         @Override
         public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-            return annotationVisitor(classMetadata, descriptor, visible);
+            return annotationVisitor(classAnnotations, descriptor);
         }
 
         @Override
         public FieldVisitor visitField(int access, String name, String descriptor, @Nullable String signature, @Nullable Object value) {
-            MutableAnnotationMetadata fieldMetadata = new MutableAnnotationMetadata();
+            List<AnnotationValue<?>> fieldAnnotations = new ArrayList<>();
             return new FieldVisitor(Opcodes.ASM9) {
                 @Override
                 public AnnotationVisitor visitAnnotation(String annotationDescriptor, boolean visible) {
-                    return annotationVisitor(fieldMetadata, annotationDescriptor, visible);
+                    return annotationVisitor(fieldAnnotations, annotationDescriptor);
                 }
 
                 @Override
                 public void visitEnd() {
-                    if (!fieldMetadata.isEmpty()) {
-                        fields.put(memberKey(name, descriptor), fieldMetadata);
+                    if (!fieldAnnotations.isEmpty()) {
+                        fields.put(memberKey(name, descriptor), List.copyOf(fieldAnnotations));
                     }
                 }
             };
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public MethodVisitor visitMethod(
             int access,
             String name,
             String descriptor,
             @Nullable String signature,
             String @Nullable [] exceptions) {
-            MutableAnnotationMetadata methodMetadata = new MutableAnnotationMetadata();
-            Map<Integer, MutableAnnotationMetadata> parameterMetadata = new LinkedHashMap<>();
+            List<AnnotationValue<?>> methodAnnotations = new ArrayList<>();
+            Map<Integer, List<AnnotationValue<?>>> parameterAnnotations = new LinkedHashMap<>();
             return new MethodVisitor(Opcodes.ASM9) {
                 @Override
                 public AnnotationVisitor visitAnnotation(String annotationDescriptor, boolean visible) {
-                    return annotationVisitor(methodMetadata, annotationDescriptor, visible);
+                    return annotationVisitor(methodAnnotations, annotationDescriptor);
                 }
 
                 @Override
                 public AnnotationVisitor visitParameterAnnotation(int parameter, String annotationDescriptor, boolean visible) {
                     return annotationVisitor(
-                        parameterMetadata.computeIfAbsent(parameter, ignored -> new MutableAnnotationMetadata()),
-                        annotationDescriptor,
-                        visible
+                        parameterAnnotations.computeIfAbsent(parameter, ignored -> new ArrayList<>()),
+                        annotationDescriptor
                     );
                 }
 
                 @Override
                 public void visitEnd() {
                     MemberKey key = memberKey(name, descriptor);
-                    if (!methodMetadata.isEmpty()) {
-                        methods.put(key, methodMetadata);
+                    if (!methodAnnotations.isEmpty()) {
+                        methods.put(key, List.copyOf(methodAnnotations));
                     }
-                    if (!parameterMetadata.isEmpty()) {
+                    if (!parameterAnnotations.isEmpty()) {
                         int parameterCount = Type.getArgumentTypes(descriptor).length;
-                        AnnotationMetadata[] metadata = new AnnotationMetadata[parameterCount];
+                        List<AnnotationValue<?>>[] byParameter = new List[parameterCount];
                         for (int i = 0; i < parameterCount; i++) {
-                            metadata[i] = parameterMetadata.getOrDefault(i, new MutableAnnotationMetadata());
+                            byParameter[i] = List.copyOf(parameterAnnotations.getOrDefault(i, List.of()));
                         }
-                        parameters.put(key, metadata);
+                        parameters.put(key, byParameter);
                     }
                 }
             };
@@ -287,7 +282,7 @@ final class ClasspathAnnotationMetadataReader {
 
         private LoadedClassMetadata toMetadata() {
             return new LoadedClassMetadata(
-                classMetadata.isEmpty() ? AnnotationMetadata.EMPTY_METADATA : classMetadata,
+                List.copyOf(classAnnotations),
                 Map.copyOf(methods),
                 Map.copyOf(parameters),
                 Map.copyOf(fields)

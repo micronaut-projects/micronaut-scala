@@ -249,10 +249,24 @@ never runs, repeatable containers are not unwrapped, and defaults are absent.
 The same type inspected from source and from the classpath gives different
 answers.
 
-**Fix.** Adapt the ASM result into `ScalaAnnotationData`/`ScalaAnnotationTypeData`
-(recursively reading each annotation type's own class file) and feed it through
-`ScalaAnnotationMetadataBuilder`, so both element kinds share one metadata
-pipeline.
+**Fix — done for declared annotations.** The ASM reader now caches the *raw*
+annotation values rather than finished metadata -- resolution depends on the
+annotation types of the compilation currently running, and that cache is shared
+across compilations -- and `LoadedAnnotatedElementData` adapts them into
+`ScalaAnnotationData`, resolving each annotation type through the compiler (A11)
+rather than by re-reading class files. `ScalaLoadedClassElement` then builds its
+class, method, constructor, field and parameter metadata through
+`ScalaAnnotationMetadataBuilder`, so both element kinds share one pipeline.
+
+Reproduced before fixing: `@ExternalInheritedSingleton` on a classpath type gave
+`hasStereotype(SCOPE) == false` while the identical annotation on a source type
+gave true. Pinned by `ScalaClasspathMetadataSpec`, which asserts both that the
+stereotype resolves and that the two element kinds agree.
+
+Still open: annotations *inherited* from a classpath supertype. `buildHierarchy`
+only walks a hierarchy for `ScalaClassData`, and a loaded element is adapted as a
+flat member, so this covers declared annotations only. That is the same boundary
+as A6's classpath half and belongs with it and A18.
 
 ### A8 (BLOCKER, confirmed) No source positions on any diagnostic
 

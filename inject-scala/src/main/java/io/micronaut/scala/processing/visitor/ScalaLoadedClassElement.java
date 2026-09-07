@@ -17,6 +17,7 @@ package io.micronaut.scala.processing.visitor;
 
 import io.micronaut.context.annotation.BeanProperties;
 import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.type.DefaultArgument;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.ast.ArrayableClassElement;
@@ -75,7 +76,8 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
     private final Map<String, ClassElement> typeArguments;
 
     ScalaLoadedClassElement(Class<?> type, ScalaVisitorContext visitorContext) {
-        this(type, visitorContext, ClasspathAnnotationMetadataReader.classMetadata(componentType(type)), Map.of());
+        this(type, visitorContext, loadedMetadata(componentType(type).getName(), componentType(type),
+            ClasspathAnnotationMetadataReader.classAnnotations(componentType(type)), visitorContext), Map.of());
     }
 
     private ScalaLoadedClassElement(
@@ -307,11 +309,11 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
     }
 
     private LoadedMethodElement methodElement(Method method) {
-        return new LoadedMethodElement(this, this, method, parameters(method), visitorContext, ClasspathAnnotationMetadataReader.methodMetadata(method));
+        return new LoadedMethodElement(this, this, method, parameters(method), visitorContext, loadedMetadata(method.getName(), method, ClasspathAnnotationMetadataReader.methodAnnotations(method), visitorContext));
     }
 
     private LoadedConstructorElement constructorElement(Constructor<?> constructor) {
-        return new LoadedConstructorElement(this, this, constructor, parameters(constructor), visitorContext, ClasspathAnnotationMetadataReader.constructorMetadata(constructor));
+        return new LoadedConstructorElement(this, this, constructor, parameters(constructor), visitorContext, loadedMetadata("<init>", constructor, ClasspathAnnotationMetadataReader.constructorAnnotations(constructor), visitorContext));
     }
 
     private LoadedFieldElement fieldElement(Field field) {
@@ -322,7 +324,7 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
             classElement(field.getType(), visitorContext),
             classElement(field.getGenericType(), field.getType(), visitorContext),
             visitorContext,
-            ClasspathAnnotationMetadataReader.fieldMetadata(field)
+            loadedMetadata(field.getName(), field, ClasspathAnnotationMetadataReader.fieldAnnotations(field), visitorContext)
         );
     }
 
@@ -340,10 +342,27 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
                 parameters[i],
                 parameters[i].getName(),
                 visitorContext,
-                ClasspathAnnotationMetadataReader.parameterMetadata(executable, i)
+                loadedMetadata(parameters[i].getName(), executable, ClasspathAnnotationMetadataReader.parameterAnnotations(executable, i), visitorContext)
             );
         }
         return parameterElements;
+    }
+
+    /**
+     * Builds a classpath member's metadata through the same builder the source elements use,
+     * so stereotypes, aliases, mappers and repeatable containers are resolved for it.
+     */
+    private static AnnotationMetadata loadedMetadata(
+        String name,
+        Object nativeType,
+        List<AnnotationValue<?>> annotations,
+        ScalaVisitorContext visitorContext) {
+        if (annotations.isEmpty()) {
+            return AnnotationMetadata.EMPTY_METADATA;
+        }
+        return visitorContext.annotationMetadata(
+            LoadedAnnotatedElementData.of(name, nativeType, annotations, visitorContext)
+        );
     }
 
     private <T extends Element> boolean matches(ElementQuery.Result<T> result, Element element) {
