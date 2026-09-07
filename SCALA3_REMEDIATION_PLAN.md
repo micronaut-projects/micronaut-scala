@@ -709,9 +709,9 @@ across all `ClassElement` implementations to `(name, arrayDimensions)`.
 
 | Shape | Current behaviour | Consequence |
 | --- | --- | --- |
-| by-name `=> T` | `typeData` widens `ExprType` to its result type (`:783`, `:85`) | modelled as `T` while the JVM signature is `Function0`; the generated argument type does not match the bytecode |
-| varargs `T*` | no `RepeatedParamType` handling anywhere; `isVarArgs()` not overridden on the source path | the parameter type name is not a JVM type name |
-| default arguments | `$default$N` recognised only for annotation members (`:424`) | a Scala default argument is invisible, so the parameter is treated as required |
+| by-name `=> T` | **fixed** — modelled as `scala.Function0` | — |
+| varargs `T*` | **not a defect** — see below | — |
+| default arguments | **blocked on a Core SPI change** — see below | a Scala default argument is invisible, so the parameter is treated as required |
 | value classes (`AnyVal`) | not handled | parameter modelled by its own class while the JVM signature uses the underlying type |
 | union types other than `A \| Null` | fall through to the lub's class symbol (`:109`) | silently widened |
 | intersection types | truncated to the first bound (`:1083`) | documented in a comment, but not diagnosed |
@@ -719,9 +719,28 @@ across all `ClassElement` implementations to `(name, arrayDimensions)`.
 | trait parameters (`trait Foo(x: Int)`) | only a class's `template.constr` is read | trait constructor parameters are not represented |
 | extension methods, `export`, `inline` | not handled | invisible (they live on the skipped module class) |
 
-**Fix.** Handle by-name, varargs and default arguments explicitly (they affect
-injection-point correctness); diagnose the rest with a clear "unsupported for
-Scala" error rather than silently producing a wrong model.
+**Varargs — not a defect.** Checked against emitted bytecode: `def f(xs: String*)`
+emits a single method taking `scala.collection.immutable.Seq` with `ACC_VARARGS`
+*unset*, because Scala varargs are `Seq`-based rather than array-based. So the
+current model is already right on both counts — the parameter type name is a real
+JVM type name, and leaving `isVarArgs()` false is correct. (`@scala.annotation.varargs`
+additionally emits an array overload with `ACC_VARARGS` set; that forwarder is
+generated in the backend and so is not visible to this phase. The `Seq` method is
+the real one, so nothing is lost.) Already covered by
+`ScalaLanguageFeatureSpec`.
+
+**Default arguments — blocked on Core.** Micronaut does model optional
+parameters, but only through `io.micronaut.inject.ast.KotlinParameterElement`,
+and `MethodGenUtils` generates *Kotlin's* calling convention for them: a bitmask
+plus a synthetic `$default` overload. Scala's convention is unrelated — a
+`foo$default$N()` getter per parameter, no mask and no overload — so implementing
+that interface would make Core emit calls to methods that do not exist. Honouring
+Scala defaults at injection points needs a language-neutral SPI in Core, or a
+Scala equivalent of the Kotlin one. This is out of scope for this repository and
+should be raised against Core.
+
+**Fix.** For the rest: diagnose with a clear "unsupported for Scala" error rather
+than silently producing a wrong model.
 
 ### B14 (MAJOR) Scala collection converters ignore the element type
 
