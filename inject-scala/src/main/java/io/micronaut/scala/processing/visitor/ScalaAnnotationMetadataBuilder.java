@@ -552,8 +552,11 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
         ScalaAnnotationTypeData nativeType = annotation.annotationType();
         if (nativeType != null) {
             registerAnnotationType(nativeType);
+            // Read back rather than using the argument: registration may replace the type with
+            // a completed copy, and the one carried on the annotation is the incomplete one.
+            nativeType = nativeAnnotationTypes.getOrDefault(annotation.name(), nativeType);
         } else {
-            nativeType = nativeAnnotationTypes.get(annotation.name());
+            nativeType = nativeAnnotationType(annotation.name());
         }
         return new AnnotationTypeElement(annotation.name(), nativeType);
     }
@@ -633,6 +636,16 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
     }
 
     private void registerAnnotationType(@Nullable ScalaAnnotationTypeData annotationType) {
+        if (annotationType == null) {
+            return;
+        }
+        // An annotation type extracted from a symbol carries only the defaults harvested from
+        // this compilation's trees, so a classpath annotation arrives here with none. Complete
+        // them at the point of registration, which is the one path both the extracted and the
+        // on-demand-resolved types go through.
+        if (visitorContext instanceof ScalaVisitorContext scalaVisitorContext) {
+            annotationType = scalaVisitorContext.completeAnnotationDefaults(annotationType);
+        }
         if (annotationType == null || nativeAnnotationTypes.putIfAbsent(annotationType.name(), annotationType) != null) {
             return;
         }

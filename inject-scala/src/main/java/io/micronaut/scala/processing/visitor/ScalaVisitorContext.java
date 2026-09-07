@@ -139,7 +139,65 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
      * @return The annotation type, or {@code null} if it is not an annotation on this classpath
      */
     @Nullable ScalaAnnotationTypeData resolveAnnotationType(String annotationName) {
-        return annotationTypeResolver.apply(annotationName);
+        return completeAnnotationDefaults(annotationTypeResolver.apply(annotationName));
+    }
+
+    /**
+     * Fills in member defaults that the compiler cannot supply.
+     *
+     * <p>Defaults for annotations declared in this compilation are harvested from its trees,
+     * but dotty's classfile parser records only a marker for the {@code AnnotationDefault}
+     * attribute and discards the value, so for an annotation read from a class file the
+     * declared default is recoverable only from the class file itself.
+     */
+    @Nullable ScalaAnnotationTypeData completeAnnotationDefaults(@Nullable ScalaAnnotationTypeData annotationType) {
+        if (annotationType == null || annotationType.members().isEmpty()) {
+            return annotationType;
+        }
+        boolean anyMissing = annotationType.members().values().stream()
+            .anyMatch(member -> member.defaultValue() == null);
+        if (!anyMissing) {
+            return annotationType;
+        }
+        Map<String, Object> defaults = classpathAnnotationDefaults(annotationType.name());
+        if (defaults.isEmpty()) {
+            return annotationType;
+        }
+        Map<String, ScalaAnnotationMemberData> members = new LinkedHashMap<>();
+        annotationType.members().forEach((name, member) -> {
+            Object defaultValue = member.defaultValue() == null ? defaults.get(name) : member.defaultValue();
+            members.put(name, defaultValue == member.defaultValue() ? member : new ScalaAnnotationMemberData(
+                member.name(),
+                member.annotations(),
+                defaultValue,
+                member.typeName(),
+                member.array(),
+                member.classType(),
+                member.enumType(),
+                member.annotationType(),
+                member.nativeType()
+            ));
+        });
+        return new ScalaAnnotationTypeData(
+            annotationType.name(),
+            annotationType.annotations(),
+            members,
+            annotationType.retentionPolicyName(),
+            annotationType.repeatableContainerName(),
+            annotationType.nativeType()
+        );
+    }
+
+    private Map<String, Object> classpathAnnotationDefaults(String annotationName) {
+        try {
+            return ClasspathAnnotationMetadataReader.annotationMemberDefaults(
+                Class.forName(annotationName, false, classLoader)
+            );
+        } catch (ClassNotFoundException | LinkageError e) {
+            // Declared in this compilation, or simply not on the classpath: either way there is
+            // no class file to read a default from.
+            return Map.of();
+        }
     }
 
     Optional<ScalaClassData> sourceClassData(String name) {

@@ -24,6 +24,8 @@ import io.micronaut.scala.processing.test.ScalaCompiler
  */
 class ScalaAnnotationDefaultsSpec extends AbstractScalaTypeElementSpec {
 
+    private static final String EXTERNAL_DEFAULTED = 'io.micronaut.scala.processing.fixtures.ExternalDefaulted'
+
     void 'defaults are read from an annotation declared in the same file'() {
         given:
         def element = buildClassElement('probe.Target', '''
@@ -65,5 +67,39 @@ class Target
         def annotation = element.getAnnotation('probe.MyAnn')
         annotation.stringValue().get() == 'from-other-file'
         annotation.booleanValue('enabled').get()
+    }
+
+    void 'defaults are read from an annotation on the classpath'() {
+        given:
+        def element = buildClassElement('probe.Target', '''
+package probe
+
+import io.micronaut.scala.processing.fixtures.ExternalDefaulted
+
+@ExternalDefaulted
+class Target
+''')
+
+        expect: 'dotty discards the AnnotationDefault value, so it is read from the class file'
+        def defaults = element.getAnnotation(EXTERNAL_DEFAULTED).getDefaultValues()
+        defaults['value'] == 'fallback'
+        defaults['enabled'] == true
+    }
+
+    void 'an explicit value still overrides the classpath default'() {
+        given:
+        def element = buildClassElement('probe.Target', '''
+package probe
+
+import io.micronaut.scala.processing.fixtures.ExternalDefaulted
+
+@ExternalDefaulted(value = "explicit", enabled = false)
+class Target
+''')
+
+        expect: 'the supplied values are what the annotation carries'
+        def annotation = element.getAnnotation(EXTERNAL_DEFAULTED)
+        annotation.stringValue('value').get() == 'explicit'
+        !annotation.booleanValue('enabled').get()
     }
 }

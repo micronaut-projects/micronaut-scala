@@ -331,9 +331,29 @@ same compilation has no defaults, and every classpath annotation
 has none at all. `ClasspathAnnotationMetadataReader` compounds this: its
 `MethodVisitor` (`:247`) never overrides `visitAnnotationDefault`.
 
-**Fix.** Resolve defaults from the annotation *symbol* on demand and cache per
-annotation type, which also covers classfile-loaded Java annotations; add
-`visitAnnotationDefault` to the ASM reader.
+**Fix — done, in two parts, and not the way the finding proposes.**
+
+Defaults for annotations declared in this compilation are now collected from
+*every* unit before any unit is extracted, which the move to `runOn` made
+possible. Previously an annotation picked up its defaults only when it was
+declared in the same file as its use.
+
+Resolving defaults from the annotation *symbol* does **not** work for classpath
+annotations, contrary to the finding: dotty's classfile parser records only a
+marker for the attribute and discards the value
+(`ClassfileParser.scala:998` adds `defn.AnnotationDefaultAnnot` with no value), so
+the value is not on the symbol to be read. Only the other half of the proposed fix
+reaches them, and that is what is implemented -- `visitAnnotationDefault` in the
+ASM reader, with the defaults merged into the annotation type when it is
+registered with the metadata builder. That is the single point both extracted and
+on-demand-resolved types pass through.
+
+Note the two kinds surface differently, and both are correct: Scala passes a
+synthetic default-getter argument for each omitted member, so a Scala annotation's
+defaults are resolved into the annotation's *values*, while a Java annotation's
+stay in its default values -- which is what inject-java produces too.
+
+Pinned by `ScalaAnnotationDefaultsSpec`.
 
 ### A11 (MAJOR, confirmed) `getAnnotationMirror` makes metadata order-dependent
 

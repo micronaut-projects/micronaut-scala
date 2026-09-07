@@ -66,6 +66,16 @@ final class ClasspathAnnotationMetadataReader {
         return metadata(type).classAnnotations();
     }
 
+    /**
+     * The declared defaults of an annotation type's members, keyed by member name.
+     *
+     * @param type The annotation type
+     * @return The defaults
+     */
+    static Map<String, Object> annotationMemberDefaults(Class<?> type) {
+        return metadata(type).memberDefaults();
+    }
+
     static List<AnnotationValue<?>> methodAnnotations(Method method) {
         return metadata(method.getDeclaringClass())
             .methods()
@@ -192,10 +202,12 @@ final class ClasspathAnnotationMetadataReader {
         List<AnnotationValue<?>> classAnnotations,
         Map<MemberKey, List<AnnotationValue<?>>> methods,
         Map<MemberKey, List<AnnotationValue<?>>[]> parameters,
-        Map<MemberKey, List<AnnotationValue<?>>> fields) {
+        Map<MemberKey, List<AnnotationValue<?>>> fields,
+        Map<String, Object> memberDefaults) {
 
         private static final LoadedClassMetadata EMPTY = new LoadedClassMetadata(
             List.of(),
+            Map.of(),
             Map.of(),
             Map.of(),
             Map.of()
@@ -210,6 +222,7 @@ final class ClasspathAnnotationMetadataReader {
         private final Map<MemberKey, List<AnnotationValue<?>>> methods = new LinkedHashMap<>();
         private final Map<MemberKey, List<AnnotationValue<?>>[]> parameters = new LinkedHashMap<>();
         private final Map<MemberKey, List<AnnotationValue<?>>> fields = new LinkedHashMap<>();
+        private final Map<String, Object> memberDefaults = new LinkedHashMap<>();
 
         private MetadataClassVisitor() {
             super(Opcodes.ASM9);
@@ -254,6 +267,24 @@ final class ClasspathAnnotationMetadataReader {
                     return annotationVisitor(methodAnnotations, annotationDescriptor);
                 }
 
+                /**
+                 * An annotation member's declared default. dotty's classfile parser records only
+                 * a marker for this attribute and discards the value, so the class file is the
+                 * only place it can still be read.
+                 */
+                @Override
+                public AnnotationVisitor visitAnnotationDefault() {
+                    return new AnnotationValueVisitor(
+                        Type.getDescriptor(Object.class),
+                        annotationValue -> {
+                            Object value = annotationValue.getValues().get(AnnotationMetadata.VALUE_MEMBER);
+                            if (value != null) {
+                                memberDefaults.put(name, value);
+                            }
+                        }
+                    );
+                }
+
                 @Override
                 public AnnotationVisitor visitParameterAnnotation(int parameter, String annotationDescriptor, boolean visible) {
                     return annotationVisitor(
@@ -285,7 +316,8 @@ final class ClasspathAnnotationMetadataReader {
                 List.copyOf(classAnnotations),
                 Map.copyOf(methods),
                 Map.copyOf(parameters),
-                Map.copyOf(fields)
+                Map.copyOf(fields),
+                Map.copyOf(memberDefaults)
             );
         }
     }
