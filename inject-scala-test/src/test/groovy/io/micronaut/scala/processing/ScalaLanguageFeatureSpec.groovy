@@ -16,6 +16,8 @@
 package io.micronaut.scala.processing
 
 import io.micronaut.inject.ast.ClassElement
+import io.micronaut.inject.ast.ConstructorElement
+import io.micronaut.inject.ast.ElementQuery
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
 import io.micronaut.scala.processing.test.ScalaCompiler
 
@@ -111,5 +113,21 @@ class JointChild extends JointBase
         element != null
         element.superType.isPresent()
         element.superType.get().name == 'test.JointBase'
+    }
+
+    void "test secondary constructors are exposed"() {
+        given:
+        ClassElement element = buildClassElement('test.Secondary', '''
+package test
+
+class Secondary(val name: String) {
+  def this() = this("default")
+}
+''')
+
+        expect:
+        element != null
+        element.getEnclosedElements(ElementQuery.of(ConstructorElement)).size() == 2
+        element.defaultConstructor.isPresent()
     }
 }

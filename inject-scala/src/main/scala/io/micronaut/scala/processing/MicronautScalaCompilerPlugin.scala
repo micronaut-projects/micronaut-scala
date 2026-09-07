@@ -459,7 +459,15 @@ private object ScalaModelExtractor:
           val enumConstants = enumConstantSymbols(symbol)
             .map(enumConstantFieldData(_, symbol))
           val allFields = (fields ++ enumConstants).distinctBy(_.name())
-          val constructors = List(methodData(template.constr, constructor = true, owner = symbol))
+          // `template.constr` is only the primary constructor. Scala secondary constructors are
+          // ordinary `DefDef`s in the template body whose symbol is a constructor, and Micronaut
+          // needs them so `@Inject` on one is honoured and so a class whose only no-argument
+          // constructor is secondary still reports a default constructor.
+          val secondaryConstructors = allMethods
+            .filter(method => method.symbol != template.constr.symbol && method.symbol.denot.isConstructor)
+            .filterNot(method => hasFlag(method.symbol, Flags.Synthetic) || hasFlag(method.symbol, Flags.Artifact))
+            .map(method => methodData(method, constructor = true, owner = symbol))
+          val constructors = methodData(template.constr, constructor = true, owner = symbol) +: secondaryConstructors
           val constructorProps = constructorProperties(template.constr, methodByName, allFields)
           val properties = constructorProps ++ bodyProperties(declarations, methodByName, allFields, constructorProps.map(_.name).toSet)
           val parents = template.parents
