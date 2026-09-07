@@ -551,6 +551,12 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         }
         Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(type.name());
         if (sourceElement.isEmpty()) {
+            // A supertype outside this compilation still contributes nothing. Merging its
+            // members in from `visitorContext.getClassElement(...)` was tried and reverted:
+            // those elements are reflective and immutable, so any visitor that annotates an
+            // inherited method fails with "does not support adding annotations at
+            // compilation time". This needs the classpath elements to become first-class
+            // first -- A7 and A18 in SCALA3_REMEDIATION_PLAN.md.
             return;
         }
         ScalaClassElement inheritedElement = sourceElement.get();
@@ -695,15 +701,104 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         if (data == null) {
             return;
         }
+        // Fields are de-duplicated by name, not signature: a subclass field shadows a
+        // superclass field of the same name rather than overloading it.
+        Set<String> fieldNames = new HashSet<>();
+        addDeclaredFieldElements(this, data, result, fieldNames, elements);
+        if (!result.isOnlyDeclared()) {
+            // This walk did not exist, so inherited @Inject and @Value fields and inherited
+            // @ConfigurationProperties state were always missed.
+            Set<String> visited = new HashSet<>();
+            visited.add(getName());
+            collectInheritedFields(data.superType(), result, fieldNames, elements, visited);
+            data.interfaces().forEach(interfaceType -> collectInheritedFields(interfaceType, result, fieldNames, elements, visited));
+        }
+    }
+
+    private <T extends Element> void addDeclaredFieldElements(
+        ScalaClassElement declaringElement,
+        ScalaClassData data,
+        ElementQuery.Result<T> result,
+        Set<String> fieldNames,
+        List<Element> elements) {
         data.fields().forEach(field -> {
+            if (!fieldNames.add(field.name())) {
+                return;
+            }
             if (field.enumConstant()) {
-                if (result.isIncludeEnumConstants() && this instanceof ScalaEnumElement enumElement) {
+                if (result.isIncludeEnumConstants() && declaringElement instanceof ScalaEnumElement enumElement) {
                     elements.add(enumElement.enumConstantElement(field));
                 }
             } else {
-                elements.add(fieldElement(field));
+                elements.add(declaringElement.fieldElement(field));
             }
         });
+    }
+
+    private <T extends Element> void collectInheritedFields(
+        @Nullable ScalaTypeData type,
+        ElementQuery.Result<T> result,
+        Set<String> fieldNames,
+        List<Element> elements,
+        Set<String> visited) {
+        if (type == null || !visited.add(type.name())) {
+            return;
+        }
+        Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(type.name());
+        if (sourceElement.isEmpty()) {
+            // See collectInheritedMethods: classpath supertypes are blocked on A7/A18.
+            return;
+        }
+        ScalaClassElement inheritedElement = sourceElement.get();
+        ScalaClassData inheritedData = inheritedElement.classData;
+        if (inheritedData == null) {
+            return;
+        }
+        Map<String, ScalaTypeData> substitutions = type.typeArguments();
+        addDeclaredFieldElements(inheritedElement, substitute(inheritedData, substitutions), result, fieldNames, elements);
+        collectInheritedFields(substitute(inheritedData.superType(), substitutions), result, fieldNames, elements, visited);
+        inheritedData.interfaces().forEach(interfaceType ->
+            collectInheritedFields(substitute(interfaceType, substitutions), result, fieldNames, elements, visited));
+    }
+
+    /**
+     * A copy of the supertype's data with its field types resolved against the
+     * parameterisation the subtype used, so an inherited {@code @Inject} field of type
+     * {@code T} reports the concrete type at the injection point.
+     */
+    private ScalaClassData substitute(ScalaClassData data, Map<String, ScalaTypeData> substitutions) {
+        if (substitutions.isEmpty()) {
+            return data;
+        }
+        return new ScalaClassData(
+            data.name(),
+            data.annotations(),
+            data.modifiers(),
+            data.annotationType(),
+            data.interfaceType(),
+            data.enumType(),
+            data.typeParameters(),
+            data.superType(),
+            data.interfaces(),
+            data.constructors(),
+            data.methods(),
+            data.fields().stream().map(field -> substitute(field, substitutions)).toList(),
+            data.properties(),
+            data.enclosingTypeName(),
+            data.nativeType()
+        );
+    }
+
+    private ScalaFieldData substitute(ScalaFieldData field, Map<String, ScalaTypeData> substitutions) {
+        return new ScalaFieldData(
+            field.name(),
+            Objects.requireNonNull(substitute(field.type(), substitutions)),
+            field.annotations(),
+            field.modifiers(),
+            field.enumConstant(),
+            field.constantValue(),
+            field.nativeType()
+        );
     }
 
     final ScalaConstructorElement constructorElement(ScalaMethodData constructor) {

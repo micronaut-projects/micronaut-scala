@@ -207,9 +207,25 @@ introspection. `ALL_FIELDS` is worse — `addFieldElements` (`:596`) never walks
 the hierarchy at all, so inherited `@Inject`/`@Value` fields and inherited
 `@ConfigurationProperties` state are always missed.
 
-**Fix.** Fall back to `visitorContext.getClassElement(type.name())` and merge its
-enclosed elements under the same signature de-duplication; mirror the method walk
-for fields, honouring `isOnlyDeclared()` and name shadowing.
+**Fix.** Mirror the method walk for fields, honouring `isOnlyDeclared()` — **done**.
+Fields are de-duplicated by name, and an inherited field's type is resolved against
+the parameterisation the subtype used.
+
+The classpath half — falling back to `visitorContext.getClassElement(type.name())`
+and merging its enclosed elements — was implemented, tested and reverted, and is
+**blocked on A7 and A18**. Those elements are reflective and immutable, so any
+visitor that annotates an inherited method fails outright with *"Element of type
+[MethodElement$1] does not support adding annotations at compilation time"*. Seven
+existing specs fail that way, all of them visitors annotating inherited
+introduction or bean methods. Merging in `ScalaLoadedClassElement`'s members also
+drags in `scala.Product`, `scala.Equals` and `java.io.Serializable` surface that
+the source path never produces, which is the `excludedHierarchyType` item in B15.
+This ordering needs to change: A6's classpath half belongs *after* A7 and A18, not
+before them.
+
+Note also that Scala does not permit field shadowing — neither `override var` nor
+a `private var` of the same name compiles when the superclass field is visible —
+so the shadowing rule is only reachable through a Java or classpath supertype.
 
 ### A7 (BLOCKER, confirmed) Classpath annotation metadata bypasses the metadata builder
 
@@ -1171,8 +1187,13 @@ already-broken guard.
    `ScalaDiagnosticPositionSpec`.
 8. Stop fabricating annotation values from printed tree text; report an error
    instead (A9). Remove the `classOf`-substring scan.
-9. `withTypeArguments` (A4), `overrides`/`hides` (A5).
-10. Field/method inheritance from classpath supertypes (A6).
+9. **Done.** `withTypeArguments` (A4), `overrides`/`hides` (A5). Both copy paths on
+   `ScalaClassElement` also stopped discarding the class's members. Pinned by
+   `ScalaGenericsAndOverridesSpec`.
+10. **Half done.** The field-inheritance walk, which did not exist at all, now
+    runs for supertypes in the compilation (A6), pinned by
+    `ScalaInheritedFieldSpec`. The classpath half is blocked on A7 and A18 — see
+    A6 above — and moves to Wave 4, after them.
 
 ### Wave 2 — harness, then Scala-native tests
 
@@ -1202,7 +1223,8 @@ already-broken guard.
 18. Equality and copy semantics for placeholders, wildcards and loaded elements
     (B12); `getTypeArguments(String)`/`getAllTypeArguments()`; the remaining B15
     items.
-19. Classpath enumeration via the declared-member walk (A18).
+19. Classpath enumeration via the declared-member walk (A18), and then the
+    classpath half of A6, which depends on it and on A7.
 20. Collection converters with element-type conversion (B14).
 21. Then port P1 and P2 parity specs.
 
