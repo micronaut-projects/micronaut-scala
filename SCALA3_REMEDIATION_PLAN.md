@@ -771,9 +771,23 @@ silently collapses distinct type arguments. Separately,
 element and a classpath element for the same type are never equal, because
 `ScalaLoadedClassElement` keys on the `Class` object.
 
-**Fix.** Give placeholders and wildcards their own `equalityType()`/`equalityKey()`;
-add the missing copy overrides to `ScalaWildcardElement`; unify `equalityType()`
-across all `ClassElement` implementations to `(name, arrayDimensions)`.
+**Fix — placeholders and wildcards done; loaded elements still open.**
+
+Both halves reproduced. For `class Repo[T, U]` the elements for `T` and `U` were
+`equals` with identical hash codes, and equal to a plain `java.lang.Object`;
+`wildcard.withAnnotationMetadata(...)` returned a plain `ScalaClassElement`.
+Placeholders are now keyed on the type variable, wildcards on their bounds, and
+`ScalaWildcardElement` keeps its type across an annotation copy.
+
+One correction to the finding: `withArrayDimensions` must **not** be added to the
+wildcard, and the annotation copy has to erase when the element carries array
+dimensions. `Array[_]` is modelled as a single type carrying both the wildcard
+bounds and the dimension, and an array of a wildcard is not itself a wildcard --
+`Array[_]` is `Object[]`. Adding the copy override without that rule broke
+`ScalaBeanIntrospectionSpec`, which is now guarded by a test of its own.
+
+Unifying `equalityType()` so a source element and a classpath element for the same
+type compare equal is **not** done; that belongs with A18.
 
 ### B13 (MAJOR) Scala type shapes that are modelled incorrectly
 

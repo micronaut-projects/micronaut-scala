@@ -82,4 +82,26 @@ final class ScalaGenericPlaceholderElement extends ScalaClassElement implements 
     public MutableAnnotationMetadataDelegate<AnnotationMetadata> getGenericTypeAnnotationMetadata() {
         return getElementAnnotationMetadata();
     }
+
+    /**
+     * A placeholder is identified by its variable, not by its erasure.
+     *
+     * <p>`ScalaClassElement` keys equality on {@code (name, arrayDimensions)}, and a
+     * placeholder's name is its erasure, so for {@code class Repo[T, U]} the elements for
+     * {@code T}, {@code U} and a plain {@code java.lang.Object} were all equal with the same
+     * hash code. Micronaut caches elements aggressively, so distinct type arguments were
+     * silently collapsing into one.
+     */
+    @Override
+    protected Class<?> equalityType() {
+        return ScalaGenericPlaceholderElement.class;
+    }
+
+    @Override
+    protected Object equalityKey() {
+        return new PlaceholderKey(getVariableName(), getName(), getArrayDimensions());
+    }
+
+    private record PlaceholderKey(String variableName, String erasedName, int arrayDimensions) {
+    }
 }
