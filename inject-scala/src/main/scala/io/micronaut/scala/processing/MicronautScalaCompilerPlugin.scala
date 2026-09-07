@@ -273,8 +273,12 @@ private final class TypeVisitorPhase(state: ProcessingState) extends PluginPhase
   override val runsAfter: Set[String] = Set(PostTyper.name)
   override val runsBefore: Set[String] = Set(BeanDefinitionPhase.PhaseName)
 
+  // Collected across every unit before any is extracted, so a class can see the defaults
+  // of an annotation declared in a different file of the same compilation.
+  private var annotationDefaults: Map[String, Map[String, Object]] = Map.empty
+
   override def run(using Context): Unit =
-    val classes = ScalaModelExtractor.collect(summon[Context].compilationUnit)
+    val classes = ScalaModelExtractor.collect(summon[Context].compilationUnit, annotationDefaults)
     state.addClasses(classes)
 
   // `Phase.runOn` invokes `run` only for units that pass `ctx.run.enterUnit(unit)`, and a
@@ -283,6 +287,7 @@ private final class TypeVisitorPhase(state: ProcessingState) extends PluginPhase
   // itself is called exactly once per phase per run, after every unit, which is the point
   // the visitor pass actually wants.
   override def runOn(units: List[CompilationUnit])(using Context): List[CompilationUnit] =
+    annotationDefaults = ScalaModelExtractor.annotationDefaults(units)
     val processed = super.runOn(units)
     state.processTypeVisitors()
     processed
@@ -371,8 +376,20 @@ private object ScalaModelExtractor:
   )
   private val NullableAnnotationData = ScalaAnnotationData(NullableAnnotationName, JMap.of[CharSequence, Object]())
 
-  def collect(unit: CompilationUnit)(using Context): List[ScalaClassData] =
-    given AnnotationDefaults = AnnotationDefaults(annotationDefaultValues(unit.tpdTree))
+  /**
+   * Annotation member defaults declared anywhere in this compilation.
+   *
+   * Harvesting them from a single unit made an annotation's defaults depend on which file
+   * it was declared in: `@MyAnn` used in one file picked up no defaults at all when
+   * `MyAnn` was declared in another, even though both were being compiled together.
+   */
+  def annotationDefaults(units: List[CompilationUnit])(using Context): Map[String, Map[String, Object]] =
+    units.foldLeft(Map.empty[String, Map[String, Object]]) { (collected, unit) =>
+      collected ++ annotationDefaultValues(unit.tpdTree)
+    }
+
+  def collect(unit: CompilationUnit, defaults: Map[String, Map[String, Object]])(using Context): List[ScalaClassData] =
+    given AnnotationDefaults = AnnotationDefaults(defaults)
     val classes = ListBuffer.empty[ScalaClassData]
     collectTree(unit.tpdTree, classes, null)
     classes.toList
