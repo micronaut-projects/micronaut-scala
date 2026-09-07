@@ -17,6 +17,7 @@ package io.micronaut.scala.processing
 
 import io.micronaut.inject.ast.ClassElement
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
+import io.micronaut.scala.processing.test.ScalaCompiler
 
 /**
  * Coverage for Scala language constructs that a Scala user meets immediately but that the
@@ -55,5 +56,60 @@ class Task extends Runnable {
         element != null
         element.interfaces.any { it.name == 'java.lang.Runnable' }
         !element.superType.isPresent() || element.superType.get().name != 'java.lang.Runnable'
+    }
+
+    void "test separate compilation of two Scala sources in one run"() {
+        given:
+        ClassElement element = buildClassElement([
+            ScalaCompiler.SourceFile.scala('test.Other', '''
+package test
+
+trait Other {
+  def other(): String
+}
+'''),
+            ScalaCompiler.SourceFile.scala('test.Main', '''
+package test
+
+import jakarta.inject.Singleton
+
+@Singleton
+class Main extends Other {
+  override def other(): String = "other"
+}
+''')
+        ], 'test.Main')
+
+        expect:
+        element != null
+        element.interfaces.any { it.name == 'test.Other' }
+    }
+
+    void "test joint Java and Scala compilation in one run"() {
+        given:
+        ClassElement element = buildClassElement([
+            ScalaCompiler.SourceFile.java('test.JointBase', '''
+package test;
+
+public class JointBase {
+    public String base() {
+        return "base";
+    }
+}
+'''),
+            ScalaCompiler.SourceFile.scala('test.JointChild', '''
+package test
+
+import jakarta.inject.Singleton
+
+@Singleton
+class JointChild extends JointBase
+''')
+        ], 'test.JointChild')
+
+        expect:
+        element != null
+        element.superType.isPresent()
+        element.superType.get().name == 'test.JointBase'
     }
 }

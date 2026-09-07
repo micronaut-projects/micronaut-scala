@@ -54,6 +54,43 @@ abstract class AbstractScalaTypeElementSpec extends Specification {
         ScalaCompiler.buildBeanDefinition(className, source)
     }
 
+    protected BeanDefinition<?> buildBeanDefinition(String className, String source, List<String> compilerOptions) {
+        ScalaCompiler.buildBeanDefinition(className, source, compilerOptions)
+    }
+
+    /**
+     * Loads a generated bean definition whose class name does not follow the
+     * {@code $<Class>$Definition} convention, such as an intercepted or factory-produced definition.
+     */
+    protected BeanDefinition<?> buildGeneratedBeanDefinition(String packageName, String generatedClassName, String source) {
+        ScalaCompiler.buildBeanDefinition(packageName, generatedClassName, source)
+    }
+
+    /**
+     * Compiles several sources in one compiler run. This is the only way to exercise separate
+     * compilation, and the only way to compile Java and Scala sources jointly.
+     */
+    protected ClassElement buildClassElement(List<ScalaCompiler.SourceFile> sources, String className) {
+        List<ClassElement> elements = []
+        ScalaCompiler.compile(sources, List.of(), { ClassElement element -> elements.add(element) } as Consumer<ClassElement>)
+        elements.find { it.name == className }
+    }
+
+    /**
+     * Compiles several sources in one compiler run and returns a classloader over the output.
+     */
+    protected ClassLoader buildClassLoader(List<ScalaCompiler.SourceFile> sources) {
+        ScalaCompiler.compile(sources, List.of(), { ClassElement element -> } as Consumer<ClassElement>).classLoader()
+    }
+
+    /**
+     * Compiles the source and returns the compiler warnings, formatted as
+     * {@code file:line:column: message} where a source position is available.
+     */
+    protected List<String> buildAndGetWarnings(String className, String source) {
+        ScalaCompiler.buildAndGetWarnings(className, source)
+    }
+
     protected BeanDefinitionReference<?> buildBeanDefinitionReference(String className, String source) {
         ScalaCompiler.buildBeanDefinitionReference(className, source)
     }
@@ -72,6 +109,10 @@ abstract class AbstractScalaTypeElementSpec extends Specification {
 
     protected ApplicationContext buildContext(String source, Map<String, Object> config, boolean includeAllBeans = false) {
         ScalaCompiler.buildContext(source, includeAllBeans, config)
+    }
+
+    protected ApplicationContext buildContext(String source, Map<String, Object> config, List<String> compilerOptions, boolean includeAllBeans = false) {
+        ScalaCompiler.buildContext(source, includeAllBeans, config, compilerOptions)
     }
 
     protected Object getBean(ApplicationContext context, String className, Qualifier qualifier = null) {
