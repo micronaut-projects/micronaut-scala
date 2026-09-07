@@ -1364,15 +1364,26 @@ already-broken guard.
     and default-argument parts of B13, A14 (accessor collisions) and A16
     (qualified access).
 
-### Wave 3 — annotation metadata unification
+### Wave 3 — annotation metadata unification — **fixes done; item 17 outstanding**
 
-14. Route classpath elements through `ScalaAnnotationMetadataBuilder` (A7).
-15. Resolve annotation defaults from symbols and add `visitAnnotationDefault` to
-    the ASM reader (A10).
-16. `getAnnotationMirror` fallback by name (A11); retention default and guard,
-    `@Target` capture (A12); getter/field annotation union (A13); the
-    `normalizeLooseValue`/`annotationClassValue`/`enumValue` items in B15.
-17. Then port the P0 parity specs, which now encode fixed behaviour.
+14. **Done.** Classpath elements build their metadata through
+    `ScalaAnnotationMetadataBuilder` (A7), so stereotypes, aliases, mappers and
+    repeatable containers resolve for them. Declared annotations only —
+    annotations *inherited* from a classpath supertype wait on A18, and are
+    recorded with A6's classpath half.
+15. **Done, in two parts and not as proposed.** Defaults are collected across every
+    unit of the compilation, and classpath defaults are read from the class file
+    via `visitAnnotationDefault`, because dotty discards the value (A10).
+16. **Done**, except `@Target` capture, which is still open. A11 resolves mirrors
+    on demand; A12's retention default applies to Java annotation types only; A13
+    unions getter and field annotations; of the B15 items, `isValidDefaultValue`
+    is fixed and the two coercion items do not reproduce — see them for the
+    evidence. Also fixed here, though not in the plan: the compiler's own
+    `scala.annotation.internal.*` annotations were being written into every
+    generated bean definition.
+17. **Outstanding.** Port the P0 parity specs, which now encode fixed behaviour.
+    This is bulk test work rather than adapter fixes, and is the largest remaining
+    item in the plan.
 
 ### Wave 4 — element model consistency
 
