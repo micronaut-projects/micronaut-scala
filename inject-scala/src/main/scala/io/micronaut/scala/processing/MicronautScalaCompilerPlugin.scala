@@ -517,19 +517,30 @@ private object ScalaModelExtractor:
         case template: tpd.Template =>
           val declarations = symbol.info.decls.toList
           val allMethods = template.body.collect { case method: tpd.DefDef => method }
+          // Computed once per method: this record was previously built twice for every
+          // method in the body, once for the accessor map and once for the method list.
+          val extractedMethods = allMethods.map(method => method -> methodData(method, constructor = false, owner = symbol))
           val methodByName = LinkedHashMap[String, ScalaMethodData]()
-          allMethods.foreach { method =>
+          extractedMethods.foreach { (method, data) =>
+            // Only accessor-shaped methods are candidates. Keying every method by its bare
+            // name meant an overload displaced the accessor -- for `def value: String` plus
+            // `def value(i: Int): String` the last one written won, and the property took
+            // its type, modifiers and annotations from the overload.
             if !skipAccessorCandidate(method.symbol) then
-              methodByName.put(method.name.toString, methodData(method, constructor = false, owner = symbol))
+              val name = method.name.toString
+              val isWriteAccessor = name.endsWith("_=")
+              val parameterCount = data.parameters().size
+              if (isWriteAccessor && parameterCount == 1) || (!isWriteAccessor && parameterCount == 0) then
+                methodByName.put(name, data)
           }
           declarations.foreach { declaration =>
             val declarationName = declaration.name.toString
             if isPropertyDeclaration(declaration, declarationName) || isPropertySetterDeclaration(declaration, declarationName) then
               methodByName.put(declarationName, methodData(declaration))
           }
-          val methods = allMethods
-            .filterNot(method => skipMethod(method.symbol))
-            .map(method => methodData(method, constructor = false, owner = symbol))
+          val methods = extractedMethods
+            .filterNot((method, _) => skipMethod(method.symbol))
+            .map((_, data) => data)
           val enumMethods =
             if hasFlag(symbol, Flags.Enum) then List(enumValueOfMethodData(symbol))
             else Nil

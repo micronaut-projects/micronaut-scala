@@ -400,8 +400,17 @@ collide and the last wins, giving the property the wrong type, modifiers and
 annotations. The same loop also computes `methodData` twice per method (again at
 `:450`).
 
-**Fix.** Key by name and arity — or register only zero-argument candidates as
-read methods and `_=` as write methods — and reuse the computed record.
+**Fix — applied, but the described symptom does not reproduce.** The accessor map
+now takes only accessor-shaped methods (zero-argument reads, one-argument `_=`
+writes) and the record is computed once instead of twice per method.
+
+The collision itself could not be reproduced, and on reading the code it cannot
+occur today: the `declarations` pass runs *after* the body pass and re-registers
+the accessor for anything that can become a property, overwriting whatever an
+overload put there. `isPropertyDeclaration` requires a non-`Method` symbol, so a
+`def`-only property never reaches the property model at all. The narrowing is
+therefore a guard against a latent defect rather than a fix for a live one; the
+duplicate `methodData` call it removes was real.
 
 ### A15 (MAJOR, confirmed) Only the primary constructor is modelled
 
