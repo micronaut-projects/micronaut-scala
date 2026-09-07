@@ -941,14 +941,15 @@ transitive versions to unmanaged conflict resolution and then bundling the resul
 rather than the sourcegen platform, and comment which versions that is expected
 to move.
 
-### D6 (MAJOR) CI runs one Java version, and not the one the artifact targets
+### D6 (MAJOR) CI runs one Java version — the multi-JDK half is withdrawn
 
-Every workflow pins `java: ['25']`, while `inject-scala-compiler/build.gradle.kts:70`
-targets `-release:17` and the harness passes `-release:25` to `dotc`. The shipped
-artifact claims Java 17 compatibility and is never compiled against, run on, or
-tested with a 17 or 21 runtime — despite the plugin doing `--add-modules=java.compiler`
-work and reflectively probing `javax.lang.model`, both of which are
-JDK-version-sensitive.
+The multi-JDK part of this finding no longer applies: JDK 25 is the supported
+baseline and earlier JDKs are explicitly out of scope, so a 17 or 21 matrix entry
+is not wanted. The artifact/toolchain mismatch it noticed was real and is fixed —
+the plugin targeted `-release:17` on its Scala sources only while the harness used
+`-release:25`, and both now come from one constant.
+
+The rest of this finding stands.
 
 `verifyCompilerArtifacts` runs in no workflow (D4). And nothing tests the plugin
 as an end user consumes it: there is no `doc-examples/`, no sample application,
@@ -957,10 +958,9 @@ projects. Every test drives `dotc` with `-Xplugin:<absolute path to the built ja
 which bypasses coordinate resolution and `-Xplugin:` fan-out — precisely the two
 things D2 shows are broken.
 
-**Fix.** Add 17 and 21 to the matrix (at minimum a 17 run of the test task); wire
-`verifyCompilerArtifacts` into CI; add a functional test that resolves the
-published coordinate through a real `scalaCompilerPlugins` configuration and
-compiles one `@Singleton` Scala class, plus an sbt equivalent.
+**Fix.** Wire `verifyCompilerArtifacts` into CI (done); add a functional test that
+resolves the published coordinate through a real `scalaCompilerPlugins`
+configuration and compiles one `@Singleton` Scala class, plus an sbt equivalent.
 
 ### D7 (MAJOR) Template residue
 
@@ -1095,10 +1095,8 @@ limitations page.
   `ServiceLoader` over the compile classpath. This is a materially different mental
   model from javac/kapt and needs its own section. The build demonstrates it at
   `inject-scala-test-compiler/build.gradle.kts:55`.
-- The plugin jar targets Java 17; the build and tests only run on JDK 25. Note that
-  until this was fixed only the *Scala* sources honoured it -- `-release:17` was set
-  on `ScalaCompile` alone, and the 64 Java classes were emitted at class file
-  version 69, so the jar could not load on a Java 17 or 21 compiler at all.
+- JDK 25 is the supported baseline: the plugin jar, the build and the tests all
+  target it, and JDKs below 25 are explicitly out of scope.
 - Scala 2 is out of scope.
 
 ### E4 Target documentation set
@@ -1130,14 +1128,15 @@ Each wave is independently mergeable and leaves the build green.
    `ReactiveTypeConverterRegistrar` and `ReactiveStreamsTypeInformationProvider`
    from every plugin jar ever built, so the merge fix from D3 came forward into
    the same commit.
-2. **Not possible as written; the underlying defect is fixed.** 17 and 21 cannot
-   be added to the CI matrix: `micronaut-gradle-plugins` 8.0.1 refuses to run on
-   anything below JVM 25, so the Gradle build cannot start there. The real
-   problem D6 pointed at turned out to be worse than a missing matrix entry --
-   `-release:17` was applied only to `ScalaCompile`, so 64 of the plugin's 87
-   classes were emitted at class file version 69 and the jar could not load on a
-   Java 17 or 21 compiler at all. `JavaCompile` now sets `options.release` to 17,
-   and `verifyCompilerArtifacts` reads the class file version of every entry.
+2. **Withdrawn; JDK 25 is the supported baseline.** Nothing below 25 is
+   supported, so there is no 17 or 21 matrix entry to add -- and there could not
+   be one anyway, since `micronaut-gradle-plugins` 8.0.1 refuses to run on
+   anything below JVM 25. The finding did expose a real defect: `-release:17` was
+   applied only to `ScalaCompile`, so the plugin jar was 23 classes at class file
+   version 61 and 64 at version 69. Both halves now compile from one
+   `javaTarget` constant, and `verifyCompilerArtifacts` asserts every entry is at
+   exactly the expected version rather than merely under a ceiling, because the
+   defect was divergence between the two compile tasks.
 3. **Done, by refusing to publish.** Passing `-PincludeMicronautCore=true` to the
    publishing workflows would have made them succeed while uploading POMs
    declaring an unresolvable Core version, which is worse than the current

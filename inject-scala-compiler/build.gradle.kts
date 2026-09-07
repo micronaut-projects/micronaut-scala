@@ -26,10 +26,11 @@ micronautBuild {
     binaryCompatibility.enabledAfter("1.0.0")
 }
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
-}
+// The plugin is loaded by whatever JVM runs the user's Scala compiler, and JDK 25 is
+// the supported baseline for this repository. One constant for both halves of the
+// plugin: the Java and Scala sources are compiled by different tasks, and letting them
+// drift is how the jar ended up half Java 17 and half Java 25 bytecode.
+val javaTarget = 25
 
 sourceSets {
     named("main") {
@@ -66,20 +67,17 @@ configurations.configureEach {
     }
 }
 
-// The shared convention plugin targets 25 for the repository as a whole. This is
-// the one published artifact that must run inside somebody else's compiler, so it
-// is pinned to 17 -- and `options.release` is what actually decides that. Setting
-// only `sourceCompatibility`/`targetCompatibility` above left the Java half of the
-// plugin at class file version 69, so the jar could not load on the JDK 17 its own
-// documentation promises.
+// `options.release` is what actually decides the emitted class file version;
+// `sourceCompatibility`/`targetCompatibility` alone were being overridden by the
+// shared convention plugin.
 tasks.withType<JavaCompile>().configureEach {
-    options.release.set(17)
+    options.release.set(javaTarget)
 }
 
 tasks.withType<ScalaCompile>().configureEach {
-    sourceCompatibility = JavaVersion.VERSION_17.toString()
-    targetCompatibility = JavaVersion.VERSION_17.toString()
-    scalaCompileOptions.additionalParameters.add("-release:17")
+    sourceCompatibility = javaTarget.toString()
+    targetCompatibility = javaTarget.toString()
+    scalaCompileOptions.additionalParameters.add("-release:$javaTarget")
     scalaCompileOptions.additionalParameters.add("-J--add-modules=java.compiler")
     scalaCompileOptions.forkOptions.jvmArgs = (scalaCompileOptions.forkOptions.jvmArgs ?: emptyList()) + "--add-modules=java.compiler"
 }
