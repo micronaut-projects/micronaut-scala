@@ -667,13 +667,16 @@ private object ScalaModelExtractor:
       symbol.isTerm &&
       hasFlag(symbol, Flags.Accessor)
 
+  // Scala lets an annotation be targeted at the getter or the backing field
+  // independently -- `@(Inject @getter) @(Named @field)("x") val foo` puts one on each --
+  // so this is a union, not an either/or. Taking only the getter's annotations whenever it
+  // had any silently discarded every field-targeted annotation on such a property.
   private def propertyAnnotations(readMethod: ScalaMethodData, field: ScalaFieldData | Null): java.util.List[ScalaAnnotationData] =
-    if readMethod != null && !readMethod.annotations().isEmpty then
-      readMethod.annotations()
-    else if field != null then
-      field.annotations()
-    else
-      java.util.List.of()
+    val readAnnotations = if readMethod == null then Nil else readMethod.annotations().asScala.toList
+    val fieldAnnotations = if field == null then Nil else field.annotations().asScala.toList
+    val readNames = readAnnotations.map(_.name()).toSet
+    // The getter wins a name clash: it is the member Micronaut reads the property through.
+    (readAnnotations ++ fieldAnnotations.filterNot(annotation => readNames.contains(annotation.name()))).asJava
 
   private def propertyModifiers(
       readMethod: ScalaMethodData,

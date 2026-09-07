@@ -381,8 +381,16 @@ For `@(Inject @getter) @(Named @field)("x") val foo`, the getter carries
 `@Inject`, so `@Named` on the field is discarded. This is an either/or where it
 must be a union.
 
-**Fix.** Concatenate getter and field annotations, de-duplicating by name with
-the getter taking precedence.
+**Fix — applied, but the described symptom does not reproduce.** The two lists are
+now unioned, de-duplicated by name with the getter winning a clash, so the record
+holds what it claims to.
+
+Nothing observable changed, and on inspection nothing could: `ScalaPropertyElement`
+builds its metadata through Micronaut's own `PropertyElementAnnotationMetadata`,
+which already composes the read method, the write method *and* the field. The
+either/or in `propertyAnnotations` was therefore masked on every public path --
+`getBeanProperties()` and `getEnclosedElements(PropertyElement)` alike, both
+checked against the previous code.
 
 ### A14 (MAJOR, confirmed) Overloaded methods collide in the accessor map
 
