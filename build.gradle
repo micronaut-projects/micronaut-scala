@@ -87,6 +87,23 @@ tasks.register("verifyCompilerArtifacts") {
         assert bundledScalaJars.empty:
             "Scala artifacts survive the bundling filter and would be packaged into ${pluginArtifactId}: ${bundledScalaJars*.name}"
 
+        // The plugin is loaded by whatever JVM runs the user's Scala compiler, and both
+        // the README and the guide promise Java 17. A single class above version 61 makes
+        // the whole jar unloadable there with UnsupportedClassVersionError, which is
+        // exactly what happened while only `targetCompatibility` was set and the Java
+        // sources were still emitted at 25.
+        def javaSeventeenClassFileVersion = 61
+        def newerClassFiles = zipTree(pluginJar).matching { include("io/micronaut/scala/**/*.class") }.files
+            .findAll { classFile ->
+                classFile.withDataInputStream { stream ->
+                    stream.readInt() // 0xCAFEBABE
+                    stream.readUnsignedShort() // minor
+                    stream.readUnsignedShort() > javaSeventeenClassFileVersion
+                }
+            }
+        assert newerClassFiles.empty:
+            "${pluginArtifactId} contains classes newer than Java 17 and will not load on a Java 17 compiler: ${newerClassFiles*.name}"
+
         // The jar merges every runtime jar with DuplicatesStrategy.EXCLUDE, so when two
         // inputs declare the same service the first one silently wins and the rest of the
         // implementations disappear. Visitors are found by ServiceLoader, so a dropped

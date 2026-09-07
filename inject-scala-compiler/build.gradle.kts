@@ -66,6 +66,16 @@ configurations.configureEach {
     }
 }
 
+// The shared convention plugin targets 25 for the repository as a whole. This is
+// the one published artifact that must run inside somebody else's compiler, so it
+// is pinned to 17 -- and `options.release` is what actually decides that. Setting
+// only `sourceCompatibility`/`targetCompatibility` above left the Java half of the
+// plugin at class file version 69, so the jar could not load on the JDK 17 its own
+// documentation promises.
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(17)
+}
+
 tasks.withType<ScalaCompile>().configureEach {
     sourceCompatibility = JavaVersion.VERSION_17.toString()
     targetCompatibility = JavaVersion.VERSION_17.toString()
