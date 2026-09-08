@@ -1010,7 +1010,7 @@ private object ScalaModelExtractor:
     val widened = jvmModelledType(nullableWidened)
     val allTypeAnnotations = extraAnnotations ++ typeAnnotations
     if widened.isInstanceOf[TypeBounds] then
-      wildcardTypeData(widened.asInstanceOf[TypeBounds], allTypeAnnotations, explicitNullable)
+      wildcardTypeData(widened.asInstanceOf[TypeBounds], allTypeAnnotations, explicitNullable, visitedTypeParameters)
     else
       val widenedSymbol = widened.typeSymbol
       if widenedSymbol != Symbols.NoSymbol && widenedSymbol.isTypeParam then
@@ -1029,7 +1029,7 @@ private object ScalaModelExtractor:
           val name = primitiveName.getOrElse(rawName)
           val symbol = applied.tycon.classSymbol
           val interfaceType = isInterfaceSymbol(symbol)
-          val hierarchy = typeHierarchy(widened, symbol, name, primitiveName.isDefined, visitedTypes)
+          val hierarchy = typeHierarchy(widened, symbol, name, primitiveName.isDefined, visitedTypes, visitedTypeParameters)
           ScalaTypeData(name, primitiveName.isDefined, 0, interfaceType, typeArguments(symbol, applied.args, visitedTypes, visitedTypeParameters, typeTree.flatMap(appliedTypeArguments).getOrElse(Nil)), hierarchy.superType, hierarchy.interfaces.asJava, typeAnnotationsFor(symbol, allTypeAnnotations, explicitNullable).asJava, allTypeAnnotations.nonEmpty || explicitNullable, symbol)
         case _ =>
           val rawName = typeName(widened)
@@ -1037,7 +1037,7 @@ private object ScalaModelExtractor:
           val name = primitiveName.getOrElse(rawName)
           val symbol = widened.classSymbol
           val interfaceType = isInterfaceSymbol(symbol)
-          val hierarchy = typeHierarchy(widened, symbol, name, primitiveName.isDefined, visitedTypes)
+          val hierarchy = typeHierarchy(widened, symbol, name, primitiveName.isDefined, visitedTypes, visitedTypeParameters)
           ScalaTypeData(name, primitiveName.isDefined, 0, interfaceType, java.util.Map.of(), hierarchy.superType, hierarchy.interfaces.asJava, typeAnnotationsFor(symbol, allTypeAnnotations, explicitNullable).asJava, allTypeAnnotations.nonEmpty || explicitNullable, symbol)
 
   private def annotatedTree(tpt: tpd.Tree)(using Context): (tpd.Tree, List[Annotation]) =
@@ -1169,14 +1169,24 @@ private object ScalaModelExtractor:
     val nullable = if explicitNullable then List(NullableAnnotationData) else Nil
     nullable ++ typeAnnotations.map(annotationData(_, Set.empty)) ++ annotations(symbol)
 
-  private def typeHierarchy(tpe: Type, symbol: Symbol, name: String, primitive: Boolean, visitedTypes: Set[String])(using Context, AnnotationDefaults): TypeHierarchy =
+  /**
+   * The supertypes of a type.
+   *
+   * The visited-type-parameter counts have to be carried into the parents. Reading them with
+   * the two-argument `typeData` reset the counts, and a self-referential bound reaches its own
+   * type parameter through a parent: `class SelfRef[T <: Ordered[T]]` walks into
+   * `Ordered[T]`'s parent `Comparable[T]`, which mentions `T` again with the counts cleared.
+   * The depth guard in `typeParameterData` then never tripped and the compiler died with a
+   * StackOverflowError on a completely ordinary Scala declaration.
+   */
+  private def typeHierarchy(tpe: Type, symbol: Symbol, name: String, primitive: Boolean, visitedTypes: Set[String], visitedTypeParameters: Map[String, Int])(using Context, AnnotationDefaults): TypeHierarchy =
     if primitive || symbol == Symbols.NoSymbol || visitedTypes.contains(name) then
       TypeHierarchy(null, Nil)
     else
       val nextVisited = visitedTypes + name
       val parents = tpe.parents
         .filterNot(parent => typeName(parent) == classOf[Object].getName)
-        .map(parent => typeData(parent, nextVisited))
+        .map(parent => typeData(parent, nextVisited, visitedTypeParameters, None, Nil))
       TypeHierarchy(
         parents.find(parent => !parent.interfaceType()).orNull,
         parents.filter(_.interfaceType())
@@ -1306,13 +1316,23 @@ private object ScalaModelExtractor:
       case _ =>
         List(objectTypeData)
 
+  /**
+   * A wildcard's bounds.
+   *
+   * The visited-type-parameter counts have to be carried in. A recursive bound reached
+   * through a wildcard -- `class Sorted[T <: Ordered[T]]`, or
+   * `T <: Comparable[? >: T]` -- comes back to the same type parameter through here, and
+   * resetting the counts to empty meant the depth guard in `typeParameterData` never
+   * tripped: modelling such a class overflowed the stack and took the compiler down with it.
+   */
   private def wildcardTypeData(
       bounds: TypeBounds,
       typeAnnotations: List[Annotation],
-      explicitNullable: Boolean
+      explicitNullable: Boolean,
+      visitedTypeParameters: Map[String, Int]
   )(using Context, AnnotationDefaults): ScalaTypeData =
-    val upper = upperBounds(bounds, Map.empty)
-    val lower = lowerBounds(bounds, Map.empty)
+    val upper = upperBounds(bounds, visitedTypeParameters)
+    val lower = lowerBounds(bounds, visitedTypeParameters)
     val primaryBound = upper.head
     ScalaTypeData(
       primaryBound.name(),
