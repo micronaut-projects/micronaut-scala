@@ -25,6 +25,7 @@ import dotty.tools.dotc.core.Symbols
 import dotty.tools.dotc.core.Symbols.Symbol
 import dotty.tools.dotc.core.Types.AnnotatedType
 import dotty.tools.dotc.core.TypeErasure
+import dotty.tools.dotc.transform.ValueClasses
 import dotty.tools.dotc.core.Types.AndType
 import dotty.tools.dotc.core.Types.AppliedType
 import dotty.tools.dotc.core.Types.ConstantType
@@ -342,7 +343,27 @@ private final class BeanDefinitionPhase(state: ProcessingState) extends PluginPh
     state.processBeanDefinitions()
     processed
 
+/**
+ * Where a type is being modelled, which decides whether a derived value class is unboxed.
+ *
+ * A value class is unboxed exactly at the top level of a signature -- a field, a parameter, a
+ * return type -- and stays boxed everywhere it is nested inside another type. Checked with
+ * `javap` on dotty 3.9.0 output for `class UserId(val value: String) extends AnyVal`:
+ * `def ret(): UserId` compiles to `java.lang.String ret()`, while `def list():
+ * java.util.List[UserId]` compiles to `java.util.List<probe3.UserId> list()` and
+ * `def arr(): Array[UserId]` to `probe3.UserId[] arr()`.
+ *
+ * Nesting propagates, so this is a contextual value: once inside a type argument or an array
+ * component everything below it is nested too.
+ */
+private enum TypePosition:
+  case TopLevel, Nested
+
 private object ScalaModelExtractor:
+
+  /** Types are modelled at the top level of a signature unless a caller says otherwise. */
+  private given TypePosition = TypePosition.TopLevel
+
 
   private val ScalaPrimitiveNames = Map(
     "scala.Boolean" -> "boolean",
@@ -964,16 +985,16 @@ private object ScalaModelExtractor:
       case _ =>
         None
 
-  private def typeData(tpe: Type)(using Context, AnnotationDefaults): ScalaTypeData =
+  private def typeData(tpe: Type)(using Context, AnnotationDefaults, TypePosition): ScalaTypeData =
     typeData(tpe, Set.empty)
 
-  private def typeData(tpe: Type, visitedTypes: Set[String])(using Context, AnnotationDefaults): ScalaTypeData =
+  private def typeData(tpe: Type, visitedTypes: Set[String])(using Context, AnnotationDefaults, TypePosition): ScalaTypeData =
     typeData(tpe, visitedTypes, Map.empty, None, Nil)
 
-  private def typeData(tpt: tpd.Tree)(using Context, AnnotationDefaults): ScalaTypeData =
+  private def typeData(tpt: tpd.Tree)(using Context, AnnotationDefaults, TypePosition): ScalaTypeData =
     typeData(tpt, Set.empty)
 
-  private def typeData(tpt: tpd.Tree, visitedTypes: Set[String])(using Context, AnnotationDefaults): ScalaTypeData =
+  private def typeData(tpt: tpd.Tree, visitedTypes: Set[String])(using Context, AnnotationDefaults, TypePosition): ScalaTypeData =
     val (baseTree, treeAnnotations) = annotatedTree(tpt)
     typeData(baseTree.tpe, visitedTypes, Map.empty, Some(baseTree), treeAnnotations)
 
@@ -983,7 +1004,7 @@ private object ScalaModelExtractor:
       visitedTypeParameters: Map[String, Int],
       typeTree: Option[tpd.Tree],
       extraAnnotations: List[Annotation]
-  )(using Context, AnnotationDefaults): ScalaTypeData =
+  )(using Context, AnnotationDefaults, TypePosition): ScalaTypeData =
     val (annotatedWidened, typeAnnotations) = annotatedType(tpe.widenDealiasKeepAnnots)
     val (nullableWidened, explicitNullable) = explicitNullableType(annotatedWidened)
     val widened = jvmModelledType(nullableWidened)
@@ -996,6 +1017,8 @@ private object ScalaModelExtractor:
         typeParameterData(widenedSymbol, allTypeAnnotations, explicitNullable, visitedTypeParameters)
       else widened match
         case applied: AppliedType if typeName(applied.tycon) == "scala.Array" && applied.args.nonEmpty =>
+          // An array component is a nested position: `Array[UserId]` really is `UserId[]`.
+          given TypePosition = TypePosition.Nested
           val componentType = typeTree.flatMap(appliedTypeArguments).flatMap(_.headOption) match
             case Some(componentTree) => typeData(componentTree, visitedTypes)
             case None => typeData(applied.args.head, visitedTypes)
@@ -1069,7 +1092,7 @@ private object ScalaModelExtractor:
    * signature `List<UserId>` -- so the answer depends on where the type appears, which this
    * cannot see. Recorded in B13 of SCALA3_REMEDIATION_PLAN.md.
    */
-  private def jvmModelledType(tpe: Type)(using Context): Type =
+  private def jvmModelledType(tpe: Type)(using Context, TypePosition): Type =
     tpe match
       // A wildcard is `TypeBounds`, and an unbounded one is `Nothing .. Any`. Its `typeSymbol`
       // is the upper bound's, so without this a `List[?]` would be rewritten to `Object` and
@@ -1083,7 +1106,42 @@ private object ScalaModelExtractor:
           || symbol == Symbols.defn.AnyValClass then
           Symbols.defn.ObjectType
         else
-          tpe
+          unboxedValueClass(tpe, symbol).getOrElse(tpe)
+
+  /**
+   * The underlying type of a derived value class, when the JVM unboxes it here.
+   *
+   * `class UserId(val value: String) extends AnyVal` is not a type any signature carries at
+   * the top level: `def ret(): UserId` compiles to `java.lang.String ret()`, and
+   * `class Holder(val id: UserId)` to a field of type `java.lang.String`. Reporting `UserId`
+   * described a constructor argument and a return type the generated bean definition cannot
+   * bind against the bytecode. A value class over a primitive unboxes to that primitive --
+   * `class Wrapped(val n: Int)` compiles to `int` -- and the primitive mapping applied to the
+   * result handles that.
+   *
+   * Nested positions are left alone, because the JVM leaves them boxed there.
+   */
+  private def unboxedValueClass(tpe: Type, symbol: Symbol)(using Context, TypePosition): Option[Type] =
+    if summon[TypePosition] != TypePosition.TopLevel then
+      None
+    else
+      symbol match
+        case classSymbol: Symbols.ClassSymbol if isDerivedValueClass(classSymbol) =>
+          Some(ValueClasses.underlyingOfValueClass(classSymbol))
+        case _ =>
+          None
+
+  /**
+   * Whether a class is a user-declared value class, mirroring dotty's own
+   * `SymUtils.isDerivedValueClass`. `scala.Int` and friends also derive from `AnyVal`, and
+   * `AnyVal` itself is a value class, so neither can be treated as one to unbox.
+   */
+  private def isDerivedValueClass(symbol: Symbols.ClassSymbol)(using Context): Boolean =
+    val denotation = symbol.denot
+    !denotation.isRefinementClass
+      && denotation.isValueClass
+      && (denotation.initial.symbol ne Symbols.defn.AnyValClass)
+      && !denotation.isPrimitiveValueClass
 
   private def explicitNullableType(tpe: Type)(using Context): (Type, Boolean) =
     tpe match
@@ -1125,6 +1183,8 @@ private object ScalaModelExtractor:
       )
 
   private def typeArguments(symbol: Symbol, arguments: List[Type], visitedTypes: Set[String], visitedTypeParameters: Map[String, Int], argumentTrees: List[tpd.Tree] = Nil)(using Context, AnnotationDefaults): java.util.Map[String, ScalaTypeData] =
+    // A type argument is a nested position: `List[UserId]` really is `List<UserId>`.
+    given TypePosition = TypePosition.Nested
     if symbol == Symbols.NoSymbol || arguments.isEmpty then
       java.util.Map.of()
     else

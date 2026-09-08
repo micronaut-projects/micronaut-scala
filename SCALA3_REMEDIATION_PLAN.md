@@ -889,7 +889,7 @@ erasure. Pinned by a case in `ScalaElementIdentitySpec`.
 | by-name `=> T` | **fixed** — modelled as `scala.Function0` | — |
 | varargs `T*` | **not a defect** — see below | — |
 | default arguments | **blocked on a Core SPI change** — see below | a Scala default argument is invisible, so the parameter is treated as required |
-| value classes (`AnyVal`) | **still open** — see below | parameter modelled by its own class while the JVM signature uses the underlying type |
+| value classes (`AnyVal`) | **fixed** — unboxed at the top level, boxed when nested | — |
 | union types other than `A \| Null` | **fixed** — erased as the JVM does | — |
 | intersection types | **fixed** — erased as the JVM does | — |
 | `Any`/`AnyRef` in ordinary position | **fixed** — `Any` and `AnyVal` map to `java.lang.Object`; `AnyRef` already did | — |
@@ -938,13 +938,27 @@ an unbounded one is `Nothing .. Any`, whose `typeSymbol` is `Any`'s, so without 
 `List[?]` would stop being a wildcard. Pinned by `ScalaTypeErasureSpec`, including that
 `A | Null` still means nullable-`A`.
 
-**Value classes — still open, and harder than the table suggests.** A value class is
-position-dependent: `def id(): UserId` really does compile to `java.lang.String`, but
-`def ids(): List[UserId]` really does have the signature `List<UserId>` — it stays boxed
-as a type argument. Both checked with `javap`. Erasing unconditionally would be wrong in
-one position and not erasing is wrong in the other, and `typeData` cannot see which
-position it is being called for. Fixing this means threading that context through, so it
-is left as its own piece of work rather than bundled in.
+**Value classes — fixed, and it needed the position.** A value class is
+position-dependent, which the table did not capture. Measured with `javap` for
+`class UserId(val value: String) extends AnyVal` and
+`class Wrapped(val n: Int) extends AnyVal`:
+
+| declared | JVM signature |
+| --- | --- |
+| `def ret(): UserId` | `java.lang.String ret()` |
+| `def take(x: UserId): String` | `take(java.lang.String)` |
+| `class Holder(val id: UserId, val count: Wrapped)` | field `java.lang.String`, field `int`; constructor `(Ljava/lang/String;I)V` |
+| `def arr(): Array[UserId]` | `probe.UserId[] arr()` |
+| `def list(): List[UserId]` | `java.util.List<probe.UserId> list()` |
+
+So a value class is unboxed exactly at the top level of a signature — field, parameter,
+return type — and stays boxed everywhere it is nested inside another type. Erasing
+unconditionally is wrong in one position and not erasing is wrong in the other, so
+`typeData` now carries a `TypePosition` as a contextual value: top level by default, and
+nested inside a type argument or an array component. Nesting propagates, which is the
+correct rule — everything below a nested position is nested too. A value class over a
+primitive unboxes to that primitive (`Wrapped` becomes `int`, reported as primitive).
+Pinned by `ScalaValueClassSpec`, one case per row of that table.
 
 **Trait parameters — not a defect.** For `trait Base(val size: Int)` and
 `class Child extends Base(3)`, `Child.getBeanProperties()` reports `size`. The parameter
