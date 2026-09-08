@@ -937,9 +937,15 @@ parameter `@Nullable` is not a workaround: it substitutes a Java `null` for the
   properties; `ScalaPropertyData` carries no synthetic flag to distinguish them.
 - `ScalaEnumElement.elements()` (`:56`) bypasses the element cache, so annotations
   added through `ElementQuery` are invisible through `EnumElement`.
-- `ScalaConstructorElement` calls `declaringType.getBeanProperties()` from inside
-  a `computeIfAbsent` on an `IdentityHashMap` (`:40`, `ScalaClassElement.java:612`) —
-  re-entrant modification during `computeIfAbsent` is undefined behaviour.
+- **Does not reproduce; left alone.** `ScalaConstructorElement` does call
+  `declaringType.getBeanProperties()` from inside a `computeIfAbsent`, but not on the
+  same map: the five element caches are separate `IdentityHashMap`s, and the
+  constructor's mapping function reaches `propertyElements`, never
+  `constructorElements`. Instrumented all five caches with a re-entrancy counter across
+  a full run of the suite: zero re-entries of any of them. Nesting a `computeIfAbsent`
+  on one map inside another map's is defined behaviour. Worth re-checking if the
+  caches are ever merged or if `getBeanProperties()` grows a path to the primary
+  constructor.
 - **Done.** `ScalaLoadedClassElement.getEnclosedElements` had no `PropertyElement` or
   `ClassElement` branch, so a property query and a nested-class query both came back
   empty for a classpath type while the source path answered both. It now mirrors the
@@ -1020,12 +1026,23 @@ parameter `@Nullable` is not a workaround: it substitutes a Java `null` for the
   `scala.annotation.internal.*` bookkeeping. dotty attaches `SourceFile` to every class it
   compiles, so that annotation was written into the metadata of every generated bean
   definition. Filtered out at extraction; pinned by `ScalaRetentionSpec`.
-- Cycle guards in `exceptionMessage` (`MicronautScalaCompilerPlugin.scala:244`,
-  `ScalaProcessingEngine.java:426`) only compare against the head exception and
-  loop forever on a deeper cycle.
-- `optionsHelp` is `None` (`:68`) although options *are* parsed, so
-  `-P:micronaut-scala:help` prints nothing and misspelled options are silently
-  accepted as `key -> "true"`.
+- **Done.** Cycle guards in `exceptionMessage` compared each cause only against the
+  head of the chain, which catches a two-element cycle and nothing deeper: for
+  `a -> b -> c -> b` the walk never returns to `a`. Both now follow the chain with a
+  set of the exceptions already seen. Measured: with the guard reverted, the pinning
+  spec ran for ten minutes without terminating -- the compiler hangs while producing a
+  diagnostic, so the failure it was reporting is never seen. Pinned by
+  `ScalaDiagnosticCycleSpec`, with a test visitor that fails with such a chain.
+- **Half done; the other half is by design.** `optionsHelp` was `None` although
+  options *are* parsed, so `-P:micronaut-scala:help` printed nothing and there was no
+  discoverable record of which options mean anything. It now documents the syntax and
+  the well-known `micronaut.processing.*` keys. Pinned by `ScalaPluginOptionsSpec`.
+
+  Accepting a misspelled option as `key -> "true"` is **not** a defect to fix by
+  validation: options go straight to `VisitorContext.getOptions()`, which Micronaut
+  itself and any `TypeElementVisitor` on the compilation classpath may read, so the
+  set is open by design -- the same contract as javac's `-A` options. There is no list
+  to validate against. The help text says so.
 
 ---
 

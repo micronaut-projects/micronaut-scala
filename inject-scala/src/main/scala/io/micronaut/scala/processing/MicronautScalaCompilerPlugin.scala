@@ -69,7 +69,27 @@ final class MicronautScalaCompilerPlugin extends StandardPlugin:
 
   override val name: String = "micronaut-scala"
   override val description: String = "Generates Micronaut metadata for Scala 3 sources"
-  override val optionsHelp: Option[String] = None
+  /**
+   * Documents the options the plugin accepts, so `-P:micronaut-scala:help` prints
+   * something. Options are passed straight through to `VisitorContext.getOptions()`,
+   * where Micronaut itself and any user `TypeElementVisitor` read them, so the set is
+   * open by design and cannot be validated against a fixed list -- the same contract as
+   * javac's `-A` options.
+   */
+  override val optionsHelp: Option[String] = Some(
+    s"""  -P:$name:<key>=<value>   Sets a Micronaut processing option. An option given with
+                                    no `=` is set to "true". Options are passed to
+                                    VisitorContext.getOptions(), which Micronaut and any
+                                    TypeElementVisitor on the compilation classpath may read,
+                                    so the set is open and unrecognised keys are accepted.
+       Well-known keys:
+         micronaut.processing.incremental=true|false
+         micronaut.processing.group=<maven group of the module being compiled>
+         micronaut.processing.module=<name of the module being compiled>
+         micronaut.processing.project.dir=<project directory>
+         micronaut.processing.annotations=<comma-separated package prefixes>
+         micronaut.processing.use.context.classloader=true|false"""
+  )
 
   override def init(options: List[String]): List[PluginPhase] =
     // The adapter is loaded in an isolated class loader so it can use Micronaut's
@@ -252,17 +272,29 @@ private final class ProcessingState(options: JMap[String, String]):
     val elementDescription = if element == null then "" else s" [${element.getName}]"
     s"Error processing Scala element$elementDescription: ${exceptionMessage(exception)}"
 
+  /**
+   * The first non-blank message in a cause chain.
+   *
+   * The chain is followed with a set of the exceptions already seen. Comparing only
+   * against the head caught a two-element cycle and nothing deeper: a chain of
+   * `a -> b -> c -> b` never returns to `a`, so the walk ran forever and hung the
+   * compiler on a diagnostic.
+   */
   private def exceptionMessage(exception: Throwable): String =
+    val visited = java.util.IdentityHashMap[Throwable, java.lang.Boolean]()
     var current: Throwable | Null = exception
     var fallback: Throwable = exception
-    while current != null do
-      fallback = current
-      val message = current.getMessage
-      if message != null && !message.isBlank then
-        return message
-      current = current.getCause
-      if current == exception then
-        current = null
+    var searching = true
+    while searching do
+      val candidate = current
+      if candidate == null || visited.put(candidate, java.lang.Boolean.TRUE) != null then
+        searching = false
+      else
+        fallback = candidate
+        val message = candidate.getMessage
+        if message != null && !message.isBlank then
+          return message
+        current = candidate.getCause
     val stackTrace = fallback.getStackTrace
     if stackTrace.isEmpty then fallback.getClass.getName
     else s"${fallback.getClass.getName} at ${stackTrace(0)}"

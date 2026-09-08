@@ -52,7 +52,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -468,19 +470,25 @@ public final class ScalaProcessingEngine {
         return "Error processing Scala element" + elementDescription + ": " + exceptionMessage(exception);
     }
 
+    /**
+     * The first non-blank message in a cause chain.
+     *
+     * <p>The chain is followed with a set of the exceptions already seen. Comparing only
+     * against the head caught a two-element cycle and nothing deeper: a chain of
+     * {@code a -> b -> c -> b} never returns to {@code a}, so the walk ran forever and hung
+     * the compiler on a diagnostic.</p>
+     */
     private static String exceptionMessage(Throwable exception) {
         Throwable current = exception;
         Throwable fallback = exception;
-        while (current != null) {
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        while (current != null && visited.add(current)) {
             fallback = current;
             String message = current.getMessage();
             if (message != null && !message.isBlank()) {
                 return message;
             }
             current = current.getCause();
-            if (current == exception) {
-                break;
-            }
         }
         StackTraceElement[] stackTrace = fallback.getStackTrace();
         if (stackTrace.length == 0) {
