@@ -1683,7 +1683,7 @@ already-broken guard.
     (`ScalaDeclarationOrderSpec`, `ScalaCanonicalNameSpec`), and generics
     (`ScalaGenericsParitySpec`).
 
-    The port is not only test work: six defects have come out of it so far, each
+    The port is not only test work: nine defects have come out of it so far, each
     found by asking Scala a question the Java spec asks Java. `ElementQuery` ignored
     `onlyDeclared` for constructors and ignored `includeOverriddenMethods` entirely;
     `denot.annotations` is in reverse declaration order in dotty, so repeated
@@ -1706,6 +1706,11 @@ already-broken guard.
     introduction, validation and AOP targets. And a classpath type variable reported
     `java.lang.Object` rather than its bound, so `java.lang.Enum<E extends Enum<E>>`
     erased `E` to `Object`. Pinned by `ScalaTypeReferenceMembersSpec`.
+
+    A ninth: a type variable carried none of its bound's annotations, so making a
+    parameter generic silently dropped them — `save(book: MyBook)` carried `MyBook`'s
+    `@Introspected` and `save[T <: MyBook](book: T)` carried nothing, though both
+    compile to the same JVM signature. Pinned by `ScalaPlaceholderAnnotationSpec`.
 
     **Known remaining divergence:** a classpath type variable's own type arguments are
     empty, where the Java and Kotlin modules model two levels before collapsing to

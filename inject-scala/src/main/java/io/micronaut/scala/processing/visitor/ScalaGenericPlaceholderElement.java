@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.Element;
 import io.micronaut.inject.ast.GenericPlaceholderElement;
+import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.ast.annotation.MutableAnnotationMetadataDelegate;
 
 import java.util.List;
@@ -34,7 +35,34 @@ final class ScalaGenericPlaceholderElement extends ScalaClassElement implements 
     private final ScalaVisitorContext visitorContext;
 
     ScalaGenericPlaceholderElement(ScalaTypeData typeData, ScalaVisitorContext visitorContext) {
-        this(typeData, visitorContext, visitorContext.annotationMetadata(typeData));
+        this(typeData, visitorContext, placeholderMetadata(typeData, visitorContext));
+    }
+
+    /**
+     * The annotations of a type variable: its bound's, with any of its own layered on top.
+     *
+     * <p>A type variable is erased to its bound, and the annotations that reach a bean
+     * definition are the ones on the type that is actually there. Reading only the type
+     * parameter's own annotations meant a generic parameter silently lost them:
+     * {@code def save(book: MyBook)} carried {@code MyBook}'s {@code @Introspected} while
+     * {@code def save[T <: MyBook](book: T)} carried nothing, and the same for a type
+     * argument -- {@code List[MyBook]} against {@code List[T]}. The Java module resolves a
+     * placeholder to its bound and the bound's metadata comes with it.</p>
+     */
+    private static AnnotationMetadata placeholderMetadata(ScalaTypeData typeData, ScalaVisitorContext visitorContext) {
+        MutableAnnotationMetadata own = visitorContext.annotationMetadata(typeData);
+        List<ScalaTypeData> bounds = typeData.bounds();
+        if (bounds.isEmpty()) {
+            return own;
+        }
+        ScalaTypeData bound = bounds.get(0);
+        if (bound.primitive() || Object.class.getName().equals(bound.name())) {
+            return own;
+        }
+        // `of` clones, so the cached metadata of the bound is not mutated here.
+        MutableAnnotationMetadata combined = MutableAnnotationMetadata.of(visitorContext.annotationMetadata(bound));
+        combined.addAnnotationMetadata(own);
+        return combined;
     }
 
     private ScalaGenericPlaceholderElement(ScalaTypeData typeData, ScalaVisitorContext visitorContext, AnnotationMetadata annotationMetadata) {
