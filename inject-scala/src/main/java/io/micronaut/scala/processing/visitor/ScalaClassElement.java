@@ -17,6 +17,8 @@ package io.micronaut.scala.processing.visitor;
 
 import io.micronaut.context.annotation.BeanProperties;
 import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.AnnotationUtil;
+import io.micronaut.core.annotation.Creator;
 import io.micronaut.core.naming.NameUtils;
 import io.micronaut.core.type.DefaultArgument;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
@@ -510,7 +512,22 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         if (classData.enumType()) {
             return enumValueOfMethod();
         }
-        return Optional.of(constructorElement(classData.constructors().get(0)));
+        List<ScalaMethodData> constructors = classData.constructors();
+        if (constructors.size() == 1) {
+            return Optional.of(constructorElement(constructors.get(0)));
+        }
+        // Scala's primary constructor is first, but it is not automatically the one Micronaut
+        // should call: an `@Inject` or `@Creator` secondary constructor wins, as it does in
+        // core's own default. Taking the first unconditionally meant such an annotation was
+        // read into the model and then ignored, and a bean or introspection was built through
+        // the wrong constructor.
+        return constructors.stream()
+            .map(this::constructorElement)
+            .filter(constructor -> constructor.hasStereotype(AnnotationUtil.INJECT)
+                || constructor.hasStereotype(Creator.class))
+            .findFirst()
+            .map(MethodElement.class::cast)
+            .or(() -> Optional.of(constructorElement(constructors.get(0))));
     }
 
     /**

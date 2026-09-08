@@ -1744,6 +1744,19 @@ already-broken guard.
     therefore reached the generated definition backwards, and so did the `@Repeatable`
     container built from them. Both peel sites now reverse.
 
+    Second batch (`ScalaCreatorSelectionSpec`) found an eleventh. Scala's primary
+    constructor comes first, and `getPrimaryConstructor()` returned it unconditionally,
+    so an `@Inject` or `@Creator` on a secondary constructor was read into the model and
+    then ignored — core's own default prefers such a constructor, and this override did
+    not. A bean or introspection was therefore built through the wrong constructor.
+
+    Each batch is checked against the existing 390-odd Scala feature methods before
+    porting, so these add coverage rather than restating it: `@Creator` had no coverage
+    at all, and `@Creator` on a *companion object* method still has none — it cannot,
+    since a companion's members live on the module class and the static forwarder is
+    generated in the backend, after these phases. That is the natural Scala way to write
+    a factory, and is worth its own item.
+
     P2 remains outstanding.
 
 ### Wave 5 — packaging, runtime artifact, docs
