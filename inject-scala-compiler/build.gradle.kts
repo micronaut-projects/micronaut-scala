@@ -40,14 +40,37 @@ sourceSets {
     }
 }
 
+// What the jar bundles, and therefore what the POM must NOT declare. A consumer of the
+// published plugin would otherwise get every one of these classes twice -- once inside the
+// jar and once from the POM -- with classpath order deciding which copy wins. It is also
+// what makes the documented usage work: Gradle turns each resolved `scalaCompilerPlugins`
+// file into its own `-Xplugin` argument, so a transitive POM hands `dotc` a dozen jars with
+// no plugin descriptor.
+//
+// Not shading: relocation was considered and declined. The bundle stays at original package
+// paths, so a consumer must not also resolve these coordinates.
+val bundled: Configuration by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
 dependencies {
-    api(libs.micronaut.core.processor) {
+    bundled(libs.micronaut.core.processor) {
         exclude(group = "io.micronaut.sourcegen", module = "micronaut-sourcegen-bom")
         exclude(group = "org.scala-lang", module = "scala3-library_3")
     }
-    api(libs.scala3.library)
+    bundled(libs.asm)
 
-    implementation(libs.asm)
+    // Compiled against, bundled into the jar, and deliberately absent from the POM.
+    compileOnly(libs.micronaut.core.processor) {
+        exclude(group = "io.micronaut.sourcegen", module = "micronaut-sourcegen-bom")
+        exclude(group = "org.scala-lang", module = "scala3-library_3")
+    }
+    compileOnly(libs.asm)
+
+    // The one real dependency: the host compiler supplies scala3-library, and the jar
+    // deliberately excludes it, so a consumer does need to resolve it.
+    api(libs.scala3.library)
 
     compileOnly(libs.scala3.compiler)
 
@@ -86,7 +109,7 @@ tasks.withType<ScalaCompile>().configureEach {
 // Micronaut and ASM implementation classes in the plugin, but let the host
 // compiler provide scala-library and scala3-library.
 fun bundledRuntimeJars(): List<File> =
-    configurations.runtimeClasspath.get()
+    bundled.resolve()
         .filter { it.isFile && it.extension == "jar" }
         .filterNot {
             it.name.startsWith("scala3-library_3-") ||
@@ -106,7 +129,7 @@ val mergedServiceDirectory = layout.buildDirectory.dir("merged-service-files")
 val mergeServiceFiles = tasks.register("mergeServiceFiles") {
     val serviceDirectory = ownServiceDirectory
     val outputDirectory = mergedServiceDirectory
-    inputs.files(configurations.runtimeClasspath)
+    inputs.files(bundled)
     inputs.dir(serviceDirectory).withPropertyName("ownServiceDescriptors")
     outputs.dir(outputDirectory)
     doLast {

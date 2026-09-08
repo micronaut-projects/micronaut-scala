@@ -99,7 +99,7 @@ val functionalTest = tasks.register<Test>("functionalTest") {
         systemProperty("micronaut.scala.test.classpath", sourceSets.test.get().runtimeClasspath.asPath)
         systemProperty(
             "micronaut.scala.plugin.runtimeClasspath",
-            scalaPluginProject.configurations.named("runtimeClasspath").get().asPath
+            scalaPluginProject.configurations.named("bundled").get().asPath
         )
         systemProperty("micronaut.scala.repository.root", rootProject.projectDir.absolutePath)
     }

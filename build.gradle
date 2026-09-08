@@ -17,7 +17,7 @@ def scalaTestProjectPath = ":micronaut-inject-scala-test-compiler"
 // The jar task bundles this configuration, so it is the real input to every
 // packaging question below: what gets shaded in, and which service descriptors
 // collide while it is merged.
-def pluginRuntimeClasspath = project(scalaPluginProjectPath).configurations.named("runtimeClasspath")
+def pluginBundled = project(scalaPluginProjectPath).configurations.named("bundled")
 
 tasks.register("verifyCompilerArtifacts") {
     dependsOn(
@@ -53,6 +53,24 @@ tasks.register("verifyCompilerArtifacts") {
         assert testPom.contains("<artifactId>${pluginArtifactId}</artifactId>"):
             "${testArtifactId} POM does not depend on ${pluginArtifactId}"
 
+        // The jar bundles these at their original package paths, so a consumer that also
+        // resolved them from the POM would get every class twice with classpath order
+        // deciding the winner -- and, because Gradle turns each resolved
+        // `scalaCompilerPlugins` file into its own `-Xplugin` argument, would hand `dotc`
+        // a pile of jars with no plugin descriptor. They are declared on a `bundled`
+        // configuration that is deliberately not published.
+        ["micronaut-core-processor", "asm"].each { bundledArtifact ->
+            assert !pluginPom.contains("<artifactId>${bundledArtifact}</artifactId>"):
+                "${bundledArtifact} is bundled into ${pluginArtifactId} and must not also be a POM dependency"
+        }
+
+        // slf4j-api is the one deliberate exception, and it is both bundled and declared.
+        // The convention plugin adds it, and the functional test shows the plugin does not
+        // load without it inside the jar -- the compiler's own classloader does not supply
+        // it. An API-only artifact every application already has is a benign duplicate in a
+        // way that Micronaut and ASM are not.
+        assert pluginPom.contains("<artifactId>slf4j-api</artifactId>")
+
         // scala3-compiler is `compileOnly`: the host compiler supplies it. Leaking it
         // into the POM would drag a second compiler onto the user's compile classpath.
         assert !pluginPom.contains("scala3-compiler_3"):
@@ -78,7 +96,7 @@ tasks.register("verifyCompilerArtifacts") {
         // drops them from the bundle by file name because the host compiler provides them.
         // Whatever survives that filter *is* bundled, so no Scala artifact may remain --
         // scala3-compiler in particular is `compileOnly` and must never reach here.
-        def bundledJars = pluginRuntimeClasspath.get().files.findAll { file ->
+        def bundledJars = pluginBundled.get().resolve().findAll { file ->
             file.isFile() && file.name.endsWith(".jar") &&
                 !file.name.startsWith("scala3-library_3-") &&
                 !file.name.startsWith("scala-library-")

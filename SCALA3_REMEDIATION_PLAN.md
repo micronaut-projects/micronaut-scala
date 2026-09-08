@@ -1373,11 +1373,29 @@ plugin's classes fails with
 each file becomes its own `-Xplugin` argument and therefore its own classloader.
 
 **Decision, on that evidence: option (a) is not available for Gradle consumers.**
-The published artifact has to carry its dependencies — the current fat jar, or the
-shaded jar of option (b). Shading is the better of the two, since the present jar
-also duplicates every class it bundles in its POM; relocation removes the
-which-copy-wins question that D2 opens with. sbt's `addCompilerPlugin` has not been
-measured and may behave differently, but it cannot make a thin jar work for Gradle.
+The published artifact has to carry its dependencies. Shading was considered and
+**declined**, so the bundle stays at original package paths.
+
+**The duplicate-classes half is fixed without relocating anything.** The bundled
+dependencies moved to a `bundled` configuration that is resolvable but not
+published, and the sources compile against them as `compileOnly`. The POM now
+declares only `scala3-library_3` — which the jar deliberately excludes, so a
+consumer really does need it — plus `slf4j-api`. `verifyCompilerArtifacts` asserts
+that `micronaut-core-processor` and `asm` are bundled and absent from the POM.
+
+That also fixes the `-Xplugin` noise the fix note describes, from the other end: a
+consumer resolving the plugin by coordinate now gets one jar, so `dotc` is handed
+one plugin path rather than a dozen jars without descriptors.
+
+`slf4j-api` is a deliberate exception and is both bundled and declared. The
+functional test established that it has to be: excluding it from the jar breaks
+plugin loading outright, because the compiler's classloader does not supply it. An
+API-only artifact that every application already has is a benign duplicate in a way
+that Micronaut and ASM are not, and the asymmetry is asserted rather than left to be
+rediscovered.
+
+sbt's `addCompilerPlugin` has not been measured and may behave differently, but it
+cannot make a thin jar work for Gradle.
 
 A jar with no `plugin.properties` in its own `-Xplugin` argument is only a
 *warning* (`MissingPluginException` is recovered in `Plugins.scala:41`), so the
