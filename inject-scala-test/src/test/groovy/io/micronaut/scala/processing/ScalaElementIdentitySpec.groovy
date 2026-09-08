@@ -18,6 +18,7 @@ package io.micronaut.scala.processing
 import io.micronaut.inject.ast.ElementQuery
 import io.micronaut.inject.ast.WildcardElement
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
+import io.micronaut.scala.processing.test.ScalaVisitorContextCaptureVisitor
 
 /**
  * Element equality drives Micronaut's element caching, so two elements that are equal are
@@ -98,6 +99,38 @@ class Holder {
 
         then: 'the copy must still satisfy the instanceof checks in the generics writers'
         copy instanceof WildcardElement
+    }
+
+    void 'the same type read from source and from the classpath is one element'() {
+        when: 'the same type reached two ways -- looked up by name, and as a supertype'
+        def found = [:]
+        ScalaVisitorContextCaptureVisitor.withConsumer({ context ->
+            def looked = context.getClassElement('io.micronaut.scala.processing.fixtures.ExternalBase')
+                    .orElse(null)
+            def viaSupertype = context.getClassElement('probe.Local')
+                    .flatMap { it.getSuperType() }
+                    .orElse(null)
+            found.looked = looked
+            found.viaSupertype = viaSupertype
+        }, {
+            buildClassLoader('probe.Local', '''
+package probe
+
+import io.micronaut.scala.processing.fixtures.ExternalBase
+
+class Local extends ExternalBase
+''')
+        })
+
+        then: 'the routes produce different element kinds, which is not a difference in type'
+        found.looked != null
+        found.viaSupertype != null
+        found.looked.getClass() != found.viaSupertype.getClass()
+
+        and: 'Micronaut caches by element identity, so these must not be two types'
+        found.looked == found.viaSupertype
+        found.viaSupertype == found.looked
+        found.looked.hashCode() == found.viaSupertype.hashCode()
     }
 
     void 'an array of a wildcard is not a wildcard'() {

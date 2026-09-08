@@ -408,6 +408,27 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         return new ScalaLoadedClassElement(arrayType, visitorContext, getAnnotationMetadata(), typeArguments);
     }
 
+    /**
+     * The identity of a classpath element is the type it names, exactly as for a source
+     * element.
+     *
+     * <p>Without this a classpath element keyed on its {@code Class} object and a source
+     * element keyed on {@code (name, arrayDimensions)} were never equal, so the same type
+     * reached by two routes -- {@code getClassElement(name)} and the supertype of a class in
+     * the compilation -- was two elements with different hash codes. Micronaut caches
+     * elements by identity, so whichever route was taken first decided what the other route
+     * saw.</p>
+     */
+    @Override
+    protected Class<?> equalityType() {
+        return ScalaClassElement.class;
+    }
+
+    @Override
+    protected Object equalityKey() {
+        return new ScalaClassElement.ClassElementKey(getName(), getArrayDimensions());
+    }
+
     @Override
     public ClassElement withTypeArguments(Map<String, ClassElement> typeArguments) {
         return new ScalaLoadedClassElement(type, visitorContext, getAnnotationMetadata(), typeArguments);

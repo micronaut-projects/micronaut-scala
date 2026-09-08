@@ -830,8 +830,15 @@ bounds and the dimension, and an array of a wildcard is not itself a wildcard --
 `Array[_]` is `Object[]`. Adding the copy override without that rule broke
 `ScalaBeanIntrospectionSpec`, which is now guarded by a test of its own.
 
-Unifying `equalityType()` so a source element and a classpath element for the same
-type compare equal is **not** done; that belongs with A18.
+**Done.** A source element and a classpath element for the same type now compare
+equal. Reproduced first: `context.getClassElement("...ExternalBase")` and the
+supertype of a source class extending it were two elements with different hash
+codes, because the classpath element inherited the base key -- its `Class` object
+-- while the source element keyed on `(name, arrayDimensions)`. Micronaut caches
+by element identity, so whichever route ran first decided what the other saw. Both
+now use the same `equalityType()` and the same key; placeholders and wildcards
+keep their own, since their identity is the variable or the bounds rather than the
+erasure. Pinned by a case in `ScalaElementIdentitySpec`.
 
 ### B13 (MAJOR) Scala type shapes that are modelled incorrectly
 

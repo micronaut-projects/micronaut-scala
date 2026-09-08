@@ -969,7 +969,19 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         return new ClassElementKey(getName(), getArrayDimensions());
     }
 
-    private record ClassElementKey(String name, int arrayDimensions) {
+    /**
+     * The identity of a class element: the type it names, not the compiler structure it was
+     * read from.
+     *
+     * <p>Shared with {@link ScalaLoadedClassElement} so that a type read from source and the
+     * same type read from the classpath are one element as far as Micronaut's element caches
+     * are concerned. Placeholders and wildcards deliberately do not use it -- their identity
+     * is the variable or the bounds, not the erasure.</p>
+     *
+     * @param name The type name
+     * @param arrayDimensions The number of array dimensions
+     */
+    record ClassElementKey(String name, int arrayDimensions) {
     }
 
     private record MethodSignature(String name, List<TypeSignature> parameterTypes) {
