@@ -1750,12 +1750,26 @@ already-broken guard.
     then ignored — core's own default prefers such a constructor, and this override did
     not. A bean or introspection was therefore built through the wrong constructor.
 
-    Each batch is checked against the existing 390-odd Scala feature methods before
-    porting, so these add coverage rather than restating it: `@Creator` had no coverage
-    at all, and `@Creator` on a *companion object* method still has none — it cannot,
-    since a companion's members live on the module class and the static forwarder is
-    generated in the backend, after these phases. That is the natural Scala way to write
-    a factory, and is worth its own item.
+    Each batch is checked against the existing Scala feature methods before porting —
+    since this round, with `inject-scala-test/tools/coverage_gate.py` rather than by eye
+    — so these add coverage rather than restating it.
+
+    **`@Creator` on a companion object method now works too.** The first reading of this
+    was wrong: the static forwarder is indeed generated after these phases, but it *is*
+    in the emitted class file (`javap` on a companion class shows
+    `public static Widget of(String)`), and `MethodGenUtils` emits
+    `beanType.invokeStatic(...)`, which is exactly that forwarder. So the companion's
+    `@Creator` methods are merged into the class as static methods, and core's ordinary
+    static-creator query finds them.
+
+    The merge conditions mirror dotty's own `BCodeSkelBuilder`/`BCodeHelpers.addForwarders`
+    rather than being inferred from samples, because predicting a forwarder that is not
+    emitted would generate a call to a method that does not exist. A forwarder is emitted
+    only when the companion object is static (top level, or nested in another object --
+    not inside a class), the member is a public, concrete, non-constructor method not
+    inherited from `Object` and without an expanded name, no term member of the class
+    shares its name, and `-Xno-forwarders` is not set. The two suppressing cases are
+    pinned as tests of their own.
 
     P2 remains outstanding.
 

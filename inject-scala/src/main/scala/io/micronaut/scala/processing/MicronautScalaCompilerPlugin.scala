@@ -21,6 +21,7 @@ import dotty.tools.dotc.core.Annotations.Annotation
 import dotty.tools.dotc.core.Constants
 import dotty.tools.dotc.core.Contexts.Context
 import dotty.tools.dotc.core.Flags
+import dotty.tools.dotc.core.NameKinds
 import dotty.tools.dotc.core.Symbols
 import dotty.tools.dotc.core.Symbols.Symbol
 import dotty.tools.dotc.core.Types.AnnotatedType
@@ -365,6 +366,8 @@ private object ScalaModelExtractor:
   private given TypePosition = TypePosition.TopLevel
 
 
+  private val CreatorAnnotationName = "io.micronaut.core.annotation.Creator"
+
   private val ScalaPrimitiveNames = Map(
     "scala.Boolean" -> "boolean",
     "scala.Byte" -> "byte",
@@ -609,6 +612,7 @@ private object ScalaModelExtractor:
           val enumMethods =
             if hasFlag(symbol, Flags.Enum) then List(enumValueOfMethodData(symbol))
             else Nil
+          val companionCreators = companionStaticCreators(symbol)
           val fields = template.body.collect {
             case field: tpd.ValDef if !skipField(field.symbol) => fieldData(field)
           }
@@ -642,7 +646,7 @@ private object ScalaModelExtractor:
             superType,
             interfaces.asJava,
             constructors.asJava,
-            (methods ++ enumMethods).asJava,
+            (methods ++ enumMethods ++ companionCreators).asJava,
             allFields.asJava,
             properties.asJava,
             enclosingTypeName,
@@ -904,6 +908,66 @@ private object ScalaModelExtractor:
       true,
       null,
       symbol
+    )
+
+  /**
+   * The companion object's `@Creator` methods, as static methods of the class itself.
+   *
+   * Scala's idiomatic factory is a method on the companion object, and the backend emits a
+   * *static forwarder* for it on the companion class: `object Widget { def of(n: String) }`
+   * really does produce `public static Widget of(String)` on `Widget`. That forwarder is
+   * generated after these phases, so it is not visible here, but it is what a generated call
+   * binds against -- `MethodGenUtils` emits `beanType.invokeStatic(...)`, which is exactly the
+   * forwarder. Without this the method is invisible and core falls back to the primary
+   * constructor, silently ignoring the annotation.
+   *
+   * The conditions mirror dotty's own `BCodeSkelBuilder`/`BCodeHelpers.addForwarders`, because
+   * predicting a forwarder that is not emitted would generate a call to a method that does not
+   * exist -- a linkage error, which is worse than the fallback. A forwarder is emitted only
+   * when the companion object is static (top level, or nested in another object -- not inside
+   * a class), the member is a public, concrete, non-constructor method that is not inherited
+   * from `Object` and carries no expanded (private-mangled) name, no term member of the class
+   * shares its name, and `-Xno-forwarders` is not set.
+   */
+  private def companionStaticCreators(symbol: Symbol)(using Context, AnnotationDefaults): List[ScalaMethodData] =
+    val companion = symbol.companionModule
+    if hasFlag(symbol, Flags.ModuleClass)
+      || summon[Context].settings.XnoForwarders.value
+      || companion == Symbols.NoSymbol
+      || !companion.is(Flags.Module)
+      || !companion.isStatic then
+      Nil
+    else
+      val conflicting = symbol.info.allMembers.collect {
+        case member if member.name.isTermName => member.name.toString
+      }.toSet
+      companion.moduleClass.info.decls.toList
+        .filter(member => member.is(Flags.Method))
+        .filter(member => forwardedCreator(member, conflicting))
+        .map(methodData)
+        .map(data => staticMethodData(data))
+
+  private def forwardedCreator(member: Symbol, conflicting: Set[String])(using Context, AnnotationDefaults): Boolean =
+    !member.isType
+      && !member.is(Flags.Deferred)
+      && (member.owner ne Symbols.defn.ObjectClass)
+      && !member.denot.isConstructor
+      && !member.name.is(NameKinds.ExpandedName)
+      && !conflicting.contains(member.name.toString)
+      && member.accessBoundary(Symbols.defn.RootClass) == Symbols.defn.RootClass
+      && annotations(member).exists(annotation => annotation.name() == CreatorAnnotationName)
+
+  private def staticMethodData(data: ScalaMethodData): ScalaMethodData =
+    ScalaMethodData(
+      data.name(),
+      data.returnType(),
+      data.parameters(),
+      data.typeParameters(),
+      data.thrownTypes(),
+      data.annotations(),
+      (data.modifiers().asScala + ElementModifier.STATIC).asJava,
+      data.constructor(),
+      data.nativeType()
     )
 
   private def enumValueOfMethodData(symbol: Symbol)(using Context): ScalaMethodData =

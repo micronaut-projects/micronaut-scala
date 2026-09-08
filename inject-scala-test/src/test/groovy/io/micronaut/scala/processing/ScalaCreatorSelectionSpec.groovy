@@ -15,6 +15,7 @@
  */
 package io.micronaut.scala.processing
 
+import io.micronaut.inject.ast.ClassElement
 import io.micronaut.inject.ast.ElementQuery
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
 
@@ -96,6 +97,75 @@ class Widget(val name: String, val size: Int) {
 
         expect: 'Scala declares the primary first, and nothing overrides that'
         element.getPrimaryConstructor().get().getParameters()*.getName() == ['name', 'size']
+    }
+
+    void 'a companion object factory is the creator'() {
+        given: 'the idiomatic Scala factory, which the backend emits a static forwarder for'
+        def source = '''
+package test
+
+import io.micronaut.core.annotation.Creator
+import io.micronaut.core.annotation.Introspected
+
+@Introspected
+class Widget(val name: String, val size: Int)
+
+object Widget {
+  @Creator def of(name: String): Widget = new Widget(name, 0)
+  def notACreator(x: String): Widget = new Widget(x, 1)
+}
+'''
+        def element = buildClassElement('test.Widget', source)
+
+        expect: 'it is modelled as a static method of the class, as the forwarder will be'
+        element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyDeclared())
+                .findAll { it.isStatic() }*.name == ['of']
+
+        and: 'and only the annotated one counts as a creator'
+        element.getAccessibleStaticCreators()*.name == ['of']
+        element.getPrimaryConstructor().get().getName() == 'of'
+
+        when:
+        def introspection = buildBeanIntrospection('test.Widget', source)
+
+        then:
+        introspection.getConstructorArguments()*.getName() == ['name']
+
+        and: 'and the call really links against the forwarder at runtime'
+        introspection.instantiate('hello').name() == 'hello'
+    }
+
+    void 'a companion the compiler emits no forwarder for contributes nothing'() {
+        when: 'an object nested in a class is not static, so no forwarder is emitted'
+        def outer = buildClassElement('test.Outer', '''
+package test
+
+import io.micronaut.core.annotation.Creator
+
+class Outer {
+  class InnerC(val n: String)
+  object InnerC { @Creator def of(n: String): InnerC = new InnerC(n) }
+}
+''')
+
+        then: 'predicting one would generate a call to a method that does not exist'
+        outer.getEnclosedElements(ElementQuery.of(ClassElement))
+                .first()
+                .getAccessibleStaticCreators()
+                .isEmpty()
+
+        when: 'a name shared with a member of the class also suppresses the forwarder'
+        def clash = buildClassElement('test.Clash', '''
+package test
+
+import io.micronaut.core.annotation.Creator
+
+class Clash(val name: String)
+object Clash { @Creator def name(x: String): Clash = new Clash(x) }
+''')
+
+        then:
+        clash.getAccessibleStaticCreators().isEmpty()
     }
 
     void 'an annotated trait is not a bean'() {

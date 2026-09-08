@@ -512,6 +512,13 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         if (classData.enumType()) {
             return enumValueOfMethod();
         }
+        // As in core's own default: a static `@Creator` wins over any constructor. For Scala
+        // that is the companion object's factory method, surfaced as a static method of this
+        // class because the backend emits a static forwarder for it.
+        Optional<MethodElement> staticCreator = findStaticCreator();
+        if (staticCreator.isPresent()) {
+            return staticCreator;
+        }
         List<ScalaMethodData> constructors = classData.constructors();
         if (constructors.size() == 1) {
             return Optional.of(constructorElement(constructors.get(0)));
@@ -564,6 +571,10 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         if (classData == null) {
             ClassElement declaration = declaration();
             return declaration == null ? Optional.empty() : declaration.getDefaultConstructor();
+        }
+        Optional<MethodElement> staticCreator = findDefaultStaticCreator();
+        if (staticCreator.isPresent()) {
+            return staticCreator;
         }
         if (classData.enumType()) {
             return Optional.empty();
