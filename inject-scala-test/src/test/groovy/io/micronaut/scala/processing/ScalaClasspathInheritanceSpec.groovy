@@ -16,7 +16,9 @@
 package io.micronaut.scala.processing
 
 import io.micronaut.inject.ast.ElementQuery
+import io.micronaut.scala.processing.fixtures.ExternalInheritedSingleton
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
+import jakarta.inject.Named
 
 /**
  * The hierarchy walk stopped at the edge of the compilation: a supertype read from the
@@ -24,7 +26,9 @@ import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
  * already-compiled Scala base inherited none of its injectable members. Three earlier
  * attempts failed on "Element of type [MethodElement$1] does not support adding
  * annotations at compilation time", which turned out to be this repository's own missing
- * {@code getMethodAnnotationMetadata()} override on the classpath method elements.
+ * {@code getMethodAnnotationMetadata()} override on the classpath method elements. The
+ * message names the anonymous delegate Core's default returns, so it can never name the
+ * element at fault.
  */
 class ScalaClasspathInheritanceSpec extends AbstractScalaTypeElementSpec {
 
@@ -38,6 +42,16 @@ import jakarta.inject.Singleton
 class Child extends ExternalBase {
   def childOwn(): String = "own"
 }
+'''
+
+    private static final String ANNOTATED_SOURCE = '''
+package test
+
+import io.micronaut.scala.processing.fixtures.ExternalAnnotatedBase
+import jakarta.inject.Singleton
+
+@Singleton
+class AnnotatedChild extends ExternalAnnotatedBase
 '''
 
     void 'methods of a classpath supertype are inherited'() {
@@ -104,5 +118,37 @@ class Child extends ExternalBase {
 
         then:
         method.hasAnnotation('jakarta.inject.Inject')
+    }
+
+    void 'an inherited classpath method keeps its own metadata apart from the class\'s'() {
+        given:
+        def element = buildClassElement('test.AnnotatedChild', ANNOTATED_SOURCE)
+        def method = element.getEnclosedElements(ElementQuery.ALL_METHODS).find { it.name == 'annotatedBaseMethod' }
+
+        when: 'the method-only surface, which is what the override supplies'
+        def methodMetadata = method.methodAnnotationMetadata.annotationMetadata
+
+        then:
+        methodMetadata.hasAnnotation(Named)
+        !methodMetadata.hasAnnotation(ExternalInheritedSingleton)
+    }
+
+    void 'the declared metadata of an inherited classpath method is the declaration only'() {
+        given:
+        def element = buildClassElement('test.AnnotatedChild', ANNOTATED_SOURCE)
+        def method = element.getEnclosedElements(ElementQuery.ALL_METHODS).find { it.name == 'annotatedBaseMethod' }
+
+        when: 'this reads through getMethodAnnotationMetadata(), so the default answered with the combined metadata'
+        def declared = method.declaredMethodAnnotationMetadata
+
+        then:
+        declared.hasAnnotation(Named)
+        !declared.hasAnnotation(ExternalInheritedSingleton)
+
+        when: 'and an annotation added by a visitor is part of the declaration'
+        method.annotate('jakarta.inject.Inject')
+
+        then:
+        method.declaredMethodAnnotationMetadata.hasAnnotation('jakarta.inject.Inject')
     }
 }

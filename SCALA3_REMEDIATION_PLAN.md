@@ -188,7 +188,7 @@ overridden in a subclass is currently treated as two unrelated methods.
 `MethodSignature`/`TypeSignature` records at `ScalaClassElement.java:744` already
 provide the comparison key.
 
-### A6 (BLOCKER, confirmed) Inherited members from classpath supertypes are invisible
+### A6 (BLOCKER, confirmed, done) Inherited members from classpath supertypes are invisible
 
 `ScalaClassElement.java:455`
 
@@ -212,52 +212,71 @@ Fields are de-duplicated by name, and an inherited field's type is resolved agai
 the parameterisation the subtype used.
 
 The classpath half — falling back to `visitorContext.getClassElement(type.name())`
-and merging its enclosed elements — was implemented, tested and reverted **twice**:
-once before A7 and A18, and again after both had landed. They were necessary but
-**not sufficient**, and the second attempt narrows what is actually left.
+and merging its enclosed elements — is **done**, on the fourth attempt. The three
+before it were each implemented, tested and reverted, and all three failed the same
+way:
 
-A7 fixed what classpath annotation metadata *contains*; A18 fixed which members are
-*enumerated*. Neither addresses **mutability**, which is the real blocker. On the
-second attempt six specs still failed, all of them visitors annotating an inherited
-method, and the element types named in the errors are Micronaut's own reflective
-ones — `io.micronaut.inject.ast.ReflectGenericPlaceholderElement` and an anonymous
-`MethodElement` — not this repository's loaded elements. So the immutability leaks
-in through Core's reflective element factory during type resolution, and closing
-this needs the loaded model to stop handing out Core's reflective elements, not
-merely better metadata or enumeration.
+    Element of type [class io.micronaut.inject.ast.MethodElement$1] does not
+    support adding annotations at compilation time
 
-A second, smaller prerequisite also showed up: the walk pulls in `scala.Product`
-members such as `productElementNames`, so the universal-supertype exclusion listed
-in B15 (`scala.Any`, `scala.AnyRef`, `scala.Product`, `scala.Equals`,
-`java.io.Serializable`) has to land first or the two element kinds disagree about
-what a class declares.
+That message was read twice as Core handing out immutable elements of its own —
+first synthetic elements from `MethodElement.of(...)`, then reflective ones from
+the element factory — and the item was filed under **F2. Blocked on Micronaut
+Core**. Only the reflective half of that was real. It was
+`ScalaLoadedClassElement` resolving generics through `ClassElement.of(...)`, which
+hands back Core's immutable `ReflectGenericPlaceholderElement`; the loaded model now
+builds this repository's own placeholder and wildcard elements (`101e31b`), and six
+failures became five.
 
-Previously recorded as **blocked on A7 and A18**; then on element mutability. One
-cause of that has since been fixed -- `ScalaLoadedClassElement` resolved generics
-through `ClassElement.of(...)`, handing back Core's immutable
-`ReflectGenericPlaceholderElement`, and now builds this repository's own
-placeholder and wildcard elements. Re-tested afterwards: six failures became five.
+The rest was a misreading, and the exception is misleading by construction.
+`MethodElement$1` is **not** the anonymous element `MethodElement.of(...)` returns.
+It is the anonymous `MutableAnnotationMetadataDelegate` created by the **default**
+`MethodElement.getMethodAnnotationMetadata()`
+(`core-processor/.../inject/ast/MethodElement.java:61`), which overrides only the
+read side and inherits a throwing `annotate`. The exception calls `getClass()` from
+inside that delegate, so it names the delegate and can never name the element at
+fault.
 
-What remains is **not in this repository**. The last failures name
-`io.micronaut.inject.ast.MethodElement$1`, the anonymous element
-`MethodElement.of(...)` returns. Core synthesises those in its introduction path,
-and they are immutable, so a visitor annotating an inherited introduction method
-fails on an element Core created. Closing A6's classpath half therefore needs
-either mutable synthetic elements in Core, or a way for the introduction path not
-to synthesise them. **Now done, on the fourth attempt.** The blocker really was
-*"Element of type [MethodElement$1] does not support adding annotations at
-compilation time"*, but `MethodElement$1` is not a synthetic element from
-`MethodElement.of(...)` as recorded here earlier -- it is the anonymous delegate
-Core's **default** `getMethodAnnotationMetadata()` returns
-(`core-processor/.../MethodElement.java:61`), which overrides only the read side.
-`ScalaMethodElement` overrides that method and the classpath method and constructor
-elements did not, so a visitor annotating any inherited classpath method failed.
-With that override in place -- found while fixing `LoadedPropertyElement` in B15 --
-the merge lands with the whole suite green. Universal supertypes are skipped in the
-merge, since `scala.Product`, `scala.Equals` and `java.io.Serializable` members are
-surface the source path never produces. A7 and A18 were genuine prerequisites; the
-annotation-metadata override was the third. Pinned by
-`ScalaClasspathInheritanceSpec`.
+The element at fault was this repository's own `LoadedMethodElement` — and
+`LoadedConstructorElement` beside it. Both extend `AbstractScalaElement`, so
+`Element.annotate(...)` worked; neither overrode `getMethodAnnotationMetadata()`, so
+that call fell through to Core's read-only default and threw. `ScalaMethodElement`
+does override it (`ScalaMethodElement.java:119`), which is exactly why only the
+specs annotating a member inherited from a *classpath* supertype failed while the
+same visitor over a source supertype passed. The override was added while fixing
+`LoadedPropertyElement` in B15, and with it the merge lands.
+
+**The general rule for this plugin:** `MethodElement` has two independent mutable
+surfaces — `getAnnotationMetadata()`/`Element.annotate(...)` for the class+method
+hierarchy, and `getMethodAnnotationMetadata()` for the method-only metadata.
+Nothing in the type system requires overriding the second, and the failure names
+the wrong class when you do not. Any element a visitor can reach must override
+`getMethodAnnotationMetadata()`, not just `annotate`. Every shipped Micronaut
+language module does, through the public helper
+`io.micronaut.inject.ast.annotation.MethodElementAnnotationsHelper`:
+`JavaMethodElement.java:111`, `GroovyMethodElement.java:90`,
+`AbstractKotlinMethodElement.kt:52`, `PythonMethodElement.java:181`. The call sites
+that reach it are ordinary ones — `ConfigurationMetadataWriterVisitor.java:243`
+annotates every `@ConfigurationProperties` accessor through it, inherited ones
+included, and `VisitorUtils.java:300` reads through the same surface.
+
+A7 and A18 were genuine prerequisites — A7 fixed what classpath annotation metadata
+*contains*, A18 fixed which members are *enumerated*, and neither addresses
+mutability. A fourth prerequisite came from B15: universal supertypes are excluded
+from the merge, because a Scala class on the classpath really does implement
+`scala.Product`, `scala.Equals` and `java.io.Serializable`, but the source path
+never produces their members and none of them can carry Micronaut metadata, so
+merging them in would make the two element kinds disagree about what a class
+inherits.
+
+Pinned by `ScalaClasspathInheritanceSpec`: methods and fields of every visibility
+are inherited, `onlyDeclared` still stops at the boundary, the universal supertypes
+stay out, an inherited classpath method can be annotated, and its
+`getMethodAnnotationMetadata()`/`getDeclaredMethodAnnotationMetadata()` answer with
+the method's own declaration rather than the class's.
+`getDeclaredMethodAnnotationMetadata()` reads through `getMethodAnnotationMetadata()`,
+so it was suspect too; on these elements it happened to be right already, because
+they never built a class+method hierarchy for the default to narrow.
 
 Note also that Scala does not permit field shadowing — neither `override var` nor
 a `private var` of the same name compiles when the superclass field is visible —
@@ -301,8 +320,9 @@ stereotype resolves and that the two element kinds agree.
 
 Still open: annotations *inherited* from a classpath supertype. `buildHierarchy`
 only walks a hierarchy for `ScalaClassData`, and a loaded element is adapted as a
-flat member, so this covers declared annotations only. That is the same boundary
-as A6's classpath half and belongs with it and A18.
+flat member, so this covers declared annotations only. A6's classpath half now
+merges the *members* of such a supertype, but each still carries only the
+annotations declared on it.
 
 ### A8 (BLOCKER, confirmed) No source positions on any diagnostic
 
@@ -1477,7 +1497,7 @@ Each wave is independently mergeable and leaves the build green.
 Rationale: without this, later waves cannot tell a real regression from an
 already-broken guard.
 
-### Wave 1 — confirmed correctness defects — **done**, except A6's classpath half
+### Wave 1 — confirmed correctness defects — **done**
 
 5. **Done** (`e55b469`). `hasAllFlags` and the four composite-flag call sites (A1).
 6. **Done.** Both phases now override `runOn`, which the compiler calls exactly
@@ -1499,11 +1519,12 @@ already-broken guard.
 9. **Done.** `withTypeArguments` (A4), `overrides`/`hides` (A5). Both copy paths on
    `ScalaClassElement` also stopped discarding the class's members. Pinned by
    `ScalaGenericsAndOverridesSpec`.
-10. **Half done.** The field-inheritance walk, which did not exist at all, now
-    runs for supertypes in the compilation (A6), pinned by
-    `ScalaInheritedFieldSpec`. The classpath half is **also done**, after A7, A18
-    and the `getMethodAnnotationMetadata()` override — see A6 above. Pinned by
-    `ScalaClasspathInheritanceSpec`.
+10. **Done.** The field-inheritance walk, which did not exist at all, now runs for
+    supertypes in the compilation (A6), pinned by `ScalaInheritedFieldSpec`. The
+    classpath half is done too, after A7, A18, this repository's own generic
+    elements and the `getMethodAnnotationMetadata()` override — see A6 above, which
+    also records the general rule the override stands for and the owning-type defect
+    found while verifying it. Pinned by `ScalaClasspathInheritanceSpec`.
 
 ### Wave 2 — harness, then Scala-native tests
 
@@ -1546,8 +1567,8 @@ already-broken guard.
 18. Equality and copy semantics for placeholders, wildcards and loaded elements
     (B12); `getTypeArguments(String)`/`getAllTypeArguments()`; the remaining B15
     items.
-19. Classpath enumeration via the declared-member walk (A18), and then the
-    classpath half of A6, which depends on it and on A7.
+19. **Done.** Classpath enumeration via the declared-member walk (A18), and then the
+    classpath half of A6, which depended on it and on A7.
 20. Collection converters with element-type conversion (B14).
 21. Then port P1 and P2 parity specs.
 
