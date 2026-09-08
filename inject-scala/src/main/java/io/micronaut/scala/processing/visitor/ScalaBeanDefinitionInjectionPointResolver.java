@@ -82,7 +82,8 @@ final class ScalaBeanDefinitionInjectionPointResolver implements BeanDefinitionI
 
     /**
      * A collection of beans, i.e. anything Micronaut can populate from a {@code java.util.Collection}
-     * via {@link io.micronaut.scala.processing.ScalaCollectionConverterRegistrar}. Matching on the
+     * via {@code io.micronaut.scala.convert.ScalaCollectionConverterRegistrar}, published separately as
+     * {@code micronaut-scala-runtime}. Matching on the
      * {@code scala.collection.} package prefix instead would also catch {@code Iterator},
      * {@code View}, {@code IterableOnce} and friends, none of which are injectable.
      */

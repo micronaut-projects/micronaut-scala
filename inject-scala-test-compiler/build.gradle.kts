@@ -46,6 +46,10 @@ dependencies {
         exclude(module = "groovy-all")
     }
 
+    // The application-side converters now ship separately from the compiler plugin, so
+    // the tests that build an ApplicationContext need them on the classpath explicitly.
+    testImplementation(projects.micronautRuntimeScala)
+
     testImplementation(libs.managed.graalvm.nativeimage)
     testImplementation(libs.micronaut.http)
     testImplementation(platform(libs.test.boms.micronaut.validation))

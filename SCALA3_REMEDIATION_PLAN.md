@@ -1341,9 +1341,14 @@ un-relocated Micronaut and ASM into the running application.
   publish a POM with no compile/runtime dependencies except `scala3-library_3` as
   provided.
 
-Either way, extract a tiny `micronaut-scala-runtime` artifact containing only
-`ScalaCollectionConverterRegistrar` and its service file, and point `runtimeOnly`
-at that.
+**Done, published as `micronaut-runtime-scala`** (the repository's standardized
+project naming makes it `micronaut-<project>`, so the plan's
+`micronaut-scala-runtime` would not have matched its siblings). A 27KB jar with
+`ScalaCollectionConverterRegistrar` and its service descriptor, and nothing else.
+It moved to `io.micronaut.scala.convert` rather than staying in
+`io.micronaut.scala.processing`, because the same package in both jars would be a
+split package. `quickStart.adoc` now points `runtimeOnly` at it and warns against
+putting the compiler plugin on an application's runtime classpath at all.
 
 **Measured before choosing: a thin jar is viable only if the build tool puts the
 plugin and its dependencies in one `-Xplugin` argument.**

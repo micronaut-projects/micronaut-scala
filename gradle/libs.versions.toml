@@ -36,6 +36,7 @@ managed-groovy = { module = "org.apache.groovy:groovy", version.ref = "managed-g
 
 scala3-compiler = { module = "org.scala-lang:scala3-compiler_3", version.ref = "scala3" }
 scala3-library = { module = "org.scala-lang:scala3-library_3", version.ref = "scala3" }
+micronaut-core = { module = "io.micronaut:micronaut-core", version.ref = "micronaut-core" }
 micronaut-core-processor = { module = "io.micronaut:micronaut-core-processor", version.ref = "micronaut-core" }
 micronaut-context = { module = "io.micronaut:micronaut-context", version.ref = "micronaut-core" }
 micronaut-retry = { module = "io.micronaut:micronaut-retry", version.ref = "micronaut-core" }
