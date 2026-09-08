@@ -210,9 +210,19 @@ public class ScalaMethodElement extends AbstractScalaMemberElement implements Me
         return !methodData.constructor() && declaringType.isInterface() && !isAbstract();
     }
 
+    /**
+     * The class this method was reached through.
+     *
+     * <p>This used to answer {@code declaringType} for a default method, which is every
+     * concrete trait method, so {@code withNewOwningType} was a no-op for exactly the case it
+     * exists for. Class-level AOP advice reaches a method through the owning type's metadata,
+     * so a method inherited from a trait and not overridden was never advised: the bean was
+     * proxied, the proxy declared the method, and the interceptor chain for it was empty --
+     * {@code @Transactional} or {@code @Cacheable} on such a method did nothing, silently.</p>
+     */
     @Override
     public ClassElement getOwningType() {
-        return isDefault() ? declaringType : owningType;
+        return owningType;
     }
 
     @Override

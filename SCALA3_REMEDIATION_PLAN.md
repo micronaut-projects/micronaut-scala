@@ -1019,12 +1019,22 @@ parameter `@Nullable` is not a workaround: it substitutes a Java `null` for the
 
 ### B15 (MINOR) Smaller items worth folding into the same passes
 
-- **Owner half done; `isDefault()` is not a defect.** `getOwningType()` returning
-  `declaringType` was the visible half of a larger problem and is fixed: inherited
-  methods are now re-owned through `withNewOwningType` by the class the query was
-  made on, as Core's Java module does. See the commit "Own an inherited method by
-  the class it was reached through" for the `@ConfigurationProperties` prefix bug it
-  was causing.
+- **Done, in two goes.** `getOwningType()` returning `declaringType` was the visible
+  half of a larger problem: inherited methods are now re-owned through
+  `withNewOwningType` by the class the query was made on, as Core's Java module does.
+  See "Own an inherited method by the class it was reached through" for the
+  `@ConfigurationProperties` prefix bug that caused.
+
+  That fix was incomplete, and the original finding was right about the part left
+  behind: `getOwningType()` still answered `declaringType` whenever `isDefault()`,
+  which is **every concrete trait method**, so `withNewOwningType` stayed a no-op for
+  exactly the case it exists for. Class-level AOP advice reaches a method through its
+  owning type's metadata, so a trait method that was inherited and not overridden was
+  never advised — the bean was proxied, the proxy declared the method, and the
+  interceptor chain for it was empty. `@Transactional` or `@Cacheable` on such a method
+  did nothing at all, silently. The short-circuit is gone. Pinned by a case in
+  `ScalaAopParitySpec` whose interceptor appends to the result, so interception is
+  visible in the value rather than in shared mutable state.
 
   `isDefault()` reporting every concrete trait method as a Java default method is
   **correct**, checked against emitted bytecode rather than assumed. Compiling

@@ -277,4 +277,91 @@ class DefaultOperations extends Operations
         definition.findMethod('convert', Integer.TYPE).present
         definition.executableMethods.findAll { it.methodName == 'convert' }.size() == 2
     }
+    void "applies class-level advice to a method inherited from a trait"() {
+        when: 'the interceptor appends, so interception is visible in the result itself'
+        def context = buildContext('''
+package traitadvice
+
+import io.micronaut.aop.Around
+import io.micronaut.aop.MethodInterceptor
+import io.micronaut.aop.MethodInvocationContext
+import io.micronaut.context.annotation.Type
+import jakarta.inject.Singleton
+import java.lang.annotation.*
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE, ElementType.METHOD))
+@Around
+@Type(Array(classOf[Shouter]))
+class Logged extends scala.annotation.StaticAnnotation
+
+@Singleton
+class Shouter extends MethodInterceptor[Object, Object] {
+  override def intercept(context: MethodInvocationContext[Object, Object]): Object =
+    String.valueOf(context.proceed()) + "!"
+}
+
+trait Greeter {
+  def greet(): String = "hello"
+}
+
+@Logged
+@Singleton
+class Inheriting extends Greeter
+
+@Logged
+@Singleton
+class Overriding extends Greeter {
+  override def greet(): String = "hi"
+  def own(): String = "own"
+}
+''', [:], true)
+
+        then: 'a trait method that is merely inherited is advised, not silently skipped'
+        getBean(context, 'traitadvice.Inheriting').greet() == 'hello!'
+
+        and: 'as are an overridden trait method and one declared on the class'
+        def overriding = getBean(context, 'traitadvice.Overriding')
+        overriding.greet() == 'hi!'
+        overriding.own() == 'own!'
+
+        cleanup:
+        context?.close()
+    }
+
+    void "rejects advice on a final method with a diagnostic"() {
+        when:
+        buildBeanDefinition('finaladvice.Service', '''
+package finaladvice
+
+import io.micronaut.aop.Around
+import io.micronaut.aop.MethodInterceptor
+import io.micronaut.aop.MethodInvocationContext
+import io.micronaut.context.annotation.Type
+import jakarta.inject.Singleton
+import java.lang.annotation.*
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE, ElementType.METHOD))
+@Around
+@Type(Array(classOf[Noop]))
+class Logged extends scala.annotation.StaticAnnotation
+
+@Singleton
+class Noop extends MethodInterceptor[Object, Object] {
+  override def intercept(context: MethodInvocationContext[Object, Object]): Object = context.proceed()
+}
+
+@Logged
+@Singleton
+class Service {
+  final def fixed(): String = "x"
+}
+''')
+
+        then: 'a final method cannot be overridden by the proxy, so this must not pass silently'
+        def e = thrown(Throwable)
+        e.message.contains('declared final')
+    }
+
 }
