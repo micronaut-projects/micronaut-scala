@@ -1677,9 +1677,20 @@ already-broken guard.
     evidence. Also fixed here, though not in the plan: the compiler's own
     `scala.annotation.internal.*` annotations were being written into every
     generated bean definition.
-17. **Outstanding.** Port the P0 parity specs, which now encode fixed behaviour.
-    This is bulk test work rather than adapter fixes, and is the largest remaining
-    item in the plan.
+17. **In progress.** Porting the P0 parity specs, which now encode fixed behaviour.
+    Three batches landed, from the Java module's `ClassElementSpec`: `ElementQuery`
+    semantics (`ScalaElementQueryParitySpec`), declaration order and canonical names
+    (`ScalaDeclarationOrderSpec`, `ScalaCanonicalNameSpec`), and generics
+    (`ScalaGenericsParitySpec`).
+
+    The port is not only test work: five defects have come out of it so far, each
+    found by asking Scala a question the Java spec asks Java. `ElementQuery` ignored
+    `onlyDeclared` for constructors and ignored `includeOverriddenMethods` entirely;
+    `denot.annotations` is in reverse declaration order in dotty, so repeated
+    annotations, `@Repeatable` containers and `@throws` clauses all came out
+    backwards; only the first `@AliasFor` on an annotation member was applied,
+    because Scala has no repeatable container and core expects javac to have made
+    one; and neither element kind answered `getCanonicalName()`.
 
 ### Wave 4 — element model consistency — **done, except item 21**
 
