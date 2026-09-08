@@ -1731,7 +1731,20 @@ already-broken guard.
     classpath half of A6, which depended on it and on A7.
 20. **Done.** Collection converters with element-type conversion, the reverse map
     converter and value-to-`Option` (B14).
-21. **Outstanding.** Then port P1 and P2 parity specs.
+21. **In progress (P1).** Porting P1 from the Java module's
+    `io.micronaut.inject.beans.BeanDefinitionSpec`. P1 asks a different question from
+    P0: not what the element model reports, but what reaches the *generated* bean
+    definition, written out and read back at runtime.
+
+    First batch (`ScalaDefinitionGenericsParitySpec`) found a tenth defect, and one the
+    P0 annotation-ordering fix had not covered. Type-use annotations are collected by
+    peeling `Annotated` wrappers, and peeling runs outermost-first — which is
+    last-written-first, since `String @Size(min = 1) @Size(max = 5)` parses as
+    `(String @Size(min = 1)) @Size(max = 5)`. Repeated annotations on a type argument
+    therefore reached the generated definition backwards, and so did the `@Repeatable`
+    container built from them. Both peel sites now reverse.
+
+    P2 remains outstanding.
 
 ### Wave 5 — packaging, runtime artifact, docs
 

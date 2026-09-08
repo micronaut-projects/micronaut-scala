@@ -1051,7 +1051,11 @@ private object ScalaModelExtractor:
           current = annotated.arg
         case _ =>
           continue = false
-    (current, typeAnnotations.toList)
+    // Peeling runs outermost-first, and the outermost annotation is the last one written:
+    // `String @Size(min = 1) @Size(max = 5)` parses as `(String @Size(min = 1)) @Size(max = 5)`.
+    // Without the reverse the repeats reach the metadata backwards, and so does the
+    // `@Repeatable` container built from them.
+    (current, typeAnnotations.toList.reverse)
 
   private def appliedTypeArguments(tpt: tpd.Tree): Option[List[tpd.Tree]] =
     tpt match
@@ -1071,7 +1075,8 @@ private object ScalaModelExtractor:
           current = annotated.parent
         case _ =>
           continue = false
-    (current, typeAnnotations.toList)
+    // See `annotatedTree`: the peel runs outermost-first, which is last-written-first.
+    (current, typeAnnotations.toList.reverse)
 
   /**
    * The type the JVM signature actually names, for the Scala types whose own name is not a JVM
