@@ -244,15 +244,20 @@ What remains is **not in this repository**. The last failures name
 and they are immutable, so a visitor annotating an inherited introduction method
 fails on an element Core created. Closing A6's classpath half therefore needs
 either mutable synthetic elements in Core, or a way for the introduction path not
-to synthesise them -- see **F2. Blocked on Micronaut Core**. Those elements are reflective and immutable, so any
-visitor that annotates an inherited method fails outright with *"Element of type
-[MethodElement$1] does not support adding annotations at compilation time"*. Seven
-existing specs fail that way, all of them visitors annotating inherited
-introduction or bean methods. Merging in `ScalaLoadedClassElement`'s members also
-drags in `scala.Product`, `scala.Equals` and `java.io.Serializable` surface that
-the source path never produces, which is the `excludedHierarchyType` item in B15.
-This ordering needs to change: A6's classpath half belongs *after* A7 and A18, not
-before them.
+to synthesise them. **Now done, on the fourth attempt.** The blocker really was
+*"Element of type [MethodElement$1] does not support adding annotations at
+compilation time"*, but `MethodElement$1` is not a synthetic element from
+`MethodElement.of(...)` as recorded here earlier -- it is the anonymous delegate
+Core's **default** `getMethodAnnotationMetadata()` returns
+(`core-processor/.../MethodElement.java:61`), which overrides only the read side.
+`ScalaMethodElement` overrides that method and the classpath method and constructor
+elements did not, so a visitor annotating any inherited classpath method failed.
+With that override in place -- found while fixing `LoadedPropertyElement` in B15 --
+the merge lands with the whole suite green. Universal supertypes are skipped in the
+merge, since `scala.Product`, `scala.Equals` and `java.io.Serializable` members are
+surface the source path never produces. A7 and A18 were genuine prerequisites; the
+annotation-metadata override was the third. Pinned by
+`ScalaClasspathInheritanceSpec`.
 
 Note also that Scala does not permit field shadowing — neither `override var` nor
 a `private var` of the same name compiles when the superclass field is visible —
@@ -1479,8 +1484,9 @@ already-broken guard.
    `ScalaGenericsAndOverridesSpec`.
 10. **Half done.** The field-inheritance walk, which did not exist at all, now
     runs for supertypes in the compilation (A6), pinned by
-    `ScalaInheritedFieldSpec`. The classpath half is blocked on A7 and A18 — see
-    A6 above — and moves to Wave 4, after them.
+    `ScalaInheritedFieldSpec`. The classpath half is **also done**, after A7, A18
+    and the `getMethodAnnotationMetadata()` override — see A6 above. Pinned by
+    `ScalaClasspathInheritanceSpec`.
 
 ### Wave 2 — harness, then Scala-native tests
 
@@ -1580,27 +1586,6 @@ added for annotation members in `defaultGetterReference` is the same mechanism)
 and implement the new interface on `ScalaParameterElement`. Add specs for a
 constructor default and an `@Executable` method default, and move this item back
 into a numbered wave.
-
-### Classpath supertypes contributing inherited members (the second half of A6)
-
-Now genuinely blocked on Core, after three attempts that each narrowed the cause.
-A7 (classpath metadata), A18 (classpath enumeration) and the loaded-generics fix
-(this repository no longer hands out Core's reflective elements) were each
-necessary and none sufficient.
-
-The remaining failures name `io.micronaut.inject.ast.MethodElement$1` -- the
-anonymous element `MethodElement.of(...)` returns. Core synthesises those in its
-introduction path and they do not support being annotated, so a visitor annotating
-an inherited introduction method fails on an element Core created, not one this
-plugin produced.
-
-**Blocked on:** synthetic `MethodElement`s in Core supporting annotation at
-compilation time, or the introduction path not synthesising them.
-
-**Come back when:** that changes. The work here is then small -- the fallback is a
-few lines in `collectInheritedMethods`/`collectInheritedFields`, and has been
-written and reverted three times; see the git history for the exact shape. The
-universal-supertype exclusion it also needs has already landed.
 
 ### An absent property bound to a `scala.Option` (from B14)
 

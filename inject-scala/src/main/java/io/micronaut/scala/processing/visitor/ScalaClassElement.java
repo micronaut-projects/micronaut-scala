@@ -39,6 +39,7 @@ import io.micronaut.inject.ast.utils.AstBeanPropertiesUtils;
 import org.jspecify.annotations.Nullable;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -56,6 +57,21 @@ import java.util.function.Predicate;
  * Scala class element backed by compiler plugin model data.
  */
 public class ScalaClassElement extends AbstractScalaElement implements ArrayableClassElement {
+
+    /**
+     * Supertypes every Scala or Java class has, whose members the source path never produces
+     * and which can carry no Micronaut metadata.
+     */
+    private static final Set<String> UNIVERSAL_SUPERTYPES = Set.of(
+        Object.class.getName(),
+        Enum.class.getName(),
+        "java.io.Serializable",
+        "scala.Any",
+        "scala.AnyRef",
+        "scala.Equals",
+        "scala.Product",
+        "scala.Serializable"
+    );
 
     private final ScalaVisitorContext visitorContext;
     private final ScalaTypeData typeData;
@@ -586,12 +602,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         }
         Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(type.name());
         if (sourceElement.isEmpty()) {
-            // A supertype outside this compilation still contributes nothing. Merging its
-            // members in from `visitorContext.getClassElement(...)` was tried and reverted:
-            // those elements are reflective and immutable, so any visitor that annotates an
-            // inherited method fails with "does not support adding annotations at
-            // compilation time". This needs the classpath elements to become first-class
-            // first -- A7 and A18 in SCALA3_REMEDIATION_PLAN.md.
+            collectClasspathMethods(type.name(), signatures, elements);
             return;
         }
         ScalaClassElement inheritedElement = sourceElement.get();
@@ -603,6 +614,68 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         inheritedData.methods().forEach(method -> addMethodElement(substitute(method, substitutions), inheritedElement, signatures, elements));
         collectInheritedMethods(substitute(inheritedData.superType(), substitutions), signatures, elements, visited);
         inheritedData.interfaces().forEach(interfaceType -> collectInheritedMethods(substitute(interfaceType, substitutions), signatures, elements, visited));
+    }
+
+    /**
+     * Inherited members of a supertype that is not part of this compilation.
+     *
+     * <p>A supertype read from the classpath used to contribute nothing at all, so a class
+     * extending a Java or already-compiled Scala base inherited none of its injectable
+     * members -- no inherited {@code @Inject} method, no inherited bean property. The
+     * classpath element walks its own hierarchy, so this does not recurse further.</p>
+     *
+     * <p>Universal supertypes are skipped. A Scala class on the classpath really does
+     * implement {@code scala.Product}, {@code scala.Equals} and {@code java.io.Serializable},
+     * but the source path never produces their members, and neither can carry Micronaut
+     * metadata -- merging them in would make the two element kinds disagree about what a
+     * class inherits.</p>
+     */
+    private void collectClasspathMethods(String name, Set<MethodSignature> signatures, List<Element> elements) {
+        classpathElement(name).ifPresent(classpathElement -> {
+            for (MethodElement method : classpathElement.getEnclosedElements(ElementQuery.ALL_METHODS)) {
+                if (universalSupertype(method.getDeclaringType().getName())) {
+                    continue;
+                }
+                if (signatures.add(signature(method))) {
+                    elements.add(method);
+                }
+            }
+        });
+    }
+
+    private void collectClasspathFields(String name, Set<String> fieldNames, List<Element> elements) {
+        classpathElement(name).ifPresent(classpathElement -> {
+            for (FieldElement field : classpathElement.getEnclosedElements(ElementQuery.ALL_FIELDS)) {
+                if (universalSupertype(field.getDeclaringType().getName())) {
+                    continue;
+                }
+                if (fieldNames.add(field.getName())) {
+                    elements.add(field);
+                }
+            }
+        });
+    }
+
+    private Optional<ClassElement> classpathElement(String name) {
+        if (universalSupertype(name)) {
+            return Optional.empty();
+        }
+        return visitorContext.getClassElement(name);
+    }
+
+    private static boolean universalSupertype(String name) {
+        return UNIVERSAL_SUPERTYPES.contains(name);
+    }
+
+    private MethodSignature signature(MethodElement method) {
+        return new MethodSignature(
+            method.getName(),
+            Arrays.stream(method.getParameters())
+                .map(parameter -> new TypeSignature(
+                    parameter.getType().getName(),
+                    parameter.getType().getArrayDimensions()))
+                .toList()
+        );
     }
 
     private void addMethodElement(
@@ -781,7 +854,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         }
         Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(type.name());
         if (sourceElement.isEmpty()) {
-            // See collectInheritedMethods: classpath supertypes are blocked on A7/A18.
+            collectClasspathFields(type.name(), fieldNames, elements);
             return;
         }
         ScalaClassElement inheritedElement = sourceElement.get();
