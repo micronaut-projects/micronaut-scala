@@ -41,6 +41,17 @@ import java.util.Set;
 public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMetadataBuilder<Object, ScalaAnnotationData> {
 
     private final VisitorContext visitorContext;
+    private static final Set<String> UNIVERSAL_SUPERTYPES = Set.of(
+        Object.class.getName(),
+        Enum.class.getName(),
+        "java.io.Serializable",
+        "scala.Any",
+        "scala.AnyRef",
+        "scala.Equals",
+        "scala.Product",
+        "scala.Serializable"
+    );
+
     private final Map<String, ScalaAnnotationTypeData> nativeAnnotationTypes = new LinkedHashMap<>();
     /** Names already looked up and not resolvable, so the compiler is asked only once each. */
     private final Set<String> unresolvableAnnotationTypes = new HashSet<>();
@@ -717,8 +728,20 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
         return Optional.empty();
     }
 
+    /**
+     * Supertypes that cannot contribute Micronaut metadata.
+     *
+     * <p>Every Scala class has `scala.Any` above it, and every case class additionally has
+     * `scala.Product`, `scala.Equals` and `java.io.Serializable`. Walking them resolves
+     * symbols and builds hierarchy entries for types that never carry an annotation --
+     * measured at over 250 walks in a single run of this test suite. The answers do not
+     * change; the work is simply not needed.
+     *
+     * <p>`scala.annotation.Annotation` and `StaticAnnotation` are deliberately *not* here:
+     * they are a real part of a Scala annotation class's hierarchy.
+     */
     private boolean excludedHierarchyType(String name) {
-        return Object.class.getName().equals(name) || Enum.class.getName().equals(name);
+        return UNIVERSAL_SUPERTYPES.contains(name);
     }
 
     private String annotationTypeName(Object annotationType) {

@@ -934,8 +934,13 @@ and a converter into `scala.Option` from a non-`Optional` source.
   iteration order (`MicronautScalaCompilerPlugin.scala:1325`) rather than the
   primary constructor's parameter list, and invent names like `value1` when the
   annotation type is unresolved (`:1331`).
-- `excludedHierarchyType` (`:653`) excludes only `Object` and `Enum`; add
-  `scala.Any`, `scala.AnyRef`, `scala.Product`, `scala.Equals`, `java.io.Serializable`.
+- **Done, though it changes no answer.** `excludedHierarchyType` (`:653`) excluded only
+  `Object` and `Enum`; it now also excludes `scala.Any`, `scala.AnyRef`, `scala.Product`,
+  `scala.Equals`, `java.io.Serializable` and `scala.Serializable`. Measured before the
+  change: over 250 hierarchy walks into those types in a single run of the suite. None of
+  them can carry Micronaut metadata, so the metadata was already correct -- this removes
+  the work, not a wrong result. `scala.annotation.Annotation` and `StaticAnnotation` are
+  deliberately *not* excluded, being a real part of a Scala annotation class's hierarchy.
 - **Found while fixing B11, now done:** `annotations(symbol)` returned the compiler's own
   `scala.annotation.internal.*` bookkeeping. dotty attaches `SourceFile` to every class it
   compiles, so that annotation was written into the metadata of every generated bean
