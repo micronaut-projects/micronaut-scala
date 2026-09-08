@@ -992,8 +992,12 @@ parameter `@Nullable` is not a workaround: it substitutes a Java `null` for the
   synthetic flag; it does not need one while the collection is built this way, and
   the behaviour is now pinned by `ScalaSyntheticPropertySpec` so a change to how
   properties are collected cannot break it silently.
-- `ScalaEnumElement.elements()` (`:56`) bypasses the element cache, so annotations
-  added through `ElementQuery` are invisible through `EnumElement`.
+- **Done.** `ScalaEnumElement.elements()` constructed a fresh `ScalaEnumConstantElement`
+  per call instead of going through the per-class cache every other element kind uses.
+  Both halves reproduced: an annotation a visitor added to a constant it reached through
+  `ElementQuery` was invisible through `elements()`, and two calls to `elements()`
+  produced two different elements for the same constant. Pinned by
+  `ScalaEnumConstantIdentitySpec`.
 - **Does not reproduce; left alone.** `ScalaConstructorElement` does call
   `declaringType.getBeanProperties()` from inside a `computeIfAbsent`, but not on the
   same map: the five element caches are separate `IdentityHashMap`s, and the
