@@ -966,12 +966,32 @@ parameter `@Nullable` is not a workaround: it substitutes a Java `null` for the
 
 ### B15 (MINOR) Smaller items worth folding into the same passes
 
-- `ScalaMethodElement.getOwningType()` returns `declaringType` for "default"
-  methods (`:213`), making `withNewOwningType` a no-op for the one case it exists
-  for; and `isDefault()` (`:208`) treats every concrete trait method as a Java
-  default method.
-- `ScalaClassElement.getSyntheticBeanProperties()` (`:250`) returns all
-  properties; `ScalaPropertyData` carries no synthetic flag to distinguish them.
+- **Owner half done; `isDefault()` is not a defect.** `getOwningType()` returning
+  `declaringType` was the visible half of a larger problem and is fixed: inherited
+  methods are now re-owned through `withNewOwningType` by the class the query was
+  made on, as Core's Java module does. See the commit "Own an inherited method by
+  the class it was reached through" for the `@ConfigurationProperties` prefix bug it
+  was causing.
+
+  `isDefault()` reporting every concrete trait method as a Java default method is
+  **correct**, checked against emitted bytecode rather than assumed. Compiling
+  `trait Greeter { def greet(): String = ... }` with dotty 3.9.0 and running `javap`
+  gives `public default java.lang.String greet();` on the interface, alongside a
+  static `greet$` forwarder. A concrete trait method really is a Java default
+  method. (The static forwarder is generated in the backend, after these phases, so
+  it is not visible here — the same reasoning as the varargs item in B13.)
+- **Does not reproduce; left alone.** `getSyntheticBeanProperties()` does return all
+  of `classData.properties()`, but that collection is *already* only the synthetic
+  set: the plugin records a property for a `val`/`var` accessor, which the compiler
+  generates, and not for hand-written accessors. Measured on a class with both --
+  `class Holder(var fromConstructor: String)` plus a hand-written
+  `getWritten`/`setWritten` pair -- `getSyntheticBeanProperties()` answers
+  `[fromConstructor]` while `getBeanProperties()` answers both. Core walks the
+  synthetic set for an ordinary bean, and an annotated hand-written setter produces
+  exactly one injection point, not two. `ScalaPropertyData` indeed carries no
+  synthetic flag; it does not need one while the collection is built this way, and
+  the behaviour is now pinned by `ScalaSyntheticPropertySpec` so a change to how
+  properties are collected cannot break it silently.
 - `ScalaEnumElement.elements()` (`:56`) bypasses the element cache, so annotations
   added through `ElementQuery` are invisible through `EnumElement`.
 - **Does not reproduce; left alone.** `ScalaConstructorElement` does call
@@ -1629,18 +1649,45 @@ a separate zero-argument `<method>$default$<n>` getter per defaulted parameter
 so implementing the Kotlin interface here would make Core generate calls to
 methods that do not exist.
 
-**Blocked on:** a language-neutral optional-parameter SPI in Core — either
-`ParameterElement.hasDefault()` plus a per-language way to supply the default
-value, or a narrower "this parameter is optional" signal if relaxing
-required-ness is useful on its own. An investigation is open against
-micronaut-core.
+**The SPI now exists in Core, on a branch.** The investigation opened against
+micronaut-core landed as `origin/claude/quizzical-panini-49fd3c`, and it is exactly
+the shape this item asked for, in two parts:
 
-**Come back when:** Core exposes such an SPI. The work here is then small —
-recognise the `$default$` getters in the extractor (the symbol-name detection
-added for annotation members in `defaultGetterReference` is the same mechanism)
-and implement the new interface on `ScalaParameterElement`. Add specs for a
-constructor default and an `@Executable` method default, and move this item back
-into a numbered wave.
+- `ParameterElement.hasDefault()` reports only that a default *exists*. How the
+  value is obtained is deliberately not part of that contract.
+- `io.micronaut.inject.writer.ParameterDefaultValueProvider` is a service-loaded
+  provider supplying the default as an `ExpressionDef` the **caller** evaluates at
+  the invocation site. It is asked `supports(parameter)` in `Ordered` order and the
+  first to return an expression wins.
+
+The provider interface is written for exactly this case — its own javadoc uses Scala
+as the motivating example, emitting
+`new Greeter(greeting != null ? greeting : Greeter.$lessinit$greater$default$1())` —
+and Core carries a `TestScalaLikeDefaultValueProvider` that is a working blueprint:
+`supports` is an `instanceof` against the language's own parameter element, and
+`defaultValueExpression` returns the accessor call.
+
+**Still blocked, but only on merge order.** The work sits on an unmerged branch;
+`checkouts/micronaut-core`, which this build compiles against, is at `367fe9d6a4`
+and has neither `hasDefault()` nor the provider. Implementing against it now would
+not compile here.
+
+**Come back when:** that branch merges to `5.2.x`. The work here is then three
+pieces, all small:
+
+1. Recognise the `$default$` getters in the extractor and record per parameter
+   whether one exists. Scala emits a zero-argument `<method>$default$<n>` per
+   defaulted parameter, `$lessinit$greater$default$<n>` for constructors; the
+   symbol-name detection added for annotation members in `defaultGetterReference`
+   is the same mechanism.
+2. Override `hasDefault()` on `ScalaParameterElement` from that.
+3. Add a `ScalaParameterDefaultValueProvider` returning the accessor call as an
+   `ExpressionDef`, registered in `META-INF/services`. Note the receiver: the
+   constructor getters are static on the companion, so `target` is unused there,
+   while a method's are instance methods on the declaring class.
+
+Add specs for a constructor default and an `@Executable` method default, and move
+this item back into a numbered wave.
 
 ### An absent property bound to a `scala.Option` (from B14)
 
@@ -1671,10 +1718,20 @@ the converters are in place. Re-enable the `absent` case noted in
 
 These were identified by review but need execution to confirm:
 
-1. Does dotty synthesise `x_=` setter symbols with `Flags.Accessor` before
-   `Pickler`? If not, `isPropertySetterDeclaration`
-   (`MicronautScalaCompilerPlugin.scala:565`) never finds a write method and every
-   extracted property is read-only, breaking setter injection.
+1. **Settled: yes, it works.** For `class Holder(var fromConstructor: String)` the
+   extracted property reports `readOnly = false`, read method `fromConstructor` and
+   write method `fromConstructor_$eq`, so `isPropertySetterDeclaration` does match
+   and setter injection is not broken. Pinned by `ScalaSyntheticPropertySpec`.
+
+   Found while settling it, and **not previously recorded**: a *hand-written* Scala
+   property pair -- `def x: T` together with `def x_=(v: T): Unit` -- is not
+   assembled into a `PropertyElement` at all. Both halves are visible as ordinary
+   methods, so `@Inject` on the setter still works and injection is unaffected; what
+   is missing is the property itself, so `@Introspected` on such a class does not
+   expose `x`. `AstBeanPropertiesUtils` applies JavaBean conventions (`get`/`is`/`set`)
+   and the plugin's own collection only covers `val`/`var`, so nothing covers Scala's
+   own naming convention. Whether to add it is a design decision -- it changes what a
+   bean exposes -- so it is recorded here rather than implemented.
 2. Does `DirectoryClassWriterOutputVisitor.finish()` merge with a pre-existing
    service file, or truncate it? This decides how bad B10 is in practice.
 3. What are the declared-vs-inherited semantics of the `TypeElementQuery` SPI that
