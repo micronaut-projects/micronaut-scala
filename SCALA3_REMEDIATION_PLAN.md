@@ -1082,10 +1082,25 @@ parameter `@Nullable` is not a workaround: it substitutes a Java `null` for the
   fall-through. The "loose" path is only taken when a member has no resolved mirror,
   and A11 made mirrors resolve on demand, so that is now rare. Re-check alongside any
   change to mirror resolution.
-- Positional annotation arguments are matched against `symbol.info.decls`
-  iteration order (`MicronautScalaCompilerPlugin.scala:1325`) rather than the
-  primary constructor's parameter list, and invent names like `value1` when the
-  annotation type is unresolved (`:1331`).
+- **Does not reproduce; left alone, but now pinned.** Positional arguments are indeed
+  matched by index against `symbol.info.decls` order rather than against the primary
+  constructor's parameter list, and the two agree: dotty lists constructor parameters
+  *before* body members. Instrumented across a full run — the member lists reaching
+  the matcher look like `List(alpha, beta, zeta, gamma)` for
+  `class Marker(val alpha, val beta) { def zeta; val gamma }`, so index matching lands
+  on the constructor parameters. Checked four shapes and all are correct: all-positional,
+  positional mixed with named, an annotation with extra body members, and a *Java*
+  annotation declaring another member before `value` (index matching alone would have
+  chosen `other`; dotty resolves Java's single positional argument to `value` before the
+  extractor sees it). Because the correctness rests on dotty's declaration order rather
+  than on anything this code enforces, all four are now pinned by
+  `ScalaPositionalAnnotationSpec`.
+
+  The `value1`-inventing fallback is unreachable: instrumented across the whole suite,
+  `legacyPositionalAnnotationMemberName` is called **zero** times. It runs only when the
+  annotation type has no resolved mirror, and A11 made mirrors resolve on demand — the
+  same reason the `normalizeLooseValue` item above does not reproduce. Re-check both
+  alongside any change to mirror resolution.
 - **Done, though it changes no answer.** `excludedHierarchyType` (`:653`) excluded only
   `Object` and `Enum`; it now also excludes `scala.Any`, `scala.AnyRef`, `scala.Product`,
   `scala.Equals`, `java.io.Serializable` and `scala.Serializable`. Measured before the
