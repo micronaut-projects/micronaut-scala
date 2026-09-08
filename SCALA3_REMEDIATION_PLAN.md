@@ -232,8 +232,19 @@ in B15 (`scala.Any`, `scala.AnyRef`, `scala.Product`, `scala.Equals`,
 `java.io.Serializable`) has to land first or the two element kinds disagree about
 what a class declares.
 
-Previously recorded as **blocked on A7 and A18**; now blocked on element
-mutability. Those elements are reflective and immutable, so any
+Previously recorded as **blocked on A7 and A18**; then on element mutability. One
+cause of that has since been fixed -- `ScalaLoadedClassElement` resolved generics
+through `ClassElement.of(...)`, handing back Core's immutable
+`ReflectGenericPlaceholderElement`, and now builds this repository's own
+placeholder and wildcard elements. Re-tested afterwards: six failures became five.
+
+What remains is **not in this repository**. The last failures name
+`io.micronaut.inject.ast.MethodElement$1`, the anonymous element
+`MethodElement.of(...)` returns. Core synthesises those in its introduction path,
+and they are immutable, so a visitor annotating an inherited introduction method
+fails on an element Core created. Closing A6's classpath half therefore needs
+either mutable synthetic elements in Core, or a way for the introduction path not
+to synthesise them -- see **F2. Blocked on Micronaut Core**. Those elements are reflective and immutable, so any
 visitor that annotates an inherited method fails outright with *"Element of type
 [MethodElement$1] does not support adding annotations at compilation time"*. Seven
 existing specs fail that way, all of them visitors annotating inherited
@@ -1513,9 +1524,24 @@ into a numbered wave.
 
 ### Classpath supertypes contributing inherited members (the second half of A6)
 
-Blocked on A7 and A18, which are already in Waves 3 and 4 of this plan rather
-than on Core. Recorded here only so the two blocked halves are visible together;
-see A6 for the detail.
+Now genuinely blocked on Core, after three attempts that each narrowed the cause.
+A7 (classpath metadata), A18 (classpath enumeration) and the loaded-generics fix
+(this repository no longer hands out Core's reflective elements) were each
+necessary and none sufficient.
+
+The remaining failures name `io.micronaut.inject.ast.MethodElement$1` -- the
+anonymous element `MethodElement.of(...)` returns. Core synthesises those in its
+introduction path and they do not support being annotated, so a visitor annotating
+an inherited introduction method fails on an element Core created, not one this
+plugin produced.
+
+**Blocked on:** synthetic `MethodElement`s in Core supporting annotation at
+compilation time, or the introduction path not synthesising them.
+
+**Come back when:** that changes. The work here is then small -- the fallback is a
+few lines in `collectInheritedMethods`/`collectInheritedFields`, and has been
+written and reverted three times; see the git history for the exact shape. The
+universal-supertype exclusion it also needs has already landed.
 
 ---
 

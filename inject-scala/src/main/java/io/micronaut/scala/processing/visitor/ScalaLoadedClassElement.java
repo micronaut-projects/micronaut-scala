@@ -180,7 +180,7 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         }
         Map<String, ClassElement> typeArguments = new LinkedHashMap<>(typeParameters.length);
         for (Type typeParameter : typeParameters) {
-            ClassElement typeArgument = classElement(typeParameter, Object.class);
+            ClassElement typeArgument = classElement(typeParameter, Object.class, visitorContext);
             if (typeArgument instanceof GenericPlaceholderElement placeholderElement) {
                 typeArguments.put(placeholderElement.getVariableName(), typeArgument);
             }
@@ -484,23 +484,97 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         return true;
     }
 
-    private static ClassElement classElement(Type genericType, Class<?> erasedType) {
-        return classElement(genericType, erasedType, null);
-    }
-
     private static ClassElement classElement(Type genericType, Class<?> erasedType, @Nullable ScalaVisitorContext visitorContext) {
         try {
             if (genericType instanceof Class<?> genericClass) {
                 return classElement(genericClass, visitorContext);
             }
-            if (genericType instanceof ParameterizedType parameterizedType && visitorContext != null) {
-                return classElement(erasedType, visitorContext)
-                    .withTypeArguments(typeArguments(erasedType, parameterizedType, visitorContext));
+            if (visitorContext != null) {
+                if (genericType instanceof ParameterizedType parameterizedType) {
+                    return classElement(erasedType, visitorContext)
+                        .withTypeArguments(typeArguments(erasedType, parameterizedType, visitorContext));
+                }
+                if (genericType instanceof TypeVariable<?> typeVariable) {
+                    return placeholderElement(typeVariable, erasedType, visitorContext);
+                }
+                if (genericType instanceof WildcardType wildcardType) {
+                    return wildcardElement(wildcardType, erasedType, visitorContext);
+                }
             }
-            return ClassElement.of(genericType);
+            // Deliberately not `ClassElement.of(genericType)`: Core's reflective factory
+            // hands back its own element kinds -- `ReflectGenericPlaceholderElement` and
+            // friends -- which are immutable, so a visitor annotating one fails with "does
+            // not support adding annotations at compilation time", and which fail the
+            // `instanceof` checks the generics writers make against this repository's
+            // element kinds.
+            return classElement(erasedType, visitorContext);
         } catch (RuntimeException ignored) {
             return classElement(erasedType, visitorContext);
         }
+    }
+
+    /**
+     * A type variable of a classpath type, as this repository's own placeholder element.
+     */
+    private static ClassElement placeholderElement(
+        TypeVariable<?> typeVariable,
+        Class<?> erasedType,
+        ScalaVisitorContext visitorContext) {
+        List<ScalaTypeData> bounds = Arrays.stream(typeVariable.getBounds())
+            .map(bound -> plainTypeData(erasedClass(bound, Object.class)))
+            .toList();
+        return visitorContext.getElementFactory().newClassElement(new ScalaTypeData(
+            erasedType.getName(),
+            false,
+            0,
+            erasedType.isInterface(),
+            Map.of(),
+            null,
+            List.of(),
+            List.of(),
+            false,
+            typeVariable,
+            true,
+            typeVariable.getName(),
+            bounds
+        ));
+    }
+
+    /**
+     * A wildcard of a classpath type, as this repository's own wildcard element.
+     */
+    private static ClassElement wildcardElement(
+        WildcardType wildcardType,
+        Class<?> erasedType,
+        ScalaVisitorContext visitorContext) {
+        List<ScalaTypeData> upperBounds = Arrays.stream(wildcardType.getUpperBounds())
+            .map(bound -> plainTypeData(erasedClass(bound, Object.class)))
+            .toList();
+        List<ScalaTypeData> lowerBounds = Arrays.stream(wildcardType.getLowerBounds())
+            .map(bound -> plainTypeData(erasedClass(bound, Object.class)))
+            .toList();
+        return visitorContext.getElementFactory().newClassElement(new ScalaTypeData(
+            erasedType.getName(),
+            false,
+            0,
+            erasedType.isInterface(),
+            Map.of(),
+            null,
+            List.of(),
+            List.of(),
+            false,
+            wildcardType,
+            false,
+            null,
+            List.of(),
+            true,
+            upperBounds,
+            lowerBounds
+        ));
+    }
+
+    private static ScalaTypeData plainTypeData(Class<?> type) {
+        return new ScalaTypeData(type.getName(), type.isPrimitive(), 0, type.isInterface(), Map.of());
     }
 
     private static Map<String, ClassElement> typeArguments(
