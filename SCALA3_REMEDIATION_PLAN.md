@@ -1345,6 +1345,39 @@ Either way, extract a tiny `micronaut-scala-runtime` artifact containing only
 `ScalaCollectionConverterRegistrar` and its service file, and point `runtimeOnly`
 at that.
 
+**Measured before choosing: a thin jar is viable only if the build tool puts the
+plugin and its dependencies in one `-Xplugin` argument.**
+
+`-Xplugin` is a `MultiStringSetting` documented as *"Load a plugin from each
+classpath"* (`dotty/tools/dotc/config/ScalaSettings.scala:139`), and
+`Plugin.loadAllFrom` builds one classloader per argument with `loaderFor(p)` over
+**all** the paths in that argument
+(`dotty/tools/dotc/plugins/Plugin.scala:180`). The plugin classloader is therefore
+isolated from the compile `-classpath` entirely.
+
+Tested directly with `dotc`, using a thin jar built from this plugin's own classes:
+
+| invocation | result |
+| --- | --- |
+| `-Xplugin:thin.jar`, dependencies on `-classpath` | `NoClassDefFoundError: io/micronaut/inject/processing/ProcessingException` |
+| `-Xplugin:thin.jar:<every dependency>` | compiles, `$Demo$Definition.class` generated |
+
+So the question is not "thin or shaded" in the abstract but *what the build tool
+emits*. If Gradle's `scalaCompilerPlugins` and sbt's `addCompilerPlugin` pass each
+resolved file as its own `-Xplugin:` argument, a thin jar cannot work at all,
+transitive POM or not — the plugin loads and then dies on its first Micronaut
+class. If they pass one classpath, it works and the POM does the rest.
+
+A jar with no `plugin.properties` in its own `-Xplugin` argument is only a
+*warning* (`MissingPluginException` is recovered in `Plugins.scala:41`), so the
+noise the fix note describes is real but harmless. The load failure is the part
+that matters.
+
+**Consequence for the wave order:** item 24, the end-user functional test, has to
+come *before* item 22. It is the only thing that establishes which form the build
+tools emit, and the packaging choice follows from that rather than the other way
+round.
+
 ### D3 (MAJOR) `DuplicatesStrategy.EXCLUDE` silently drops merged metadata
 
 With `EXCLUDE`, the first entry for a path wins and later ones are dropped with
@@ -1785,8 +1818,13 @@ already-broken guard.
 
 ### Wave 5 — packaging, runtime artifact, docs
 
-22. Resolve the fat-jar question (D2) and, whichever way it goes, extract
-    `micronaut-scala-runtime` for the converter registrar.
+**Order changed:** item 24 now comes first. The thin/shaded choice depends on
+whether the build tools put the plugin and its dependencies in one `-Xplugin`
+argument, and only a real consumer build answers that — see the measurement in
+D2.
+
+22. Resolve the fat-jar question (D2), **after 24**, and whichever way it goes,
+    extract `micronaut-scala-runtime` for the converter registrar.
 23. Service-file merging and the remaining jar hygiene items (D3); complete the
     Scala toolchain pin (D5).
 24. Add the end-user functional test (Gradle, and sbt if practical) (D6).
