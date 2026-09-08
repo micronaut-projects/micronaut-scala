@@ -81,9 +81,24 @@ dependencies {
 // plugin must never be assembled against that version accidentally: this variant
 // is deliberately pinned to its one supported compiler release.
 configurations.configureEach {
+    // Gradle resolves its own Zinc into a `zinc` configuration, and Zinc is built for
+    // Scala 2.13: it wants `org.scala-lang:scala-library` and `scala-reflect` at 2.13.x.
+    // Pinning inside it fails the build -- with the whole group pinned, first "Version
+    // 3.9.0 is not compatible with org.scala-sbt:zinc_2.13:1.12.0", then
+    // "Could not find org.scala-lang:scala-reflect:3.9.0". Both were seen; neither is
+    // this project's toolchain.
+    if (name == "zinc") {
+        return@configureEach
+    }
     resolutionStrategy.eachDependency {
-        if (requested.group == "org.scala-lang" &&
-            (requested.name == "scala3-library_3" || requested.name == "scala3-compiler_3")) {
+        // Every Scala artifact the compiler reads as one unit, not just the library and
+        // the compiler: `tasty-core_3` and `scala3-interfaces` ship from the same release,
+        // and a constraint from elsewhere moving one of them produces exactly the ABI
+        // mismatch this pin exists to prevent.
+        //
+        // `org.scala-lang.modules` is a different group and is deliberately not matched:
+        // `scala-asm` carries its own versioning (9.9.0-scala-1).
+        if (requested.group == "org.scala-lang") {
             useVersion(libs.versions.scala3.get())
             because("compiler plugins are binary-compatible only with their exact Scala compiler release")
         }

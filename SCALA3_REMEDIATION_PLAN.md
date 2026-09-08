@@ -1478,9 +1478,26 @@ Separately, `exclude(group = "io.micronaut.sourcegen", module = "micronaut-sourc
 (`:44`) removes *version constraints*, not sourcegen itself, leaving its
 transitive versions to unmanaged conflict resolution and then bundling the result.
 
-**Fix.** Pin the whole `org.scala-lang` group; exclude the specific Scala BOM
-rather than the sourcegen platform, and comment which versions that is expected
-to move.
+**Fix — group pinned, but not the way this said.** Pinning the whole
+`org.scala-lang` group is right, and pinning it *everywhere* is wrong: it breaks
+the build outright. Gradle resolves its own Zinc into a `zinc` configuration, and
+Zinc is built for Scala 2.13, so forcing that group inside it fails with *"The
+version of 'scala-library' was changed while using the default Zinc version.
+Version 3.9.0 is not compatible with org.scala-sbt:zinc_2.13:1.12.0"*, and then,
+once `scala-library` is exempted by name, with *"Could not find
+org.scala-lang:scala-reflect:3.9.0"*. Both were hit in that order.
+
+The pin now covers the whole group but skips the `zinc` configuration, which is
+Gradle's own toolchain rather than this project's. `tasty-core_3` and
+`scala3-interfaces` are pinned as a result, which was the point.
+`org.scala-lang.modules` is still not matched: `scala-asm` carries its own
+versioning (`9.9.0-scala-1`).
+
+**The sourcegen exclusion is left alone.** Removing it was tried; sourcegen's BOM
+then participates in resolution as intended, but the change is inseparable from
+the pin work above and had no observable effect on what is bundled once the pin
+was correct. It is a version-management question rather than a correctness one,
+and is better made deliberately with a look at what the BOM actually constrains.
 
 ### D6 (MAJOR) CI runs one Java version — the multi-JDK half is withdrawn
 
