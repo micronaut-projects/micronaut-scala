@@ -300,9 +300,16 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         Class<T> elementType = result.getElementType();
         List<Element> elements = new ArrayList<>();
         if (elementType == ConstructorElement.class) {
-            // Constructors are never inherited, so the declared set is always the right one.
-            // `getConstructors()` would additionally have hidden the non-public ones.
-            Arrays.stream(componentType.getDeclaredConstructors()).map(this::constructorElement).forEach(elements::add);
+            // `getDeclaredConstructors()` rather than `getConstructors()`, which would hide the
+            // non-public ones. A constructor is not inherited by the JVM, but
+            // `ElementQuery.CONSTRUCTORS` is defined as `of(ConstructorElement).onlyDeclared()`,
+            // so a query without that flag is asking for the superclass's too.
+            for (Class<?> current : hierarchy(result.isOnlyDeclared())) {
+                ClassElement declaring = declaringElement(current);
+                for (Constructor<?> constructor : current.getDeclaredConstructors()) {
+                    elements.add(constructorElement(constructor, declaring));
+                }
+            }
         } else if (elementType == MethodElement.class) {
             collectMethods(result, elements);
         } else if (elementType == FieldElement.class) {
@@ -486,7 +493,11 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
     }
 
     private LoadedConstructorElement constructorElement(Constructor<?> constructor) {
-        return new LoadedConstructorElement(this, this, constructor, parameters(constructor), visitorContext, loadedMetadata("<init>", constructor, ClasspathAnnotationMetadataReader.constructorAnnotations(constructor), visitorContext));
+        return constructorElement(constructor, this);
+    }
+
+    private LoadedConstructorElement constructorElement(Constructor<?> constructor, ClassElement declaringType) {
+        return new LoadedConstructorElement(this, declaringType, constructor, parameters(constructor), visitorContext, loadedMetadata("<init>", constructor, ClasspathAnnotationMetadataReader.constructorAnnotations(constructor), visitorContext));
     }
 
     private LoadedFieldElement fieldElement(Field field, ClassElement declaringType) {

@@ -557,6 +557,13 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         Class<T> elementType = result.getElementType();
         if (elementType == ConstructorElement.class) {
             classData.constructors().forEach(constructor -> elements.add(constructorElement(constructor)));
+            if (!result.isOnlyDeclared()) {
+                // A constructor is not inherited by the JVM, but `ElementQuery.CONSTRUCTORS` is
+                // defined as `of(ConstructorElement).onlyDeclared()`, so the query without that
+                // flag is asking for the superclass's too. Ignoring the flag made the two
+                // queries answer identically.
+                collectInheritedConstructors(classData.superType(), elements, new HashSet<>(Set.of(getName())));
+            }
         } else if (elementType == MethodElement.class) {
             addMethodElements(result, elements);
         } else if (elementType == FieldElement.class) {
@@ -583,13 +590,42 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         if (data == null) {
             return;
         }
+        // `includeOverriddenMethods` asks for every declaration rather than the one that wins,
+        // so the signature set that normally hides a supertype's declaration is not shared with
+        // the walk. The visited-type set still stops a type being read twice.
         Set<MethodSignature> signatures = new HashSet<>();
         data.methods().forEach(method -> addMethodElement(method, this, signatures, elements));
         if (!result.isOnlyDeclared()) {
             Set<String> visited = new HashSet<>();
-            collectInheritedMethods(data.superType(), signatures, elements, visited);
-            data.interfaces().forEach(interfaceType -> collectInheritedMethods(interfaceType, signatures, elements, visited));
+            Set<MethodSignature> inheritedSignatures =
+                result.isIncludeOverriddenMethods() ? new HashSet<>() : signatures;
+            collectInheritedMethods(data.superType(), inheritedSignatures, elements, visited);
+            data.interfaces().forEach(interfaceType ->
+                collectInheritedMethods(interfaceType, inheritedSignatures, elements, visited));
         }
+    }
+
+    /**
+     * Constructors of the superclass chain, for a query that did not ask for declared members
+     * only.
+     */
+    private void collectInheritedConstructors(@Nullable ScalaTypeData type, List<Element> elements, Set<String> visited) {
+        if (type == null || !visited.add(type.name())) {
+            return;
+        }
+        Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(type.name());
+        if (sourceElement.isEmpty()) {
+            classpathElement(type.name()).ifPresent(classpathElement ->
+                elements.addAll(classpathElement.getEnclosedElements(ElementQuery.CONSTRUCTORS)));
+            return;
+        }
+        ScalaClassElement inheritedElement = sourceElement.get();
+        ScalaClassData inheritedData = inheritedElement.classData;
+        if (inheritedData == null) {
+            return;
+        }
+        inheritedData.constructors().forEach(constructor -> elements.add(inheritedElement.constructorElement(constructor)));
+        collectInheritedConstructors(inheritedData.superType(), elements, visited);
     }
 
     private void collectInheritedMethods(
