@@ -1695,8 +1695,23 @@ already-broken guard.
     comparable element type — killed the compiler with a `StackOverflowError`,
     because two paths reset the depth guard's counts before recursing.
 
-    Later batches (`ScalaGenericsParitySpec`, `ScalaElementSelectionParitySpec`)
-    found nothing and are pinning behaviour that was already right.
+    Two batches (`ScalaGenericsParitySpec`, `ScalaElementSelectionParitySpec`) found
+    nothing and are pinning behaviour that was already right.
+
+    The Kotlin module's `ClassElementSpec` then turned up two more, both about a class
+    element built from a *reference* to a type rather than from a declaration — a return
+    type, a parameter type, a field type, a type argument. Every member query answered
+    empty for one, so walking from a method to its return type and on into that type's
+    members stopped at the first step; core makes exactly that walk when resolving
+    introduction, validation and AOP targets. And a classpath type variable reported
+    `java.lang.Object` rather than its bound, so `java.lang.Enum<E extends Enum<E>>`
+    erased `E` to `Object`. Pinned by `ScalaTypeReferenceMembersSpec`.
+
+    **Known remaining divergence:** a classpath type variable's own type arguments are
+    empty, where the Java and Kotlin modules model two levels before collapsing to
+    `Object`. Same for a lower-bounded wildcard, which is reported as its upper bound.
+    Neither is a crash or a wrong JVM type; both are less detail than the other modules
+    give.
 
 ### Wave 4 — element model consistency — **done, except item 21**
 

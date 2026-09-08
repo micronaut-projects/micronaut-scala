@@ -77,6 +77,9 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
     private final ScalaTypeData typeData;
     private final @Nullable ScalaClassData classData;
     private final ScalaElementFactory elementFactory;
+    /** Resolved once by {@link #declaration()}; {@code this} means "no declaration to find". */
+    private @Nullable ClassElement declarationElement;
+
     private final IdentityHashMap<ScalaMethodData, ScalaConstructorElement> constructorElements = new IdentityHashMap<>();
     private final IdentityHashMap<ScalaMethodData, ScalaMethodElement> methodElements = new IdentityHashMap<>();
     private final IdentityHashMap<ScalaFieldData, ScalaFieldElement> fieldElements = new IdentityHashMap<>();
@@ -324,7 +327,8 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
     @Override
     public List<PropertyElement> getSyntheticBeanProperties() {
         if (classData == null) {
-            return List.of();
+            ClassElement declaration = declaration();
+            return declaration == null ? List.of() : declaration.getSyntheticBeanProperties();
         }
         return classData.properties().stream()
             .map(this::propertyElement)
@@ -335,7 +339,8 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
     @Override
     public List<PropertyElement> getBeanProperties(PropertyElementQuery propertyElementQuery) {
         if (classData == null) {
-            return List.of();
+            ClassElement declaration = declaration();
+            return declaration == null ? List.of() : declaration.getBeanProperties(propertyElementQuery);
         }
         Set<BeanProperties.AccessKind> accessKinds = propertyElementQuery.getAccessKinds();
         if (accessKinds.contains(BeanProperties.AccessKind.FIELD) && !accessKinds.contains(BeanProperties.AccessKind.METHOD)) {
@@ -495,7 +500,11 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
 
     @Override
     public Optional<MethodElement> getPrimaryConstructor() {
-        if (classData == null || classData.constructors().isEmpty()) {
+        if (classData == null) {
+            ClassElement declaration = declaration();
+            return declaration == null ? Optional.empty() : declaration.getPrimaryConstructor();
+        }
+        if (classData.constructors().isEmpty()) {
             return Optional.empty();
         }
         if (classData.enumType()) {
@@ -536,7 +545,8 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
     @Override
     public Optional<MethodElement> getDefaultConstructor() {
         if (classData == null) {
-            return Optional.empty();
+            ClassElement declaration = declaration();
+            return declaration == null ? Optional.empty() : declaration.getDefaultConstructor();
         }
         if (classData.enumType()) {
             return Optional.empty();
@@ -547,10 +557,45 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             .map(this::constructorElement);
     }
 
+    /**
+     * The element that carries this type's declaration, when this one does not.
+     *
+     * <p>A {@code ScalaClassElement} is built either from a declaration or from a *reference*
+     * to a type -- a method return type, a parameter type, a field type, a type argument. A
+     * reference has no {@code classData}, and every member query answered empty for one: the
+     * element for the return type of {@code def stream(): Stream[String]} reported no methods,
+     * no properties and no constructors, so walking from a method to its return type and on to
+     * that type's members -- which is how core resolves introduction, validation and AOP
+     * targets -- stopped dead at the first step.</p>
+     *
+     * <p>Resolved by name, source first and then the classpath, and cached. Neither kind can
+     * come back here, since both carry their own declarations.</p>
+     */
+    private @Nullable ClassElement declaration() {
+        if (classData != null) {
+            return this;
+        }
+        if (declarationElement == null) {
+            declarationElement = resolveDeclaration();
+        }
+        return declarationElement == this ? null : declarationElement;
+    }
+
+    private ClassElement resolveDeclaration() {
+        if (typeData.primitive() || typeData.arrayDimensions() > 0 || typeData.genericPlaceholder()) {
+            return this;
+        }
+        ClassElement resolved = visitorContext.sourceClassElement(typeData.name())
+            .map(ClassElement.class::cast)
+            .orElseGet(() -> visitorContext.getClassElement(typeData.name()).orElse(null));
+        return resolved == null || resolved == this ? this : resolved;
+    }
+
     @Override
     public <T extends Element> List<T> getEnclosedElements(ElementQuery<T> query) {
         if (classData == null) {
-            return List.of();
+            ClassElement declaration = declaration();
+            return declaration == null ? List.of() : declaration.getEnclosedElements(query);
         }
         ElementQuery.Result<T> result = query.result();
         List<Element> elements = new ArrayList<>();

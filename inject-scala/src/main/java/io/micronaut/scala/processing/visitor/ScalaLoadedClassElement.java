@@ -277,7 +277,12 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         }
         Map<String, ClassElement> typeArguments = new LinkedHashMap<>(typeParameters.length);
         for (Type typeParameter : typeParameters) {
-            ClassElement typeArgument = classElement(typeParameter, Object.class, visitorContext);
+            // The erasure of a type variable is its first bound, not Object:
+            // `java.lang.Enum<E extends Enum<E>>` erases E to `java.lang.Enum`. Passing
+            // Object.class made every classpath type variable report `java.lang.Object`,
+            // which is what a generated bean definition would then bind against.
+            ClassElement typeArgument = classElement(
+                typeParameter, erasedClass(typeParameter, Object.class), visitorContext);
             if (typeArgument instanceof GenericPlaceholderElement placeholderElement) {
                 typeArguments.put(placeholderElement.getVariableName(), typeArgument);
             }
@@ -287,8 +292,11 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
 
     @Override
     public List<? extends GenericPlaceholderElement> getDeclaredGenericPlaceholders() {
+        // Deliberately not `ClassElement.of(...)`, for the reasons given on `classElement`.
         return Arrays.stream(componentType.getTypeParameters())
-            .map(typeParameter -> (GenericPlaceholderElement) ClassElement.of(typeParameter))
+            .map(typeParameter -> placeholderElement(
+                typeParameter, erasedClass(typeParameter, Object.class), visitorContext))
+            .map(GenericPlaceholderElement.class::cast)
             .toList();
     }
 
