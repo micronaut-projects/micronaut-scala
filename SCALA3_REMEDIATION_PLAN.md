@@ -1363,20 +1363,34 @@ Tested directly with `dotc`, using a thin jar built from this plugin's own class
 | `-Xplugin:thin.jar:<every dependency>` | compiles, `$Demo$Definition.class` generated |
 
 So the question is not "thin or shaded" in the abstract but *what the build tool
-emits*. If Gradle's `scalaCompilerPlugins` and sbt's `addCompilerPlugin` pass each
-resolved file as its own `-Xplugin:` argument, a thin jar cannot work at all,
-transitive POM or not — the plugin loads and then dies on its first Micronaut
-class. If they pass one classpath, it works and the POM does the rest.
+emits*. **Answered for Gradle by a real consumer build: one `-Xplugin` per file, so
+a thin jar cannot work.** `ScalaGradlePluginFunctionalSpec` drives the repository's
+own wrapper against a generated project and finds that a jar carrying only this
+plugin's classes fails with
+`NoClassDefFoundError: io/micronaut/inject/processing/ProcessingException`
+*even when every one of its runtime dependencies is declared in
+`scalaCompilerPlugins` beside it*. Declaring the dependencies does not help, because
+each file becomes its own `-Xplugin` argument and therefore its own classloader.
+
+**Decision, on that evidence: option (a) is not available for Gradle consumers.**
+The published artifact has to carry its dependencies — the current fat jar, or the
+shaded jar of option (b). Shading is the better of the two, since the present jar
+also duplicates every class it bundles in its POM; relocation removes the
+which-copy-wins question that D2 opens with. sbt's `addCompilerPlugin` has not been
+measured and may behave differently, but it cannot make a thin jar work for Gradle.
 
 A jar with no `plugin.properties` in its own `-Xplugin` argument is only a
 *warning* (`MissingPluginException` is recovered in `Plugins.scala:41`), so the
 noise the fix note describes is real but harmless. The load failure is the part
 that matters.
 
-**Consequence for the wave order:** item 24, the end-user functional test, has to
-come *before* item 22. It is the only thing that establishes which form the build
-tools emit, and the packaging choice follows from that rather than the other way
-round.
+**Consequence for the wave order:** item 24, the end-user functional test, came
+*before* item 22 and settled it. `ScalaGradlePluginFunctionalSpec` now stands as a
+regression test for the packaging contract: it asserts that the published jar
+generates a bean definition through a real Gradle build, and that a thin one does
+not load. Run it with `./gradlew :micronaut-inject-scala-test-compiler:functionalTest`;
+it is deliberately a separate task from the compiler tests, being an order of
+magnitude slower.
 
 ### D3 (MAJOR) `DuplicatesStrategy.EXCLUDE` silently drops merged metadata
 
