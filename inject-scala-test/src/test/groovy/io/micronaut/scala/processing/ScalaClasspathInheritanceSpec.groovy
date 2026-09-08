@@ -151,4 +151,30 @@ class AnnotatedChild extends ExternalAnnotatedBase
         then:
         method.declaredMethodAnnotationMetadata.hasAnnotation('jakarta.inject.Inject')
     }
+
+    void 'a configuration accessor inherited from the classpath is bound'() {
+        given: 'ConfigurationMetadataWriterVisitor annotates every accessor, inherited ones included'
+        def source = '''
+package test
+
+import io.micronaut.context.annotation.ConfigurationProperties
+import io.micronaut.scala.processing.fixtures.ExternalConfigBase
+
+@ConfigurationProperties("app")
+class AppConfig extends ExternalConfigBase {
+  var port: Int = 0
+}
+'''
+
+        when:
+        def context = buildContext(source, ['app.host': 'example.org', 'app.port': 8080], true)
+        def config = getBean(context, 'test.AppConfig')
+
+        then:
+        config.getHost() == 'example.org'
+        config.port() == 8080
+
+        cleanup:
+        context?.close()
+    }
 }

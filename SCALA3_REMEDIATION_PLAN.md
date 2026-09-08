@@ -262,7 +262,7 @@ included, and `VisitorUtils.java:300` reads through the same surface.
 
 A7 and A18 were genuine prerequisites — A7 fixed what classpath annotation metadata
 *contains*, A18 fixed which members are *enumerated*, and neither addresses
-mutability. A fourth prerequisite came from B15: universal supertypes are excluded
+mutability. A further prerequisite came from B15: universal supertypes are excluded
 from the merge, because a Scala class on the classpath really does implement
 `scala.Product`, `scala.Equals` and `java.io.Serializable`, but the source path
 never produces their members and none of them can carry Micronaut metadata, so
@@ -277,6 +277,23 @@ the method's own declaration rather than the class's.
 `getDeclaredMethodAnnotationMetadata()` reads through `getMethodAnnotationMetadata()`,
 so it was suspect too; on these elements it happened to be right already, because
 they never built a class+method hierarchy for the default to narrow.
+
+**A separate defect found while verifying this, fixed with it.** An inherited method
+was owned by the supertype that declares it rather than by the class the query was
+made on. `getDeclaringType()` answers where a method is declared and
+`getOwningType()` answers which class it was reached through; Core's Java module
+builds every enclosed element owned by the queried class
+(`JavaClassElement.java:1008`), and both element kinds here kept the supertype.
+Anything resolving against the owner therefore read the supertype's answer:
+`ConfigurationUtils.buildPropertyPath` falls back to the owning type for a
+declaring type that is not itself a `@ConfigurationProperties`, so an inherited
+accessor took its prefix from the supertype, which carries none, and bound
+`.host` instead of `app.host` — silently, with no error and an unset property. This
+was **not** a regression from the classpath merge: the source path was equally
+wrong, which is why the merge reproduced it faithfully. Inherited methods are now
+re-owned through `MethodElement.withNewOwningType`. Fields are not: Core declares no
+equivalent on `FieldElement`, so an inherited field still reports its declaring type
+as its owner.
 
 Note also that Scala does not permit field shadowing — neither `override var` nor
 a `private var` of the same name compiles when the superclass field is visible —

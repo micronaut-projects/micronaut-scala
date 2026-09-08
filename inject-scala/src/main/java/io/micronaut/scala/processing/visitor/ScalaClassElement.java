@@ -637,7 +637,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
                     continue;
                 }
                 if (signatures.add(signature(method))) {
-                    elements.add(method);
+                    elements.add(owned(method));
                 }
             }
         });
@@ -684,8 +684,24 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         Set<MethodSignature> signatures,
         List<Element> elements) {
         if (signatures.add(signature(method))) {
-            elements.add(declaringElement.methodElement(method));
+            elements.add(owned(declaringElement.methodElement(method)));
         }
+    }
+
+    /**
+     * An inherited method owned by the class the query was made on, not by the supertype
+     * that declares it.
+     *
+     * <p>{@code getDeclaringType()} answers where a method is declared; {@code
+     * getOwningType()} answers which class it was reached through, and Core's Java module
+     * builds every enclosed element -- inherited ones included -- owned by the queried
+     * class. Both element kinds here kept the supertype as the owner, so anything that
+     * resolves against the owner read the supertype's answer: an inherited accessor of a
+     * {@code @ConfigurationProperties} class took its property prefix from the supertype,
+     * which usually carries none, and bound {@code .host} instead of {@code app.host}.</p>
+     */
+    private MethodElement owned(MethodElement method) {
+        return method.getOwningType().getName().equals(getName()) ? method : method.withNewOwningType(this);
     }
 
     private MethodSignature signature(ScalaMethodData method) {
