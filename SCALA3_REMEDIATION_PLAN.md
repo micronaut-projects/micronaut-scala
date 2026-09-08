@@ -1683,14 +1683,20 @@ already-broken guard.
     (`ScalaDeclarationOrderSpec`, `ScalaCanonicalNameSpec`), and generics
     (`ScalaGenericsParitySpec`).
 
-    The port is not only test work: five defects have come out of it so far, each
+    The port is not only test work: six defects have come out of it so far, each
     found by asking Scala a question the Java spec asks Java. `ElementQuery` ignored
     `onlyDeclared` for constructors and ignored `includeOverriddenMethods` entirely;
     `denot.annotations` is in reverse declaration order in dotty, so repeated
     annotations, `@Repeatable` containers and `@throws` clauses all came out
     backwards; only the first `@AliasFor` on an annotation member was applied,
     because Scala has no repeatable container and core expects javac to have made
-    one; and neither element kind answered `getCanonicalName()`.
+    one; neither element kind answered `getCanonicalName()`; and a self-referential
+    type bound — `class Sorted[T <: Ordered[T]]`, the idiomatic way to write a
+    comparable element type — killed the compiler with a `StackOverflowError`,
+    because two paths reset the depth guard's counts before recursing.
+
+    Later batches (`ScalaGenericsParitySpec`, `ScalaElementSelectionParitySpec`)
+    found nothing and are pinning behaviour that was already right.
 
 ### Wave 4 — element model consistency — **done, except item 21**
 
