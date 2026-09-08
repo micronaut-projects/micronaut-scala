@@ -36,6 +36,7 @@ import io.micronaut.inject.ast.PropertyElement;
 import io.micronaut.inject.ast.PropertyElementQuery;
 import io.micronaut.inject.ast.TypedElement;
 import io.micronaut.inject.ast.annotation.ElementAnnotationMetadata;
+import io.micronaut.inject.ast.annotation.MutableAnnotationMetadataDelegate;
 import io.micronaut.inject.ast.annotation.PropertyElementAnnotationMetadata;
 import io.micronaut.inject.ast.utils.AstBeanPropertiesUtils;
 import org.jspecify.annotations.Nullable;
@@ -306,9 +307,18 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
             collectMethods(result, elements);
         } else if (elementType == FieldElement.class) {
             collectFields(result, elements);
+        } else if (elementType == PropertyElement.class) {
+            elements.addAll(getBeanProperties());
+        } else if (elementType == ClassElement.class) {
+            Arrays.stream(componentType.getDeclaredClasses())
+                .map(nested -> new ScalaLoadedClassElement(nested, visitorContext))
+                .forEach(elements::add);
         } else if (elementType == MemberElement.class) {
             collectFields(result, elements);
             collectMethods(result, elements);
+            if (!result.isExcludePropertyElements()) {
+                elements.addAll(getBeanProperties());
+            }
         }
         return elements.stream()
             .filter(element -> matches(result, element))
@@ -857,6 +867,18 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
             return ScalaLoadedClassElement.isPackagePrivate(constructor.getModifiers());
         }
 
+        /**
+         * Core's default returns an anonymous delegate that overrides only the read side, so
+         * every write through it fails with "Element of type [MethodElement$1] does not
+         * support adding annotations at compilation time". A property annotates through this
+         * delegate, and so does any visitor reaching a method this way, so a classpath method
+         * could not be annotated at all. This element's own metadata is mutable.
+         */
+        @Override
+        public MutableAnnotationMetadataDelegate<AnnotationMetadata> getMethodAnnotationMetadata() {
+            return getElementAnnotationMetadata();
+        }
+
         @Override
         public MethodElement withAnnotationMetadata(AnnotationMetadata annotationMetadata) {
             return new LoadedConstructorElement(owningType, declaringType, constructor, parameters, visitorContext, annotationMetadata);
@@ -946,6 +968,18 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         public boolean isPackagePrivate() {
             int modifiers = method.getModifiers();
             return !Modifier.isPublic(modifiers) && !Modifier.isProtected(modifiers) && !Modifier.isPrivate(modifiers);
+        }
+
+        /**
+         * Core's default returns an anonymous delegate that overrides only the read side, so
+         * every write through it fails with "Element of type [MethodElement$1] does not
+         * support adding annotations at compilation time". A property annotates through this
+         * delegate, and so does any visitor reaching a method this way, so a classpath method
+         * could not be annotated at all. This element's own metadata is mutable.
+         */
+        @Override
+        public MutableAnnotationMetadataDelegate<AnnotationMetadata> getMethodAnnotationMetadata() {
+            return getElementAnnotationMetadata();
         }
 
         @Override
@@ -1167,6 +1201,17 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         @Override
         public AnnotationMetadata getAnnotationMetadata() {
             return annotationMetadata.getAnnotationMetadata();
+        }
+
+        /**
+         * Reads and writes have to reach the same metadata. Only the read side was
+         * overridden, so {@code annotate(...)} went to the element's own metadata while
+         * every read came from the property's -- the annotation was stored and then never
+         * seen again.
+         */
+        @Override
+        protected MutableAnnotationMetadataDelegate<?> getAnnotationMetadataToWrite() {
+            return annotationMetadata;
         }
 
         private static Object selectNativeType(

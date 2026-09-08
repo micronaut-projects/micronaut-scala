@@ -935,12 +935,24 @@ parameter `@Nullable` is not a workaround: it substitutes a Java `null` for the
 - `ScalaConstructorElement` calls `declaringType.getBeanProperties()` from inside
   a `computeIfAbsent` on an `IdentityHashMap` (`:40`, `ScalaClassElement.java:612`) —
   re-entrant modification during `computeIfAbsent` is undefined behaviour.
-- `ScalaLoadedClassElement.getEnclosedElements` has no `PropertyElement` or
-  `ClassElement` branch (`:216`), so property queries and nested-class discovery
-  return empty for classpath types.
-- `LoadedPropertyElement` overrides `getAnnotationMetadata()` but not
-  `getAnnotationMetadataToWrite()` (`:908`), so `annotate(...)` writes to metadata
-  nobody reads.
+- **Done.** `ScalaLoadedClassElement.getEnclosedElements` had no `PropertyElement` or
+  `ClassElement` branch, so a property query and a nested-class query both came back
+  empty for a classpath type while the source path answered both. It now mirrors the
+  source branches, properties included in a `MemberElement` query unless the query
+  excludes them. Pinned by `ScalaClasspathEnclosedElementSpec`.
+- **Done, and it was two bugs.** `LoadedPropertyElement` overrode
+  `getAnnotationMetadata()` but not `getAnnotationMetadataToWrite()`, so
+  `annotate(...)` wrote to the element's own metadata while every read came from the
+  property's. Fixing that exposed the second: annotating a classpath property threw
+  *"Element of type [MethodElement$1] does not support adding annotations at
+  compilation time"*. `MethodElement$1` is **not** a synthetic element from
+  `MethodElement.of(...)`, as recorded earlier -- it is the anonymous delegate Core's
+  *default* `getMethodAnnotationMetadata()` returns
+  (`core-processor/.../MethodElement.java:61`), which overrides only the read side
+  and inherits a throwing `annotate`. `ScalaMethodElement` overrides that method; the
+  loaded method and constructor elements did not, so no classpath method could be
+  annotated by anything. See the A6 note -- this is what was blocking its classpath
+  half. Pinned by `ScalaClasspathEnclosedElementSpec`.
 - `ScalaPackageElement` never carries package annotations and is reallocated per
   `getPackage()` call.
 - **Half done; the other half is not a defect.** `isAssignable` ignored array
