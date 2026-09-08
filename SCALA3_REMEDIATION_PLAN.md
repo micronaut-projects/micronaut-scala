@@ -1025,8 +1025,18 @@ parameter `@Nullable` is not a workaround: it substitutes a Java `null` for the
   loaded method and constructor elements did not, so no classpath method could be
   annotated by anything. See the A6 note -- this is what was blocking its classpath
   half. Pinned by `ScalaClasspathEnclosedElementSpec`.
-- `ScalaPackageElement` never carries package annotations and is reallocated per
-  `getPackage()` call.
+- **Reallocation done; package annotations are not worth carrying.** A package element
+  was allocated afresh on every `getPackage()` call, so a package was as many elements
+  as there were calls: an annotation added to one was invisible from the next call and
+  from every other class in the same package. They are now created once per package
+  name and shared, like every other element kind. Pinned by `ScalaPackageElementSpec`.
+
+  The annotations half is left alone deliberately. Core's processor reads exactly one
+  thing from a package element -- `isUnnamed()`, for the "beans cannot be in the
+  default package" check in `AbstractBeanElementCreator.checkPackage` -- and nothing
+  reads its annotation metadata. Scala 3 has no `package-info` construct either, so
+  the only source would be a Java `package-info.class` on the classpath. Re-check if
+  Core starts folding package metadata into the annotation hierarchy.
 - **Half done; the other half is not a defect.** `isAssignable` ignored array
   dimensions. A `ClassElement` names its *component* type and reports dimensions
   separately, so an element for `Array[String]` is named `java.lang.String`, and

@@ -69,6 +69,12 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
     private final ExpressionCompilationContextFactory expressionCompilationContextFactory = new DefaultExpressionCompilationContextFactory(this);
     private final Map<String, ScalaClassData> sourceClasses = new LinkedHashMap<>();
     private final Map<String, ScalaClassElement> sourceElements = new LinkedHashMap<>();
+    /**
+     * One element per package. Every class in a package has to answer {@code getPackage()}
+     * with the same element, or an annotation added to one class's package is invisible from
+     * the next class in it -- and from a second call on the same class.
+     */
+    private final Map<String, ScalaPackageElement> packageElements = new LinkedHashMap<>();
     private final IdentityHashMap<Object, MutableAnnotationMetadata> elementAnnotationMetadata = new IdentityHashMap<>();
     private final List<AbstractBeanDefinitionBuilder> beanDefinitionBuilders = new ArrayList<>();
     private final Map<String, String> options;
@@ -304,6 +310,16 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
 
     public ScalaAnnotationMetadataBuilder getScalaAnnotationMetadataBuilder() {
         return annotationMetadataBuilder;
+    }
+
+    /**
+     * The element for a package, created once and shared.
+     *
+     * @param packageName The package name
+     * @return The package element
+     */
+    ScalaPackageElement packageElement(String packageName) {
+        return packageElements.computeIfAbsent(packageName, name -> new ScalaPackageElement(name, this));
     }
 
     MutableAnnotationMetadata annotationMetadata(ScalaAnnotatedElementData element) {

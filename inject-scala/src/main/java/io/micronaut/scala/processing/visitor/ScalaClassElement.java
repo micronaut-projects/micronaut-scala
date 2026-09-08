@@ -1004,7 +1004,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
 
     @Override
     public PackageElement getPackage() {
-        return new ScalaPackageElement(getPackageName(), visitorContext);
+        return visitorContext.packageElement(getPackageName());
     }
 
     @Override
