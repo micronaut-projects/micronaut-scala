@@ -212,8 +212,28 @@ Fields are de-duplicated by name, and an inherited field's type is resolved agai
 the parameterisation the subtype used.
 
 The classpath half — falling back to `visitorContext.getClassElement(type.name())`
-and merging its enclosed elements — was implemented, tested and reverted, and is
-**blocked on A7 and A18**. Those elements are reflective and immutable, so any
+and merging its enclosed elements — was implemented, tested and reverted **twice**:
+once before A7 and A18, and again after both had landed. They were necessary but
+**not sufficient**, and the second attempt narrows what is actually left.
+
+A7 fixed what classpath annotation metadata *contains*; A18 fixed which members are
+*enumerated*. Neither addresses **mutability**, which is the real blocker. On the
+second attempt six specs still failed, all of them visitors annotating an inherited
+method, and the element types named in the errors are Micronaut's own reflective
+ones — `io.micronaut.inject.ast.ReflectGenericPlaceholderElement` and an anonymous
+`MethodElement` — not this repository's loaded elements. So the immutability leaks
+in through Core's reflective element factory during type resolution, and closing
+this needs the loaded model to stop handing out Core's reflective elements, not
+merely better metadata or enumeration.
+
+A second, smaller prerequisite also showed up: the walk pulls in `scala.Product`
+members such as `productElementNames`, so the universal-supertype exclusion listed
+in B15 (`scala.Any`, `scala.AnyRef`, `scala.Product`, `scala.Equals`,
+`java.io.Serializable`) has to land first or the two element kinds disagree about
+what a class declares.
+
+Previously recorded as **blocked on A7 and A18**; now blocked on element
+mutability. Those elements are reflective and immutable, so any
 visitor that annotates an inherited method fails outright with *"Element of type
 [MethodElement$1] does not support adding annotations at compilation time"*. Seven
 existing specs fail that way, all of them visitors annotating inherited
