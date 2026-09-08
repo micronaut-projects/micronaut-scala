@@ -851,9 +851,20 @@ There is also no `scala.collection.Map -> java.util.Map` converter and no
 converter into `scala.Option` from a non-`Optional` source, and Micronaut does
 not chain converters.
 
-**Fix.** Resolve the target element type from `ConversionContext.getFirstTypeVariable()`
-and convert elements through the conversion service; add the missing reverse and
-scalar converters.
+**Fix — element conversion done.** Every converter now resolves the target element
+type from the `ConversionContext` and converts each element through the conversion
+service; maps convert keys and values, and `Option` converts its contained value.
+An element that cannot be converted is rejected on the context and fails the
+conversion, which is the difference between a binding error and a
+`ClassCastException` later.
+
+Reproduced before fixing: `List[Int]` bound from configuration held
+`java.lang.String` elements, and `sum` threw
+*"class java.lang.String cannot be cast to class java.lang.Integer"*. Pinned by
+`ScalaCollectionElementConversionSpec`.
+
+Still open: the missing `scala.collection.Map -> java.util.Map` reverse converter,
+and a converter into `scala.Option` from a non-`Optional` source.
 
 ### B15 (MINOR) Smaller items worth folding into the same passes
 
