@@ -1628,15 +1628,20 @@ already-broken guard.
     This is bulk test work rather than adapter fixes, and is the largest remaining
     item in the plan.
 
-### Wave 4 — element model consistency
+### Wave 4 — element model consistency — **done, except item 21**
 
-18. Equality and copy semantics for placeholders, wildcards and loaded elements
-    (B12); `getTypeArguments(String)`/`getAllTypeArguments()`; the remaining B15
-    items.
+18. **Done.** Equality and copy semantics for placeholders, wildcards and loaded
+    elements (B12), including the source/classpath identity unification;
+    `getTypeArguments(String)`/`getAllTypeArguments()`, which turned out to be a
+    classpath supertype problem rather than a missing override; and every B15 item.
+    Six of the B15 items were measured and did not reproduce — each carries the
+    evidence, and where the correct behaviour rested on something outside this code,
+    a test pinning it.
 19. **Done.** Classpath enumeration via the declared-member walk (A18), and then the
     classpath half of A6, which depended on it and on A7.
-20. Collection converters with element-type conversion (B14).
-21. Then port P1 and P2 parity specs.
+20. **Done.** Collection converters with element-type conversion, the reverse map
+    converter and value-to-`Option` (B14).
+21. **Outstanding.** Then port P1 and P2 parity specs.
 
 ### Wave 5 — packaging, runtime artifact, docs
 
