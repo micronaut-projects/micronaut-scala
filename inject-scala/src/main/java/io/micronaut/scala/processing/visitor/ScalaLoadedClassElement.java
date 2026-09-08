@@ -99,13 +99,38 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         this.typeArguments = Map.copyOf(typeArguments);
     }
 
+    /**
+     * Whether this element is assignable to the named type.
+     *
+     * <p>{@code getName()} is the component type's name -- an element for {@code String[]} is
+     * named {@code java.lang.String} and reports its dimensions separately -- so the
+     * short-circuit answered for the component and called an array assignable to the type it
+     * is an array of. The reflective check below is already dimension-aware, so it only has
+     * to be reached.</p>
+     */
     @Override
     public boolean isAssignable(String type) {
-        if (getName().equals(type) || Object.class.getName().equals(type)) {
+        if (Object.class.getName().equals(type)) {
             return true;
         }
+        if (getArrayDimensions() == 0) {
+            return isComponentAssignable(type);
+        }
+        // `this.type` is the array class here, so the reflective check answers for the array
+        // itself: true for Cloneable and Serializable, false for the component type.
+        return isAssignableFrom(type, this.type);
+    }
+
+    private boolean isComponentAssignable(String type) {
+        if (getName().equals(type)) {
+            return true;
+        }
+        return isAssignableFrom(type, componentType);
+    }
+
+    private boolean isAssignableFrom(String type, Class<?> candidate) {
         try {
-            return Class.forName(type, false, visitorContext.getProcessingClassLoader()).isAssignableFrom(this.type);
+            return Class.forName(type, false, visitorContext.getProcessingClassLoader()).isAssignableFrom(candidate);
         } catch (ClassNotFoundException e) {
             return false;
         }
@@ -116,9 +141,19 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         return type.isAssignableFrom(this.type);
     }
 
+    /**
+     * Core's default delegates to {@link #isAssignable(String)}, which cannot express the
+     * dimensions of either side.
+     */
     @Override
     public boolean isAssignable(ClassElement type) {
-        return isAssignable(type.getName());
+        int dimensions = type.getArrayDimensions();
+        if (dimensions == 0) {
+            return isAssignable(type.getName());
+        }
+        // Arrays are assignable only to arrays of the same rank, and then covariantly in
+        // the component type -- `String[]` is a `CharSequence[]`, as in Java.
+        return dimensions == getArrayDimensions() && isComponentAssignable(type.getName());
     }
 
     @Override

@@ -38,6 +38,7 @@ import io.micronaut.inject.ast.beans.BeanElementBuilder;
 import io.micronaut.inject.ast.utils.AstBeanPropertiesUtils;
 import org.jspecify.annotations.Nullable;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -141,8 +142,42 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         return (MutableAnnotationMetadataDelegate<AnnotationMetadata>) MutableAnnotationMetadataDelegate.EMPTY;
     }
 
+    /**
+     * Whether this element is assignable to the named type.
+     *
+     * <p>A type name carries no array dimensions -- an element for {@code Array[String]} is
+     * named {@code java.lang.String} and reports one dimension separately -- so this used to
+     * answer for the component type and call {@code Array[String]} assignable to
+     * {@code String}, and {@code Array[Array[String]]} assignable to {@code Array[String]}.
+     * Micronaut matches bean types, {@code @Requires} conditions and executable handlers
+     * through this method, so an array bean satisfied an injection point for its component
+     * type. An array is assignable by name only to the three types every array really is.</p>
+     */
     @Override
     public boolean isAssignable(String type) {
+        if (getArrayDimensions() > 0) {
+            return Object.class.getName().equals(type)
+                || Cloneable.class.getName().equals(type)
+                || Serializable.class.getName().equals(type);
+        }
+        return isNameAssignable(type);
+    }
+
+    /**
+     * Whether this element is assignable to the given element, which unlike a name can be an
+     * array. Core's default delegates to {@link #isAssignable(String)}, which discards the
+     * dimensions of both sides.
+     */
+    @Override
+    public boolean isAssignable(ClassElement type) {
+        int dimensions = type.getArrayDimensions();
+        if (dimensions == 0) {
+            return isAssignable(type.getName());
+        }
+        return dimensions == getArrayDimensions() && isNameAssignable(type.getName());
+    }
+
+    private boolean isNameAssignable(String type) {
         if (getName().equals(type) || Object.class.getName().equals(type)) {
             return true;
         }

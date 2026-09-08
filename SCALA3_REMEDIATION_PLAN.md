@@ -943,8 +943,21 @@ parameter `@Nullable` is not a workaround: it substitutes a Java `null` for the
   nobody reads.
 - `ScalaPackageElement` never carries package annotations and is reallocated per
   `getPackage()` call.
-- `isAssignable` ignores array dimensions and returns true for `java.lang.Object`
-  unconditionally, including for primitives (`ScalaClassElement.java:123`).
+- **Half done; the other half is not a defect.** `isAssignable` ignored array
+  dimensions. A `ClassElement` names its *component* type and reports dimensions
+  separately, so an element for `Array[String]` is named `java.lang.String`, and
+  comparing names made `Array[String]` assignable to `String`, `String` assignable
+  to `Array[String]`, and `Array[Array[String]]` assignable to `Array[String]`.
+  Micronaut matches bean types, `@Requires` conditions and executable handlers
+  through this, so an array bean satisfied an injection point for its component
+  type. Both implementations now compare dimensions, keep array assignment
+  covariant in the component type, and answer true only for the three types every
+  array really is (`Object`, `Cloneable`, `Serializable`). Pinned by
+  `ScalaAssignabilitySpec`.
+
+  Returning true for `java.lang.Object` unconditionally, primitives included, is
+  **not** a defect: Core's own `PrimitiveElement.isAssignable(String)` does exactly
+  the same (`core-processor/.../PrimitiveElement.java:78`). Left alone.
 - **Done, but not as filed.** Overriding `getTypeArguments(String)` /
   `getAllTypeArguments()` is not the fix: Core's defaults compose correctly over
   `getSuperType()` / `getInterfaces()`, and the source element already answered
