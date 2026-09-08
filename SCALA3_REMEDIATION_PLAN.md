@@ -889,12 +889,12 @@ erasure. Pinned by a case in `ScalaElementIdentitySpec`.
 | by-name `=> T` | **fixed** — modelled as `scala.Function0` | — |
 | varargs `T*` | **not a defect** — see below | — |
 | default arguments | **blocked on a Core SPI change** — see below | a Scala default argument is invisible, so the parameter is treated as required |
-| value classes (`AnyVal`) | not handled | parameter modelled by its own class while the JVM signature uses the underlying type |
-| union types other than `A \| Null` | fall through to the lub's class symbol (`:109`) | silently widened |
-| intersection types | truncated to the first bound (`:1083`) | documented in a comment, but not diagnosed |
-| `Any`/`AnyRef` in ordinary position | not mapped to `java.lang.Object` | wrong type name |
-| trait parameters (`trait Foo(x: Int)`) | only a class's `template.constr` is read | trait constructor parameters are not represented |
-| extension methods, `export`, `inline` | not handled | invisible (they live on the skipped module class) |
+| value classes (`AnyVal`) | **still open** — see below | parameter modelled by its own class while the JVM signature uses the underlying type |
+| union types other than `A \| Null` | **fixed** — erased as the JVM does | — |
+| intersection types | **fixed** — erased as the JVM does | — |
+| `Any`/`AnyRef` in ordinary position | **fixed** — `Any` and `AnyVal` map to `java.lang.Object`; `AnyRef` already did | — |
+| trait parameters (`trait Foo(x: Int)`) | **not a defect** — see below | — |
+| extension methods, `export`, `inline` | **not a defect** — see below | — |
 
 **Varargs — not a defect.** Checked against emitted bytecode: `def f(xs: String*)`
 emits a single method taking `scala.collection.immutable.Seq` with `ACC_VARARGS`
@@ -917,7 +917,46 @@ Scala equivalent of the Kotlin one. This is out of scope for this repository and
 is tracked in **F2. Blocked on Micronaut Core**, with an investigation open
 against micronaut-core.
 
-**Fix.** For the rest: diagnose with a clear "unsupported for Scala" error rather
+**Unions, intersections and `Any` — fixed, by erasing rather than diagnosing.**
+Diagnosing was the wrong prescription: these types have a perfectly well defined JVM
+signature, so the model can simply report it. Measured with `javap` on dotty 3.9.0
+output before changing anything:
+
+| declared | JVM signature | model said |
+| --- | --- | --- |
+| `String \| Int` | `java.lang.Object` | `scala.Matchable` |
+| `String \| CharSequence` | `java.lang.CharSequence` | `scala.Matchable` |
+| `Alpha & Beta` | `probe.Alpha` | `"probe.Alpha & probe.Beta"` |
+| `Any` | `java.lang.Object` | `scala.Any` |
+| `AnyRef` | `java.lang.Object` | `java.lang.Object` |
+
+Two of those names are not loadable classes, and the intersection's is not a class name
+at all. The same erasure applies in type-argument position — `List[String | Int]` has
+the signature `List<java.lang.Object>` and `List[Alpha & Beta]` has `List<probe.Alpha>` —
+so the mapping is safe wherever a type is modelled. A wildcard is excluded explicitly:
+an unbounded one is `Nothing .. Any`, whose `typeSymbol` is `Any`'s, so without a guard
+`List[?]` would stop being a wildcard. Pinned by `ScalaTypeErasureSpec`, including that
+`A | Null` still means nullable-`A`.
+
+**Value classes — still open, and harder than the table suggests.** A value class is
+position-dependent: `def id(): UserId` really does compile to `java.lang.String`, but
+`def ids(): List[UserId]` really does have the signature `List<UserId>` — it stays boxed
+as a type argument. Both checked with `javap`. Erasing unconditionally would be wrong in
+one position and not erasing is wrong in the other, and `typeData` cannot see which
+position it is being called for. Fixing this means threading that context through, so it
+is left as its own piece of work rather than bundled in.
+
+**Trait parameters — not a defect.** For `trait Base(val size: Int)` and
+`class Child extends Base(3)`, `Child.getBeanProperties()` reports `size`. The parameter
+is represented.
+
+**Extension methods, `inline` — not a defect.** For a class declaring `plain`, an
+`inline def inlined` and an `extension (s: String) def shout`, all three are visible
+through `ElementQuery.ALL_METHODS.onlyDeclared()`. (Top-level extension methods, which
+do live on a package's module class, are a different case and are not covered by this
+check.)
+
+**Fix.** For anything left: diagnose with a clear "unsupported for Scala" error rather
 than silently producing a wrong model.
 
 ### B14 (MAJOR) Scala collection converters ignore the element type

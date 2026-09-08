@@ -24,6 +24,7 @@ import dotty.tools.dotc.core.Flags
 import dotty.tools.dotc.core.Symbols
 import dotty.tools.dotc.core.Symbols.Symbol
 import dotty.tools.dotc.core.Types.AnnotatedType
+import dotty.tools.dotc.core.TypeErasure
 import dotty.tools.dotc.core.Types.AndType
 import dotty.tools.dotc.core.Types.AppliedType
 import dotty.tools.dotc.core.Types.ConstantType
@@ -984,7 +985,8 @@ private object ScalaModelExtractor:
       extraAnnotations: List[Annotation]
   )(using Context, AnnotationDefaults): ScalaTypeData =
     val (annotatedWidened, typeAnnotations) = annotatedType(tpe.widenDealiasKeepAnnots)
-    val (widened, explicitNullable) = explicitNullableType(annotatedWidened)
+    val (nullableWidened, explicitNullable) = explicitNullableType(annotatedWidened)
+    val widened = jvmModelledType(nullableWidened)
     val allTypeAnnotations = extraAnnotations ++ typeAnnotations
     if widened.isInstanceOf[TypeBounds] then
       wildcardTypeData(widened.asInstanceOf[TypeBounds], allTypeAnnotations, explicitNullable)
@@ -1047,6 +1049,41 @@ private object ScalaModelExtractor:
         case _ =>
           continue = false
     (current, typeAnnotations.toList)
+
+  /**
+   * The type the JVM signature actually names, for the Scala types whose own name is not a JVM
+   * type at all.
+   *
+   * A union other than `A | Null`, an intersection, and `Any`/`Matchable`/`AnyVal` in ordinary
+   * position each compile to something else. Checked against `javap`: `String | Int` becomes
+   * `java.lang.Object`, `String | CharSequence` becomes `java.lang.CharSequence`,
+   * `Alpha & Beta` becomes `Alpha`, and `Any` becomes `java.lang.Object`. Reporting the source
+   * type put names into the model that no bytecode carries: `scala.Matchable` for a union,
+   * `scala.Any` for `Any` -- neither of which is a loadable class -- and for an intersection
+   * the string `"probe.Alpha & probe.Beta"`, which is not a class name at all. The same
+   * erasure applies in type-argument position (`List[String | Int]` has the signature
+   * `List<java.lang.Object>`), so this is safe to apply wherever a type is modelled.
+   *
+   * Deliberately not applied to value classes. A value class erases to its underlying type in
+   * ordinary position but stays boxed as a type argument -- `List[UserId]` really does have the
+   * signature `List<UserId>` -- so the answer depends on where the type appears, which this
+   * cannot see. Recorded in B13 of SCALA3_REMEDIATION_PLAN.md.
+   */
+  private def jvmModelledType(tpe: Type)(using Context): Type =
+    tpe match
+      // A wildcard is `TypeBounds`, and an unbounded one is `Nothing .. Any`. Its `typeSymbol`
+      // is the upper bound's, so without this a `List[?]` would be rewritten to `Object` and
+      // stop being modelled as a wildcard at all.
+      case _: TypeBounds => tpe
+      case _: OrType | _: AndType => TypeErasure.erasure(tpe)
+      case _ =>
+        val symbol = tpe.typeSymbol
+        if symbol == Symbols.defn.AnyClass
+          || symbol == Symbols.defn.MatchableClass
+          || symbol == Symbols.defn.AnyValClass then
+          Symbols.defn.ObjectType
+        else
+          tpe
 
   private def explicitNullableType(tpe: Type)(using Context): (Type, Boolean) =
     tpe match
