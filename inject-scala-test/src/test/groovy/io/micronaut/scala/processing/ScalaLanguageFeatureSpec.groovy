@@ -329,4 +329,108 @@ class TopLevel
         definition != null
         definition.beanType.name == 'test.TopLevel'
     }
+    void "test a type alias binds as the type it aliases"() {
+        when:
+        def context = buildContext('''
+package aliasfeature
+
+import io.micronaut.context.annotation.ConfigurationProperties
+
+type Name = String
+
+@ConfigurationProperties("app")
+class AppConfig {
+  var alias: Name = ""
+  var plain: String = ""
+}
+''', ['app.alias': 'A', 'app.plain': 'P'], true)
+
+        then: 'an alias is transparent, so it must behave exactly as the aliased type'
+        def bean = getBean(context, 'aliasfeature.AppConfig')
+        bean.alias() == 'A'
+        bean.plain() == 'P'
+
+        cleanup:
+        context?.close()
+    }
+
+    void "test a trait with a self type can be part of a bean"() {
+        when:
+        def context = buildContext('''
+package selftypefeature
+
+import jakarta.inject.Singleton
+
+trait Repo {
+  def find(): String = "found"
+}
+
+trait Service { self: Repo =>
+  def serve(): String = "serve:" + find()
+}
+
+@Singleton
+class Impl extends Repo with Service
+''', [:], true)
+
+        then: 'the self type is a constraint on mixing, not a member of the JVM signature'
+        getBean(context, 'selftypefeature.Impl').serve() == 'serve:found'
+
+        cleanup:
+        context?.close()
+    }
+
+    void "test a higher kinded type argument is reported as its constructor"() {
+        when:
+        def context = buildContext('''
+package hkfeature
+
+import jakarta.inject.Singleton
+
+trait Store[F[_]] {
+  def get(): F[String]
+}
+
+@Singleton
+class OptionStore extends Store[Option] {
+  override def get(): Option[String] = Some("x")
+}
+''', [:], true)
+
+        then:
+        getBean(context, 'hkfeature.OptionStore').get().get() == 'x'
+
+        and: 'Store[Option] binds F to the type constructor itself'
+        context.getBeanDefinition(context.classLoader.loadClass('hkfeature.OptionStore'))
+                .getTypeArguments('hkfeature.Store')*.getType()*.getName() == ['scala.Option']
+
+        cleanup:
+        context?.close()
+    }
+
+    void "test a value class property binds from configuration as its underlying type"() {
+        when: 'a value class erases to its underlying type in a field position'
+        def context = buildContext('''
+package vcfeature
+
+import io.micronaut.context.annotation.ConfigurationProperties
+
+class Port(val value: Int) extends AnyVal
+
+@ConfigurationProperties("server")
+class ServerConfig {
+  var port: Port = new Port(0)
+  var name: String = ""
+}
+''', ['server.port': '8080', 'server.name': 'srv'], true)
+
+        then: 'so the property binds as an int, and the bean is usable'
+        def bean = getBean(context, 'vcfeature.ServerConfig')
+        bean.port() == 8080
+        bean.name() == 'srv'
+
+        cleanup:
+        context?.close()
+    }
+
 }
