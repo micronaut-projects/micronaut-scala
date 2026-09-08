@@ -364,4 +364,94 @@ class Service {
         e.message.contains('declared final')
     }
 
+    void "intercepts construction with AroundConstruct"() {
+        when:
+        def context = buildContext('''
+package ctoradvice
+
+import io.micronaut.aop.AroundConstruct
+import io.micronaut.aop.ConstructorInterceptor
+import io.micronaut.aop.ConstructorInvocationContext
+import io.micronaut.context.annotation.Type
+import jakarta.inject.Singleton
+import java.lang.annotation.*
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE))
+@AroundConstruct
+@Type(Array(classOf[CtorRecorder]))
+class Constructed extends scala.annotation.StaticAnnotation
+
+@Singleton
+class CtorRecorder extends ConstructorInterceptor[Object] {
+  var seen: List[String] = Nil
+  override def intercept(context: ConstructorInvocationContext[Object]): Object = {
+    seen = seen :+ context.getConstructor.getDeclaringBeanType.getSimpleName
+    context.proceed()
+  }
+}
+
+@Constructed
+@Singleton
+class Made {
+  var name: String = "n"
+}
+''', [:], true)
+
+        then: 'the interceptor runs and the bean is still constructed through it'
+        def recorder = getBean(context, 'ctoradvice.CtorRecorder')
+        getBean(context, 'ctoradvice.Made').name() == 'n'
+        recorder.seen().contains('Made')
+
+        cleanup:
+        context?.close()
+    }
+
+    void "implements the additional interfaces an introduction declares"() {
+        when:
+        def context = buildContext('''
+package introextra
+
+import io.micronaut.aop.Introduction
+import io.micronaut.aop.MethodInterceptor
+import io.micronaut.aop.MethodInvocationContext
+import io.micronaut.context.annotation.Type
+import jakarta.inject.Singleton
+import java.lang.annotation.*
+
+trait Extra {
+  def extra(): String
+}
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE))
+@Introduction(interfaces = Array(classOf[Extra]))
+@Type(Array(classOf[Stubber]))
+class Stubbed extends scala.annotation.StaticAnnotation
+
+@Singleton
+class Stubber extends MethodInterceptor[Object, Object] {
+  override def intercept(context: MethodInvocationContext[Object, Object]): Object =
+    "stub:" + context.getMethodName
+}
+
+@Stubbed
+trait Primary {
+  def primary(): String
+}
+''', [:], true)
+        def bean = getBean(context, 'introextra.Primary')
+        def extraType = context.classLoader.loadClass('introextra.Extra')
+
+        then: 'the introduced type implements the trait it declares as well as its own'
+        bean.primary() == 'stub:primary'
+        extraType.isInstance(bean)
+
+        and: 'and the interceptor answers for the additional interface too'
+        extraType.getMethod('extra').invoke(bean) == 'stub:extra'
+
+        cleanup:
+        context?.close()
+    }
+
 }
