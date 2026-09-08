@@ -34,49 +34,6 @@ public final class ScalaDiagnosticVisitor implements TypeElementVisitor<Object, 
     private static final ThreadLocal<Request> REQUEST = new ThreadLocal<>();
 
     /**
-     * The diagnostic severity to report.
-     */
-    public enum Severity {
-        /**
-         * Report through {@code VisitorContext.info}.
-         */
-        INFO,
-        /**
-         * Report through {@code VisitorContext.warn}.
-         */
-        WARN,
-        /**
-         * Report through {@code VisitorContext.fail}, which also throws.
-         */
-        FAIL
-    }
-
-    /**
-     * Which element of the visited class to blame.
-     */
-    public enum Target {
-        /**
-         * The class itself.
-         */
-        CLASS,
-        /**
-         * The first declared method.
-         */
-        METHOD,
-        /**
-         * The first declared field.
-         */
-        FIELD,
-        /**
-         * No element at all, so the diagnostic has nothing to point at.
-         */
-        NONE
-    }
-
-    private record Request(Severity severity, Target target, String message) {
-    }
-
-    /**
      * Runs a compilation with this visitor reporting the given diagnostic.
      *
      * @param severity The severity
@@ -120,5 +77,48 @@ public final class ScalaDiagnosticVisitor implements TypeElementVisitor<Object, 
                 .stream().map(FieldElement.class::cast).findFirst().orElse(null);
             case NONE -> null;
         };
+    }
+
+    /**
+     * The diagnostic severity to report.
+     */
+    public enum Severity {
+        /**
+         * Report through {@code VisitorContext.info}.
+         */
+        INFO,
+        /**
+         * Report through {@code VisitorContext.warn}.
+         */
+        WARN,
+        /**
+         * Report through {@code VisitorContext.fail}, which also throws.
+         */
+        FAIL
+    }
+
+    /**
+     * Which element of the visited class to blame.
+     */
+    public enum Target {
+        /**
+         * The class itself.
+         */
+        CLASS,
+        /**
+         * The first declared method.
+         */
+        METHOD,
+        /**
+         * The first declared field.
+         */
+        FIELD,
+        /**
+         * No element at all, so the diagnostic has nothing to point at.
+         */
+        NONE
+    }
+
+    private record Request(Severity severity, Target target, String message) {
     }
 }

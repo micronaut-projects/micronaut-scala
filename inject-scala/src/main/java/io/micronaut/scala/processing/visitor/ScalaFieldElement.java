@@ -18,12 +18,8 @@ package io.micronaut.scala.processing.visitor;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.ast.ClassElement;
-import io.micronaut.inject.ast.ElementModifier;
 import io.micronaut.inject.ast.FieldElement;
 import org.jspecify.annotations.Nullable;
-
-import java.util.LinkedHashSet;
-import java.util.Set;
 
 /**
  * Scala field element.

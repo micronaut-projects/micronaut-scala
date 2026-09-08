@@ -392,9 +392,6 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         return declaring == componentType ? this : new ScalaLoadedClassElement(declaring, visitorContext);
     }
 
-    private record MethodKey(String name, List<Class<?>> parameterTypes) {
-    }
-
     @Override
     public List<PropertyElement> getBeanProperties() {
         return getBeanProperties(PropertyElementQuery.of(getAnnotationMetadata()));
@@ -801,6 +798,9 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
 
     private static boolean isPackagePrivate(int modifiers) {
         return !Modifier.isPublic(modifiers) && !Modifier.isProtected(modifiers) && !Modifier.isPrivate(modifiers);
+    }
+
+    private record MethodKey(String name, List<Class<?>> parameterTypes) {
     }
 
     private static final class LoadedConstructorElement extends AbstractScalaElement implements ConstructorElement {

@@ -197,6 +197,12 @@ final class ClasspathAnnotationMetadataReader {
      * Raw annotation values as they appear in the class file. Deliberately not resolved
      * metadata: resolution needs the annotation types of the compilation currently running,
      * and this is cached across compilations.
+     *
+     * @param classAnnotations the annotations declared on the class itself
+     * @param methods the annotations declared on each method, keyed by member
+     * @param parameters the annotations declared on each method parameter, keyed by member
+     * @param fields the annotations declared on each field, keyed by member
+     * @param memberDefaults the default values declared by the annotation type's members
      */
     private record LoadedClassMetadata(
         List<AnnotationValue<?>> classAnnotations,

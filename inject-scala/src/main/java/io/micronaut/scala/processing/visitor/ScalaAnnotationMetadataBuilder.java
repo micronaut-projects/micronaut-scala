@@ -40,7 +40,6 @@ import java.util.Set;
  */
 public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMetadataBuilder<Object, ScalaAnnotationData> {
 
-    private final VisitorContext visitorContext;
     private static final Set<String> UNIVERSAL_SUPERTYPES = Set.of(
         Object.class.getName(),
         Enum.class.getName(),
@@ -52,6 +51,7 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
         "scala.Serializable"
     );
 
+    private final VisitorContext visitorContext;
     private final Map<String, ScalaAnnotationTypeData> nativeAnnotationTypes = new LinkedHashMap<>();
     /** Names already looked up and not resolvable, so the compiler is asked only once each. */
     private final Set<String> unresolvableAnnotationTypes = new HashSet<>();

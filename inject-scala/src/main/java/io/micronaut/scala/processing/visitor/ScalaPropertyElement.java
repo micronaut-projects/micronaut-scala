@@ -120,6 +120,7 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
         );
     }
 
+    @SuppressWarnings("checkstyle:ParameterNumber")
     private ScalaPropertyElement(
         ScalaClassElement declaringType,
         @Nullable ScalaPropertyData propertyData,
