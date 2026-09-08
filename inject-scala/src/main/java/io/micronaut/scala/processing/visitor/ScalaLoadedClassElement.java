@@ -158,15 +158,58 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         if (superType == null) {
             return Optional.empty();
         }
-        return Optional.of(new ScalaLoadedClassElement(superType, visitorContext));
+        return Optional.of(supertypeElement(componentType.getGenericSuperclass(), superType));
     }
 
     @Override
     public Collection<ClassElement> getInterfaces() {
-        return Arrays.stream(componentType.getInterfaces())
-            .map(interfaceType -> new ScalaLoadedClassElement(interfaceType, visitorContext))
-            .map(ClassElement.class::cast)
-            .toList();
+        Class<?>[] erasedInterfaces = componentType.getInterfaces();
+        Type[] genericInterfaces = componentType.getGenericInterfaces();
+        List<ClassElement> interfaces = new ArrayList<>(erasedInterfaces.length);
+        for (int i = 0; i < erasedInterfaces.length; i++) {
+            Type genericInterface = i < genericInterfaces.length ? genericInterfaces[i] : erasedInterfaces[i];
+            interfaces.add(supertypeElement(genericInterface, erasedInterfaces[i]));
+        }
+        return interfaces;
+    }
+
+    /**
+     * A supertype of this type, with its type arguments resolved.
+     *
+     * <p>Two things have to happen for {@code getAllTypeArguments()} to answer "what is
+     * {@code T} for the {@code EventListener<T>} this type implements". The supertype has
+     * to be read from the generic signature rather than from the erased
+     * {@code getSuperclass()} / {@code getInterfaces()}, or a bound argument is simply not
+     * there. And any argument the supertype states as a type variable of *this* type has
+     * to be substituted for what this element binds it to, or the answer stops at the
+     * first link in the chain.</p>
+     *
+     * @param genericType The supertype as declared, which may be parameterized
+     * @param erasedType The supertype's erasure
+     * @return The supertype element
+     */
+    private ClassElement supertypeElement(Type genericType, Class<?> erasedType) {
+        ClassElement supertype = classElement(genericType, erasedType, visitorContext);
+        if (typeArguments.isEmpty()) {
+            return supertype;
+        }
+        Map<String, ClassElement> declared = supertype.getTypeArguments();
+        if (declared.isEmpty()) {
+            return supertype;
+        }
+        Map<String, ClassElement> substituted = new LinkedHashMap<>(declared.size());
+        declared.forEach((name, argument) -> substituted.put(name, substitute(argument)));
+        return supertype.withTypeArguments(substituted);
+    }
+
+    private ClassElement substitute(ClassElement argument) {
+        if (argument instanceof GenericPlaceholderElement placeholder) {
+            ClassElement bound = typeArguments.get(placeholder.getVariableName());
+            if (bound != null) {
+                return bound;
+            }
+        }
+        return argument;
     }
 
     @Override
