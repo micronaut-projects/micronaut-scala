@@ -831,7 +831,7 @@ private object ScalaModelExtractor:
     if symbol == Symbols.NoSymbol then
       Nil
     else
-      symbol.denot.annotations
+      declaredAnnotations(symbol)
         .filter(annotation => className(annotation.symbol) == "scala.throws")
         .flatMap(annotation => annotation.arguments.flatMap(thrownType))
 
@@ -1420,9 +1420,21 @@ private object ScalaModelExtractor:
       // `SourceFile` to every class it compiles, for instance. It is not part of the user's
       // model, and leaving it in wrote it into the annotation metadata of every generated
       // bean definition.
-      symbol.denot.annotations
+      declaredAnnotations(symbol)
         .filterNot(annotation => className(annotation.symbol).startsWith(InternalAnnotationPrefix))
         .map(annotationData(_, Set.empty))
+
+  /**
+   * A symbol's annotations in the order they were written.
+   *
+   * dotty's `addAnnotation` prepends (`annot :: myAnnotations`), so `denot.annotations` is in
+   * reverse declaration order. That is visible wherever order carries meaning: two
+   * `@Location` annotations written `first` then `second` reached the metadata as
+   * `second, first`, and so did the entries of the `@Repeatable` container built from them,
+   * and the `@throws` clauses of a method.
+   */
+  private def declaredAnnotations(symbol: Symbol)(using Context): List[Annotation] =
+    symbol.denot.annotations.reverse
 
   private def annotationData(
       annotation: dotty.tools.dotc.core.Annotations.Annotation,
@@ -1460,7 +1472,7 @@ private object ScalaModelExtractor:
         ScalaAnnotationTypeData(name, java.util.List.of(), java.util.Map.of(), null, null, hasFlag(symbol, Flags.JavaDefined), symbol)
       else
         val nextVisited = visitedAnnotationTypes + name
-        val annotations = symbol.denot.annotations
+        val annotations = declaredAnnotations(symbol)
           .filterNot(annotation => className(annotation.symbol) == name)
           .map(annotationData(_, nextVisited))
         val members = annotationMembers(symbol)

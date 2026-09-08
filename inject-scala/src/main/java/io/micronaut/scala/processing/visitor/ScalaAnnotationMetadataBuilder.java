@@ -17,6 +17,7 @@ package io.micronaut.scala.processing.visitor;
 
 import io.micronaut.core.annotation.AnnotationClassValue;
 import io.micronaut.core.annotation.AnnotationValue;
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.annotation.AbstractAnnotationMetadataBuilder;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.visitor.VisitorContext;
@@ -239,23 +240,54 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
             if (nativeMember != null) {
                 for (ScalaAnnotationData annotation : nativeMember.annotations()) {
                     if (annotation.name().equals(annotationType.getName())) {
-                        Map<CharSequence, Object> values = new LinkedHashMap<>();
-                        for (Map.Entry<? extends Object, ?> entry : readAnnotationRawValues(annotation).entrySet()) {
-                            Object annotationMember = entry.getKey();
-                            readAnnotationRawValues(
-                                originatingElement,
-                                annotationType.getName(),
-                                annotationMember,
-                                getAnnotationMemberName(annotationMember),
-                                entry.getValue(),
-                                values);
-                        }
-                        return Optional.of(AnnotationValue.builder(annotationType).members(values).build());
+                        return Optional.of(AnnotationValue.builder(annotationType)
+                            .members(annotationValues(originatingElement, annotation))
+                            .build());
                     }
                 }
+                return repeatableContainer(originatingElement, nativeMember, annotationType);
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * The container a repeatable annotation would have been collapsed into, synthesised from the
+     * repeats themselves.
+     *
+     * <p>Java has no repeats in the model: javac collapses two {@code @AliasFor} into one
+     * {@code @Aliases} before a processor sees them, and core relies on that -- it asks for
+     * {@code Aliases} first and only falls back to a single {@code AliasFor}. Scala has no notion
+     * of a repeatable container at all, so both annotations stay separate and core saw only the
+     * first: a member carrying two {@code @AliasFor} had exactly one of its aliases applied, and
+     * which one depended on declaration order.</p>
+     *
+     * @return the container, or empty when the requested type is not the container of an
+     *     annotation this member repeats
+     */
+    private <K extends Annotation> Optional<AnnotationValue<K>> repeatableContainer(
+        Object originatingElement,
+        ScalaAnnotationMemberData nativeMember,
+        Class<K> annotationType) {
+        List<AnnotationValue<?>> repeats = new ArrayList<>();
+        for (ScalaAnnotationData annotation : nativeMember.annotations()) {
+            ScalaAnnotationTypeData annotationTypeData = nativeAnnotationType(annotation.name());
+            if (annotationTypeData == null
+                || !annotationType.getName().equals(annotationTypeData.repeatableContainerName())) {
+                continue;
+            }
+            repeats.add(AnnotationValue.builder(annotation.name())
+                .members(annotationValues(originatingElement, annotation))
+                .build());
+        }
+        // One occurrence is not a container in Java either -- javac leaves it as the annotation
+        // itself, and core's fallback reads it directly.
+        if (repeats.size() < 2) {
+            return Optional.empty();
+        }
+        return Optional.of(AnnotationValue.builder(annotationType)
+            .member(AnnotationMetadata.VALUE_MEMBER, repeats.toArray(AnnotationValue[]::new))
+            .build());
     }
 
     @Override

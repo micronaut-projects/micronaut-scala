@@ -1038,6 +1038,39 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         return NameUtils.getPackageName(getName());
     }
 
+    /**
+     * The source-level name of the type, with nested types separated by a dot.
+     *
+     * <p>Core's default returns {@link #getName()}, which is the binary name -- {@code
+     * nest.Outer$Inner}. The Java module answers with the qualified name,
+     * {@code nest.Outer.Inner}, and this is what reaches users in diagnostics and in
+     * introspection naming.</p>
+     */
+    @Override
+    public String getCanonicalName() {
+        if (classData == null || classData.enclosingTypeName() == null) {
+            return defaultCanonicalName();
+        }
+        String enclosing = visitorContext.sourceClassElement(classData.enclosingTypeName())
+            .map(ClassElement::getCanonicalName)
+            .orElse(classData.enclosingTypeName());
+        return enclosing + "." + nestedSimpleName(getName());
+    }
+
+    private String defaultCanonicalName() {
+        // Core's default, which cannot be reached with `super` from here because it is declared
+        // on ClassElement rather than on a supertype of this class.
+        if (isOptional()) {
+            return getFirstTypeArgument().map(ClassElement::getName).orElse(Object.class.getName());
+        }
+        return getName();
+    }
+
+    private static String nestedSimpleName(String name) {
+        int index = name.lastIndexOf('$');
+        return index > -1 ? name.substring(index + 1) : name;
+    }
+
     @Override
     public PackageElement getPackage() {
         return visitorContext.packageElement(getPackageName());

@@ -157,6 +157,24 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         return dimensions == getArrayDimensions() && isComponentAssignable(type.getName());
     }
 
+    /**
+     * The source-level name, with nested types separated by a dot, as the Java module answers.
+     * Core's default returns the binary name.
+     */
+    @Override
+    public String getCanonicalName() {
+        String canonicalName = componentType.getCanonicalName();
+        if (canonicalName != null) {
+            return canonicalName;
+        }
+        // Null for an anonymous or local class, which has no source-level name to give. Core's
+        // default, which cannot be reached with `super` from here.
+        if (isOptional()) {
+            return getFirstTypeArgument().map(ClassElement::getName).orElse(Object.class.getName());
+        }
+        return getName();
+    }
+
     @Override
     public boolean isInterface() {
         return type.isInterface();
