@@ -71,11 +71,13 @@ public final class ScalaCollectionConverterRegistrar implements TypeConverterReg
 
         conversionService.addConverter(scala.collection.Iterable.class, Iterable.class, this::toJavaIterable);
         conversionService.addConverter(scala.collection.Iterable.class, Collection.class, this::toJavaCollection);
+        conversionService.addConverter(scala.collection.Map.class, Map.class, this::toJavaMap);
 
         conversionService.addConverter(Map.class, scala.collection.Map.class, this::toScalaMap);
         conversionService.addConverter(Map.class, scala.collection.mutable.Map.class, this::toMutableMap);
         conversionService.addConverter(Map.class, scala.collection.immutable.Map.class, this::toImmutableMap);
         conversionService.addConverter(Optional.class, scala.Option.class, this::toScalaOption);
+        conversionService.addConverter(Object.class, scala.Option.class, this::toScalaOptionOf);
     }
 
     private Optional<scala.collection.Iterable> toScalaIterable(Collection<?> collection,
@@ -175,6 +177,39 @@ public final class ScalaCollectionConverterRegistrar implements TypeConverterReg
         return Optional.of(CollectionConverters.asJavaCollection(collection));
     }
 
+    /**
+     * A Scala map as a Java map.
+     *
+     * <p>A {@code scala.collection.Map} is a {@code scala.collection.Iterable} of tuples, so
+     * without this the only candidate converter was the one to {@code Collection} -- which
+     * does not produce a {@code Map}, so the conversion simply failed and anything asking a
+     * Scala bean for a {@code Map} (the metadata a {@code @ConfigurationProperties} writer
+     * reads, an HTTP body serialized from a returned map) got nothing back.</p>
+     *
+     * <p>Wrapping is the documented behaviour in this direction, so the view is returned
+     * whenever the target states no key or value type. When it does state one, the entries
+     * have to be converted, which needs a copy.</p>
+     */
+    @SuppressWarnings("unchecked")
+    private Optional<Map> toJavaMap(scala.collection.Map<?, ?> map,
+                                           Class<Map> targetType,
+                                           ConversionContext context) {
+        Map<Object, Object> asJava = CollectionConverters.asJava((scala.collection.Map<Object, Object>) map);
+        if (!statesEntryTypes(context)) {
+            return Optional.of(asJava);
+        }
+        return convertEntries(asJava, context).map(Map.class::cast);
+    }
+
+    private static boolean statesEntryTypes(ConversionContext context) {
+        for (Argument<?> typeParameter : context.getTypeParameters()) {
+            if (typeParameter.getType() != Object.class) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private Optional<scala.collection.Map> toScalaMap(Map<?, ?> map,
                                                              Class<scala.collection.Map> targetType,
                                                              ConversionContext context) {
@@ -197,7 +232,26 @@ public final class ScalaCollectionConverterRegistrar implements TypeConverterReg
     private Optional<scala.Option> toScalaOption(Optional<?> optional,
                                                         Class<scala.Option> targetType,
                                                         ConversionContext context) {
-        Object value = optional.orElse(null);
+        return someOf(optional.orElse(null), context);
+    }
+
+    /**
+     * A {@code scala.Option} around any value, not only around a {@code java.util.Optional}.
+     *
+     * <p>Only the {@code Optional} source was registered, so nothing could produce an
+     * {@code Option} from an ordinary value. A property binder resolving
+     * {@code timeout: Option[Int]} asks the conversion service for an {@code Option} from
+     * the raw property value, gets nothing, and reports the property as missing -- so
+     * {@code Option} in a {@code @ConfigurationProperties} was unusable, and the diagnostic
+     * pointed at the configuration rather than at the missing converter.</p>
+     */
+    private Optional<scala.Option> toScalaOptionOf(Object value,
+                                                          Class<scala.Option> targetType,
+                                                          ConversionContext context) {
+        return someOf(value, context);
+    }
+
+    private Optional<scala.Option> someOf(@Nullable Object value, ConversionContext context) {
         if (value == null) {
             return Optional.of(scala.Option.empty());
         }

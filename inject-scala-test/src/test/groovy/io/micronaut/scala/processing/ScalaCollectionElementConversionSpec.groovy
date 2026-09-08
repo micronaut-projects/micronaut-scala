@@ -15,6 +15,8 @@
  */
 package io.micronaut.scala.processing
 
+import io.micronaut.core.convert.ConversionService
+import io.micronaut.core.type.Argument
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
 
 /**
@@ -79,6 +81,75 @@ case class AppConfig(limits: scala.collection.immutable.Map[String, Int])
         cleanup:
         context?.close()
     }
+
+    void 'a Scala map converts back to a Java map'() {
+        given: 'a scala.collection.Map is an Iterable of tuples, so the only candidate'
+        def context = buildContext('package probe\n\nclass Empty0\n', [:], true)
+        def conversionService = context.getBean(ConversionService)
+        def scalaMap = scala.collection.immutable.Map$.MODULE$.empty().updated('small', '10')
+
+        when: 'converter was the one to Collection, which cannot produce a Map at all'
+        def converted = conversionService.convert(scalaMap, Argument.mapOf(String, Integer))
+
+        then:
+        converted.isPresent()
+        converted.get() == [small: 10]
+
+        and: 'the declared value type is honoured, not just the shape'
+        converted.get().get('small') instanceof Integer
+
+        cleanup:
+        context?.close()
+    }
+
+    void 'a Scala map with no declared entry types is still a Java map'() {
+        given:
+        def context = buildContext('package probe\n\nclass Empty1\n', [:], true)
+        def conversionService = context.getBean(ConversionService)
+        def scalaMap = scala.collection.immutable.Map$.MODULE$.empty().updated('a', 'b')
+
+        when:
+        def converted = conversionService.convert(scalaMap, Map)
+
+        then: 'wrapping is the documented behaviour when nothing has to be converted'
+        converted.isPresent()
+        converted.get() == [a: 'b']
+
+        cleanup:
+        context?.close()
+    }
+
+    void 'an Option is bound from an ordinary property value'() {
+        given: 'only Optional -> Option was registered, so a raw value produced nothing and'
+        def context = buildContext('''
+package probe
+
+import io.micronaut.context.annotation.ConfigurationProperties
+
+@ConfigurationProperties("app")
+case class AppConfig(timeout: Option[Int], name: Option[String])
+''', ['app.timeout': '30', 'app.name': 'alpha'], true)
+
+        when: 'the binder reported the property missing rather than the converter'
+        def config = getBean(context, 'probe.AppConfig')
+
+        then:
+        config.timeout().isDefined()
+        config.timeout().get() instanceof Integer
+        config.timeout().get() == 30
+
+        and:
+        config.name().get() == 'alpha'
+
+        cleanup:
+        context?.close()
+    }
+
+    // An Option over a property that is genuinely absent still fails to bind, and that
+    // cannot be fixed here: Core's TypeInformation.isOptional() is hard-wired to
+    // java.util.Optional, so an absent value is a missing-property error, and declaring
+    // the parameter @Nullable only substitutes a Java null for the None. Tracked in the
+    // plan under "Blocked on Micronaut Core".
 
     void 'a mutable collection converts its elements too'() {
         given:

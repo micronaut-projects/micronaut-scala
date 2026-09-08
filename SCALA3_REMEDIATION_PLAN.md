@@ -894,8 +894,26 @@ Reproduced before fixing: `List[Int]` bound from configuration held
 *"class java.lang.String cannot be cast to class java.lang.Integer"*. Pinned by
 `ScalaCollectionElementConversionSpec`.
 
-Still open: the missing `scala.collection.Map -> java.util.Map` reverse converter,
-and a converter into `scala.Option` from a non-`Optional` source.
+**Fix — reverse map and value-to-`Option` converters done.** A
+`scala.collection.Map` is a `scala.collection.Iterable` of tuples, so the only
+candidate converter was the one to `Collection`, which cannot produce a `Map`;
+the conversion simply failed. It wraps when the target states no key or value
+type -- the documented behaviour in this direction -- and copies when it has to
+convert. And only `Optional -> scala.Option` was registered, so nothing could
+build an `Option` from an ordinary value: a binder resolving
+`timeout: Option[Int]` asked for an `Option` from the raw property value, got
+nothing, and reported *"Property doesn't exist"* for a property that was set.
+`Option` in a `@ConfigurationProperties` was unusable, and the diagnostic pointed
+at the configuration rather than at the missing converter. Pinned by three cases
+added to `ScalaCollectionElementConversionSpec`.
+
+Still open, and **blocked on Core**: an `Option` over a property that is genuinely
+absent. `TypeInformation.isOptional()` (`core/.../TypeInformation.java:213`) is
+`type == Optional.class`, so `AbstractBeanResolutionContext.resolvePropertyValue`
+treats an empty `scala.Option` argument as a missing property. Declaring the
+parameter `@Nullable` is not a workaround: it substitutes a Java `null` for the
+`None`, so the bean holds `null` where its own type says `Option`. Recorded in
+**F2**.
 
 ### B15 (MINOR) Smaller items worth folding into the same passes
 
@@ -920,9 +938,18 @@ and a converter into `scala.Option` from a non-`Optional` source.
   `getPackage()` call.
 - `isAssignable` ignores array dimensions and returns true for `java.lang.Object`
   unconditionally, including for primitives (`ScalaClassElement.java:123`).
-- Neither implementation overrides `getTypeArguments(String)` / `getAllTypeArguments()`,
-  which is how Micronaut answers "what is `T` for the `EventListener<T>` this bean
-  implements".
+- **Done, but not as filed.** Overriding `getTypeArguments(String)` /
+  `getAllTypeArguments()` is not the fix: Core's defaults compose correctly over
+  `getSuperType()` / `getInterfaces()`, and the source element already answered
+  right, including transitively (`Handler extends Base[String]`, `Base[E] extends
+  Consumer[E]` resolves `Consumer.T` to `String`). The inputs were wrong.
+  `ScalaLoadedClassElement` read its supertypes from `Class.getSuperclass()` and
+  `Class.getInterfaces()`, which are erased, so `java.lang.String implements
+  Comparable<String>` answered `T -> java.lang.Object`. Reading the generic
+  signature is half of it; a supertype states its arguments in the subtype's own
+  type variables (`ArrayList<E> extends AbstractList<E>`), so a binding also has to
+  be substituted as the walk goes up or it survives one link. Pinned by
+  `ScalaTypeArgumentLookupSpec`.
 - **Done.** `isValidDefaultValue` (`ScalaAnnotationMetadataBuilder.java:542`) dropped
   empty-string defaults, which are extremely common (`@Named`, `@Property`,
   `@Requires.property`). An empty string is a real default, not the absence of one.
@@ -1542,6 +1569,29 @@ compilation time, or the introduction path not synthesising them.
 few lines in `collectInheritedMethods`/`collectInheritedFields`, and has been
 written and reverted three times; see the git history for the exact shape. The
 universal-supertype exclusion it also needs has already landed.
+
+### An absent property bound to a `scala.Option` (from B14)
+
+`Option[T]` now binds from a property that is set -- that was a missing converter
+and is fixed. A property that is *absent* still fails with *"Property doesn't
+exist"* rather than yielding `None`.
+
+`TypeInformation.isOptional()` (`core/src/main/java/io/micronaut/core/type/TypeInformation.java:213`)
+is `type == Optional.class`, and `AbstractBeanResolutionContext.resolvePropertyValue`
+branches on it: an argument that is not "optional" and has no value is a
+missing-property error. Declaring the parameter `@Nullable` is not a workaround --
+it takes the `isDeclaredNullable()` branch and substitutes a Java `null` for the
+`None`, so the bean holds `null` where its own type says `Option`, which is worse
+than the error.
+
+**Blocked on:** Core recognising language-specific optional containers -- either
+`isOptional()` consulting a registry of empty-value types (`scala.Option`,
+`io.vavr.control.Option`, and so on), or a resolution hook that lets a converter
+produce the empty value for an absent property.
+
+**Come back when:** that changes. Nothing further is needed in this repository;
+the converters are in place. Re-enable the `absent` case noted in
+`ScalaCollectionElementConversionSpec`.
 
 ---
 
