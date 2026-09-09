@@ -242,16 +242,26 @@ Bean import is documented as unsupported for Scala.
 
 ### P2: AOP, Lifecycle, and Executable Parity
 
-- Add `ScalaAopParitySpec`: around construct, around advice on inherited
-  trait/default methods, introduction with around, mapped introduction,
-  additional interfaces, abstract class/trait introduction, final-method
-  errors, named AOP target lookup, adapter methods, and factory-level advice.
-- Extend lifecycle coverage: inherited `@PostConstruct`/`@PreDestroy`, hooks on
-  `@Bean` factory members, hooks with AOP/proxy-target, and private/protected
-  hook behavior where Scala can express it.
-- Extend executable coverage: inherited executable trait methods, overloaded
-  methods, generics, annotation metadata inheritance, and executable factory
-  methods.
+- `ScalaAopParitySpec` covers around construct, around advice on inherited
+  trait/default methods, introduction with around, additional interfaces,
+  final-method errors, adapter methods, and factory-level advice.
+- `ScalaIntroductionAdviceParitySpec` covers the abstract/concrete split on both
+  a trait and an abstract class, the intercepted type the generated definition
+  reports, and a concrete member carrying around advice of its own. Mapped
+  introduction remains outstanding.
+- `ScalaInterceptorBindingParitySpec` covers binding by annotation member value,
+  `@NonBinding` exclusion, a method-level annotation overriding the type-level
+  binding, and two advice annotations on one method.
+- `ScalaLifecycleProxyParitySpec` covers hooks under proxy-target and
+  proxy-subclass advice, and hook collection either side of an advised method.
+  `ScalaLifecycleInterceptorParitySpec` covers interceptors bound by
+  `InterceptorKind` to construction and destruction, including on a
+  factory-produced bean. Private and protected hook behavior remains outstanding.
+- `ScalaExecutableFactoryParitySpec` covers a concrete trait method made
+  executable through a factory, and the most-specific override across a trait
+  diamond with its type arguments. Inherited executable trait methods and
+  overloaded methods are in `ScalaAopParitySpec`; annotation metadata
+  inheritance remains outstanding.
 
 ### P3: Visitor-Generated Beans and Build-Time Behavior
 

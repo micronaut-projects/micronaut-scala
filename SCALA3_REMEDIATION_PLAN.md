@@ -1927,7 +1927,42 @@ already-broken guard.
     shares its name, and `-Xno-forwarders` is not set. The two suppressing cases are
     pinned as tests of their own.
 
-    P2 remains outstanding.
+22. **In progress (P2).** Porting P2 -- AOP, lifecycle and executable parity -- from
+    the Java module's `io.micronaut.aop.compile` specs. P2 asks what the *runtime*
+    does with what was written: which object an interceptor is attached to, which
+    members it stands in for, and which of several interceptors a binding selects.
+
+    First batch (`ScalaLifecycleProxyParitySpec`, `ScalaExecutableFactoryParitySpec`)
+    found a twelfth defect. Inherited methods were collected depth first -- one parent
+    to the top, then the next -- and a signature is recorded the first time the walk
+    meets it. In `C extends P1, P2` where P2 narrows a method P1 inherits, the walk
+    reached the base declaration through P1 before it ever reached P2's override, and
+    the generated definition wrote the widened return type. Erasure makes the two
+    distinct JVM methods, so nothing downstream could recover the narrowing. The walk
+    is now level order: an override always sits nearer the queried class than the
+    declaration it overrides.
+
+    Third batch (`ScalaInterceptorBindingParitySpec`) found a thirteenth. Scala spreads
+    an annotation member across the constructor parameter, the backing field and the
+    accessor; `@NonBinding val debug` lands on the first two, and reaches the accessor
+    only as `@(NonBinding @getter)`, which nobody writes on an annotation class because
+    Java has one place for it. Members were read from the accessor alone, so Core --
+    which collects `@NonBinding` and `@InstantiatedMember` from the member when it
+    builds an annotation value -- saw a bare member, and an interceptor bound by member
+    value stopped matching. The member's own value was written correctly throughout,
+    which is why binding by annotation type never showed it.
+
+    One divergence recorded rather than fixed: under `proxyTarget` advice, Java reads
+    `instance.count` as a field on the proxy and gets 0, while Scala has no public field
+    and its accessor is intercepted and delegated, so the same read reports the target's
+    1. `ScalaLifecycleProxyParitySpec` states the underlying fact -- the hook ran once,
+    on the target alone -- by counting outside the bean.
+
+    `ScalaIntroductionAdviceParitySpec` and `ScalaLifecycleInterceptorParitySpec` passed
+    as written. The first covers the abstract/concrete split introduction advice depends
+    on, which an all-abstract trait cannot test; the second covers interceptors bound to
+    a lifecycle point rather than to invocation, reached through a hand-written
+    `@InterceptorBindingDefinitions` because Scala has no repeatable annotations.
 
 ### Wave 5 — packaging, runtime artifact, docs
 
