@@ -16,7 +16,6 @@
 package io.micronaut.scala.processing
 
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
-import spock.lang.PendingFeature
 
 /**
  * P1 parity, ported from {@code inject-java}'s {@code InheritedConfigurationReaderPrefixSpec},
@@ -31,22 +30,20 @@ import spock.lang.PendingFeature
  * <p>Prefix composition itself is covered by {@code ScalaConfigurationParitySpec}, which also
  * records the rule a draft of this spec got backwards: an inherited property keeps the prefix of
  * the class that <em>declares</em> it rather than taking the subclass's composed one. What is
- * added here is the bean half -- a dependency injected beside the bound properties -- and the
- * negative case that gives the prefix assertions their meaning.</p>
+ * added here is the bean half -- a dependency resolved beside the bound properties, through the
+ * constructor, which is the mechanism core documents rather than an {@code @Inject} member -- and
+ * the negative case that gives the prefix assertions their meaning.</p>
  */
 class ScalaConfigurationShapeParitySpec extends AbstractScalaTypeElementSpec {
 
-    @PendingFeature(reason = 'Inside a @ConfigurationProperties class every var is taken as a '
-        + 'property to bind, so a member carrying @Inject is treated as configuration named after '
-        + 'itself rather than as an injection point. The same @Inject var is injected normally on '
-        + 'an ordinary bean')
-    void "injects a dependency into a configuration class alongside its properties"() {
-        when:
+    void "takes a bean and a bound property through one configuration constructor"() {
+        when: '''the constructor mixes configuration with dependencies, which is how core
+                 documents it -- `@ConfigurationInject` on a constructor rather than `@Inject` on
+                 a member, and the form Scala reaches first anyway'''
         def context = buildContext('''
 package configshape
 
 import io.micronaut.context.annotation.ConfigurationProperties
-import jakarta.inject.Inject
 import jakarta.inject.Singleton
 
 @Singleton
@@ -54,15 +51,11 @@ class Helper:
   def help(): String = "helped"
 
 @ConfigurationProperties("app")
-class AppConfig:
-  var name: String = null
-
-  @Inject
-  var helper: Helper = null
+class AppConfig(val name: String, val helper: Helper)
 ''', ['app.name': 'bound'], true)
         def config = getBean(context, 'configshape.AppConfig')
 
-        then: 'the property is bound and the dependency injected, on the same bean'
+        then: 'the property is bound and the dependency resolved, on the same bean'
         config.name() == 'bound'
         config.helper().help() == 'helped'
 
