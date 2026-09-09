@@ -33,21 +33,24 @@ import spock.lang.PendingFeature
  * what should happen rather than what does. Spock fails a pending feature that passes, so
  * whichever of these is fixed reports itself instead of quietly starting to agree.</p>
  *
- * <p>What was tried: extending the same hierarchy to parameters, the way core's Java module does
- * ({@code JavaAnnotationMetadataBuilder} takes the parameter at each index from every overridden
- * method). It did not move the constraint case, which suggests the parameter metadata is read
- * through a path that does not consult the hierarchy, or is cached under the native symbol before
- * the overridden data is attached -- the accessor pass builds methods before the member walk
- * does. That is the lead. Advice and the factory qualifier are separate: both are decided while
- * the class is processed rather than when the method's metadata is read.</p>
+ * <p>These have three separate causes, established by probe rather than assumed, and the reason
+ * on each says which. A <em>classpath</em> annotation on an abstract trait method does reach the
+ * implementation -- {@code @Executable} and {@code @Blocking} both do, through the
+ * overridden-declaration hierarchy -- so the advice case is about source-declared annotations
+ * being dropped from that hierarchy, not about advice. The constraint case is a classpath
+ * annotation on a <em>parameter</em>, which is a different path again. The factory case is not
+ * about annotations at all.</p>
  *
  * <p>A concrete trait method cannot stand in for any of them. The trait's own method is inherited
  * whole and carries its annotations along, so this path is never taken.</p>
  */
 class ScalaAbstractTraitMemberAnnotationSpec extends AbstractScalaTypeElementSpec {
 
-    @PendingFeature(reason = 'Advice is decided while the class is processed, not when the '
-        + 'method metadata is read, so the annotation on the overridden declaration is not seen')
+    @PendingFeature(reason = 'Narrowed by probe: a *classpath* annotation on an abstract trait '
+        + 'method does reach the implementation -- @Executable and @Blocking both do -- while a '
+        + 'source-declared one does not. The advice annotation here is declared in the same '
+        + 'compilation, so this is not about advice at all: it is source-declared annotations '
+        + 'being dropped from the overridden-declaration hierarchy')
     void "applies advice declared on an abstract trait method"() {
         when: 'the advice annotation is on the trait declaration, the body only on the class'
         def context = buildContext('''
@@ -95,9 +98,11 @@ class DefaultGreeter extends Greeter:
         context?.close()
     }
 
-    @PendingFeature(reason = 'Parameter metadata is cached under the native symbol and the '
-        + 'accessor pass builds methods first, so attaching the overridden parameters on either '
-        + 'construction path did not reach the instance the constraint is read from')
+    @PendingFeature(reason = 'A different cause from the advice case above: the constraint here '
+        + 'is a classpath annotation, and those do reach an overriding *method*. What does not is '
+        + 'a parameter. Core takes the parameter at each index from every overridden method '
+        + '(JavaAnnotationMetadataBuilder); mirroring that did not move this, and parameter '
+        + 'metadata being cached under the native symbol is the likeliest reason')
     void "keeps a constraint declared on an abstract trait method"() {
         when:
         def definition = buildBeanDefinition('abstracttrait.DefaultChecker', '''
@@ -124,8 +129,9 @@ class DefaultChecker extends Checker:
         !method.arguments[0].annotationMetadata.hasDeclaredAnnotation('jakarta.validation.constraints.NotBlank')
     }
 
-    @PendingFeature(reason = 'A factory member is collected while the class is processed, and '
-        + 'an abstract member contributes nothing to collect')
+    @PendingFeature(reason = 'A third cause again: nothing here is about annotation inheritance. '
+        + 'A factory collects producing members from the class being processed, and an abstract '
+        + 'member has no body to produce anything from, so no definition is written for it')
     void "produces a qualified bean from an abstract trait factory member"() {
         when: 'the trait names the qualifier, and the factory implements the member'
         def context = buildContext('''
