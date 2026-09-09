@@ -53,12 +53,6 @@ from source. The first such build is slow. To develop against a local Core
 checkout instead, use `-Plocal.git.micronaut-core=/path/to/micronaut-core`; to
 select a different Core branch, use `-PmicronautCoreBranch=<branch>`.
 
-`buildSrc/settings.gradle` includes a sibling micronaut-build checkout
-(`../../build`) when one exists, so a stale local copy of micronaut-build can
-break the build in a way CI never sees. Override it with
-`-PmicronautBuildCheckout=<path>` (or `MICRONAUT_BUILD_CHECKOUT`) pointing
-somewhere that does not exist to force the published plugins.
-
 - `./gradlew check` for general validation.
 - `./gradlew verifyCompilerArtifacts` for the packaging and publication guards.
 - `./gradlew publishGuide` (or `pG`) after guide or `toc.yml` changes;
