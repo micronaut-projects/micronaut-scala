@@ -18,7 +18,6 @@ package io.micronaut.scala.processing
 import io.micronaut.context.annotation.Requires
 import io.micronaut.core.annotation.AnnotationUtil
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
-import spock.lang.PendingFeature
 
 /**
  * P0 parity, ported from {@code inject-java}'s {@code AnnotationMetadataWriterSpec},
@@ -31,6 +30,11 @@ import spock.lang.PendingFeature
  * but not written, a parameter annotation that reaches the element but not the argument, or a
  * class-level annotation that does not merge into a method's metadata are all invisible until
  * something reads the definition back.</p>
+ *
+ * <p>The nullability case is written with {@code @Nullable(inherited = true)} because that is
+ * what core's own {@code InheritedNullableAnnotationSpec} uses: a plain {@code @Nullable} on an
+ * overridden declaration is not carried in Java either. Being type-use is not what decides it --
+ * {@code @Inherited}, or the annotation's own {@code inherited} member, is.</p>
  */
 class ScalaAnnotationMetadataDetailParitySpec extends AbstractScalaTypeElementSpec {
 
@@ -116,21 +120,21 @@ class Test:
             ['from.method']
     }
 
-    @PendingFeature(reason = 'Nullability is a type-use annotation and reaches the method '
-        + 'through the type path rather than the annotation hierarchy, so it is not carried '
-        + 'from an abstract trait member the way @Executable now is')
-    void "writes a nullability annotation a method inherits"() {
-        when: 'the trait declares the nullability, the class only implements'
+    void "writes a nullability annotation a method inherits when it is marked inherited"() {
+        when: '''the trait declares the nullability and the class only implements. Micronaut's
+                 own @Nullable takes an `inherited` member for exactly this, and core's
+                 InheritedNullableAnnotationSpec shows a plain @Nullable is not carried in Java
+                 either -- being type-use is not what decides it'''
         def definition = buildBeanDefinition('metadetail.Test', '''
 package metadetail
 
 import io.micronaut.context.annotation.Executable
+import io.micronaut.core.annotation.Nullable
 import jakarta.inject.Singleton
-import org.jspecify.annotations.Nullable
 
 trait Source:
   @Executable
-  @Nullable
+  @Nullable(inherited = true)
   def find(): String
 
 @Singleton
