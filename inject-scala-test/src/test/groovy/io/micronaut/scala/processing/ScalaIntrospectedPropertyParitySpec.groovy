@@ -16,6 +16,7 @@
 package io.micronaut.scala.processing
 
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
+import spock.lang.PendingFeature
 
 /**
  * P1 parity, ported from {@code inject-java}'s {@code PropertyElementSpec}.
@@ -77,10 +78,13 @@ class Mismatched:
         e.message.contains('The @Introspected.Property value and name members must match when both are declared')
     }
 
-    void "silently ignores a member the introspection cannot reach"() {
+    @PendingFeature(reason = 'The field element carries the annotation and ALL_FIELDS reports '
+        + 'it, but the field does not reach the supplier AstBeanPropertiesUtils iterates, which '
+        + 'is where validateIntrospectedPropertyField is called from')
+    void "rejects a member the introspection cannot reach"() {
         when: '''a Scala field is always private, so a field-access property is unreachable by
                  construction rather than by choice -- Java has to write `private` to get here'''
-        def introspection = buildBeanIntrospection('introspectedproperty.Inaccessible', '''
+        buildBeanIntrospection('introspectedproperty.Inaccessible', '''
 package introspectedproperty
 
 import io.micronaut.core.annotation.Introspected
@@ -91,18 +95,12 @@ class Inaccessible:
   private val name: String = null
 ''')
 
-        then: '''no property, and no diagnostic. Java raises "the field is not accessible for
-                 visibility [DEFAULT]" here, so this is a divergence and is pinned as one.
-
-                 Where it stops is known: the field element does carry the annotation --
-                 `ALL_FIELDS` reports `name` with `Introspected$Property` on it, and a private
-                 `val` generates no accessor at all, so there is no method for it to have landed
-                 on instead. It is not reaching the field supplier
-                 `AstBeanPropertiesUtils` iterates, which is where
-                 `validateIntrospectedPropertyField` is called from. That is the lead for
-                 anyone fixing this, and it is a missing diagnostic rather than a wrong
-                 result: the annotation asks for something impossible either way.'''
-        introspection.propertyNames.length == 0
+        then: '''Java raises "the field is not accessible for visibility [DEFAULT]". Here the
+                 declaration is dropped without a property and without a diagnostic, which is a
+                 missing diagnostic rather than a wrong result -- the annotation asks for
+                 something impossible either way'''
+        def e = thrown(RuntimeException)
+        e.message.contains('cannot be used as an introspected property')
     }
 
     void "accepts an accessor pair that agrees on access"() {
