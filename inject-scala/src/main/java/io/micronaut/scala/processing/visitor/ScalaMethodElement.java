@@ -15,7 +15,10 @@
  */
 package io.micronaut.scala.processing.visitor;
 
+import io.micronaut.context.annotation.ConfigurationReader;
 import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.AnnotationValue;
+import io.micronaut.core.bind.annotation.Bindable;
 import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.ConstructorElement;
@@ -38,6 +41,8 @@ import java.util.stream.Collectors;
  * Scala method element.
  */
 public class ScalaMethodElement extends AbstractScalaMemberElement implements MethodElement {
+
+    private static final String SCALA_OPTION = "scala.Option";
 
     protected final ScalaClassElement declaringType;
     protected final ScalaVisitorContext visitorContext;
@@ -125,8 +130,38 @@ public class ScalaMethodElement extends AbstractScalaMemberElement implements Me
             } else {
                 methodAnnotationMetadata = getElementAnnotationMetadata();
             }
+            addOptionalConfigurationDefault(methodAnnotationMetadata);
         }
         return methodAnnotationMetadata;
+    }
+
+    /**
+     * Gives an {@code Option}-returning configuration accessor an empty {@code @Bindable}
+     * default, so that an absent property arrives as {@code None}.
+     *
+     * <p>The same core limitation {@code ScalaConstructorElement} works around, reached by the
+     * other path. {@code @ConfigurationProperties} on a trait has nothing to bind into, so each
+     * accessor becomes introduction advice that reads its own property, and
+     * {@code ConfigurationIntroductionAdvice} decides optionality with
+     * {@code ReturnType.isOptional()} -- which is {@code type == java.util.Optional}. A
+     * {@code scala.Option} return therefore read as required, and an absent property threw
+     * {@code PropertyNotFoundException} rather than yielding {@code None}. A {@code @Bindable}
+     * default is the one branch of that resolution which avoids the throw, and the converter
+     * maps the empty marker to {@code None}.</p>
+     *
+     * <p>Applied when the metadata is first built rather than in {@code annotate}, because core
+     * annotates a configuration accessor through {@code getMethodAnnotationMetadata()} directly
+     * and never passes through {@code Element.annotate}. An accessor that declares its own
+     * default keeps it.</p>
+     */
+    private void addOptionalConfigurationDefault(MutableAnnotationMetadataDelegate<AnnotationMetadata> metadata) {
+        if (!isAbstract()
+            || !SCALA_OPTION.equals(getReturnType().getName())
+            || !declaringType.hasStereotype(ConfigurationReader.class)
+            || metadata.getAnnotationMetadata().stringValue(Bindable.class, "defaultValue").isPresent()) {
+            return;
+        }
+        metadata.annotate(AnnotationValue.builder(Bindable.class).member("defaultValue", "").build());
     }
 
     private ElementAnnotationMetadata mutableAnnotationMetadata(AnnotationMetadata annotationMetadata) {
