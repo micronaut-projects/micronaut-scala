@@ -252,11 +252,25 @@ public final class ScalaCollectionConverterRegistrar implements TypeConverterReg
     }
 
     private Optional<scala.Option> someOf(@Nullable Object value, ConversionContext context) {
-        if (value == null) {
+        if (value == null || isEmptyDefault(value)) {
             return Optional.of(scala.Option.empty());
         }
         return convertEntryPart(value, context.getFirstTypeVariable().orElse(null), context)
             .map(converted -> scala.Option.apply(converted));
+    }
+
+    /**
+     * Whether a source value is Micronaut's "no value" marker.
+     *
+     * <p>An empty string is how an absent value is written in annotation members --
+     * {@code @Bindable(defaultValue = "")}, {@code @Value("${x:}")} -- and core converts that
+     * marker to the target type rather than special-casing it. Converting it to
+     * {@code Some("")} would make an unset property indistinguishable from one explicitly set
+     * to the empty string, and would make an {@code Option} constructor parameter with no
+     * value present arrive as {@code Some("")} rather than {@code None}.</p>
+     */
+    private static boolean isEmptyDefault(Object value) {
+        return value instanceof CharSequence text && text.isEmpty();
     }
 
     /**

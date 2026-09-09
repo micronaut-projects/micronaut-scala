@@ -145,11 +145,74 @@ case class AppConfig(timeout: Option[Int], name: Option[String])
         context?.close()
     }
 
-    // An Option over a property that is genuinely absent still fails to bind, and that
-    // cannot be fixed here: Core's TypeInformation.isOptional() is hard-wired to
-    // java.util.Optional, so an absent value is a missing-property error, and declaring
-    // the parameter @Nullable only substitutes a Java null for the None. Tracked in the
-    // plan under "Blocked on Micronaut Core".
+    void 'an absent property binds an Option to None'() {
+        given: 'the case that used to fail the whole bean with "Property doesn\'t exist"'
+        def context = buildContext('''
+package probe
+
+import io.micronaut.context.annotation.ConfigurationProperties
+
+@ConfigurationProperties("app")
+case class AppConfig(present: Option[String], absent: Option[String])
+''', ['app.present': 'here'], true)
+
+        when:
+        def config = getBean(context, 'probe.AppConfig')
+
+        then: 'a property that is set is Some, and one that is not is None rather than an error'
+        config.present().get() == 'here'
+        config.absent().isEmpty()
+
+        cleanup:
+        context?.close()
+    }
+
+    void 'a var Option field is left as its declared None'() {
+        given: 'field injection needs nothing: the Scala constructor runs before any setter'
+        def context = buildContext('''
+package probe
+
+import io.micronaut.context.annotation.ConfigurationProperties
+
+@ConfigurationProperties("app")
+class MutableConfig {
+  var present: Option[String] = None
+  var absent: Option[String] = None
+}
+''', ['app.present': 'here'], true)
+
+        when:
+        def config = getBean(context, 'probe.MutableConfig')
+
+        then:
+        config.present().get() == 'here'
+        config.absent().isEmpty()
+
+        cleanup:
+        context?.close()
+    }
+
+    void 'an explicit Bindable default is not overwritten'() {
+        given:
+        def context = buildContext('''
+package probe
+
+import io.micronaut.context.annotation.ConfigurationProperties
+import io.micronaut.core.bind.annotation.Bindable
+
+@ConfigurationProperties("app")
+case class DefaultedConfig(@Bindable(defaultValue = "fallback") value: Option[String])
+''', [:], true)
+
+        when:
+        def config = getBean(context, 'probe.DefaultedConfig')
+
+        then: 'the author asked for a value, so they get one rather than None'
+        config.value().get() == 'fallback'
+
+        cleanup:
+        context?.close()
+    }
 
     void 'a mutable collection converts its elements too'() {
         given:

@@ -2004,31 +2004,33 @@ The work is then three pieces, all small:
 Add specs for a constructor default and an `@Executable` method default, and move
 this item back into a numbered wave.
 
-### An absent property bound to a `scala.Option` (from B14)
+### An absent property bound to a `scala.Option` (from B14) — **fixed here**
 
-`Option[T]` now binds from a property that is set -- that was a missing converter
-and is fixed. A property that is *absent* still fails with *"Property doesn't
-exist"* rather than yielding `None`.
+The Core investigation concluded that this belongs in the language module rather
+than in Core, and it does. `TypeInformation.isOptional()` stays
+`type == java.util.Optional`; nothing upstream changed.
 
-`TypeInformation.isOptional()` (`core/src/main/java/io/micronaut/core/type/TypeInformation.java:213`)
-is `type == Optional.class`, and `AbstractBeanResolutionContext.resolvePropertyValue`
-branches on it: an argument that is not "optional" and has no value is a
-missing-property error. Declaring the parameter `@Nullable` is not a workaround --
-it takes the `isDeclaredNullable()` branch and substitutes a Java `null` for the
-`None`, so the bean holds `null` where its own type says `Option`, which is worse
-than the error.
+The seam is `@Bindable(defaultValue = ...)`, the one path in
+`AbstractBeanResolutionContext.resolvePropertyValue` that avoids the
+missing-property error. Core converts that default to the parameter's type through
+the conversion service, which is this repository's code.
 
-**Blocked on:** Core recognising language-specific optional containers -- either
-`isOptional()` consulting a registry of empty-value types (`scala.Option`,
-`io.vavr.control.Option`, and so on), or a resolution hook that lets a converter
-produce the empty value for an absent property. **An investigation is open against
-micronaut-core**, framed to allow the conclusion that Core should not change:
-`isOptional()` is public API on `TypeInformation` with callers beyond the
-property-resolution path, so widening it is not obviously safe.
+Two halves, established by measuring each injection kind separately:
 
-**Come back when:** that changes. Nothing further is needed in this repository;
-the converters are in place. Re-enable the `absent` case noted in
-`ScalaCollectionElementConversionSpec`.
+* **Constructor parameters** failed. They now receive an empty `@Bindable` default
+  when their type is `scala.Option` and they do not already declare one, applied
+  where `@Property(name = ...)` is already applied to configuration parameters.
+* **`var` fields never needed anything.** The Scala constructor initialises the
+  field to `None` before any setter runs, so an absent property simply leaves it
+  there. Worth knowing, because it is why this looked inconsistent.
+
+The converter maps Micronaut's empty "no value" marker to `None` rather than
+`Some("")`, so an unset property and one explicitly set to the empty string are no
+longer indistinguishable.
+
+Pinned by three cases in `ScalaCollectionElementConversionSpec`: the absent
+constructor parameter, the `var` field, and an explicit `@Bindable` default that
+must not be overwritten.
 
 ---
 

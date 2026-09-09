@@ -21,22 +21,6 @@ overload — so implementing the Kotlin interface would make Core emit calls to
 methods that do not exist. A language-neutral SPI exists on a Core branch and this
 becomes a small change once it merges.
 
-=== An absent property bound to `scala.Option`
-
-`Option[T]` binds correctly from a property that is set. A property that is
-*absent* fails with "Property doesn't exist" rather than yielding `None`:
-
-[source,scala]
-----
-@ConfigurationProperties("app")
-case class AppConfig(timeout: Option[Int])   // app.timeout unset -> binding error
-----
-
-`TypeInformation.isOptional()` in Core is `type == java.util.Optional`, so an empty
-`scala.Option` argument reads as a missing property. Declaring the parameter
-`@Nullable` is not a workaround: it substitutes a Java `null` for the `None`, so
-the bean holds `null` where its own type says `Option`.
-
 == Scala shapes not modelled
 
 === Hand-written property pairs
