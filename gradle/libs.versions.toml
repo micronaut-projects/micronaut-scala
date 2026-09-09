@@ -2,6 +2,10 @@
 asm = "9.10.1"
 caffeine = "2.9.3"
 scala3 = "3.9.0"
+# The previous Scala 3 LTS. Published as a second compiler-plugin variant from the same
+# sources; see the `scala-compiler-variant` convention plugin. Named to avoid nesting under
+# `scala3`, which would turn `libs.versions.scala3` into a group accessor.
+scalaLts = "3.3.8"
 micronaut-core = "5.2.0-SNAPSHOT"
 
 htmlsanitycheck = "1.1.6"

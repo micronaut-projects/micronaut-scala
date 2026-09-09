@@ -1952,7 +1952,29 @@ D2.
     definition behind. Fixing it needs access to zinc's `AnalysisCallback` or a
     different generation phase, neither of which is small; the behaviour and its
     workaround are documented instead.
-27. Multi-Scala-variant build layout (D8).
+27. **Done (D8).** Two variants build from one source tree:
+    `micronaut-inject-scala_3.9.0` and `micronaut-inject-scala_3.3.8`, the current
+    and previous Scala 3 LTS. The shared build logic is one convention plugin,
+    `io.micronaut.build.internal.scala-compiler-variant`, and a variant project
+    declares only its compiler version.
+
+    Proven rather than assumed, in both directions: the 3.3.8 plugin run against the
+    3.3.8 compiler generates `$Demo338$Definition.class`, and the 3.9.0 plugin run
+    against the same compiler throws out of the plugin phase and generates nothing —
+    which is why the coordinate carries the full compiler version.
+
+    Three things the second variant exposed that a single variant could not:
+
+    * The sources needed exactly **one** change to compile against both: `Flags.JavaEnum`
+      exists only from 3.4, and is `JavaDefined | Enum`, which is portable written out.
+    * Pinning the whole `org.scala-lang` group is wrong. `scala-library` follows its own
+      line — the 3.3 LTS depends on the Scala 2.13 artifact — so the pin now covers
+      `scala3-*` and `tasty-core_3` only.
+    * The publication `artifactId` was read eagerly from the variant extension, so the
+      LTS jar was published under the *3.9.0* coordinate while containing 3.3.8 code.
+      `verifyCompilerArtifacts` now asserts each variant's POM coordinate, jar, plugin
+      descriptor, BOM entry, and that its bundled Scala artifacts come from its own
+      release.
 28. **Done.** Visitor dispatch order and the engine hygiene items (B1, B2, B3, B6,
     B7, B8, B9). Two of the seven turned out to be partly misdescribed: B3's
     phase-skipping half is already correct behaviour that dotty enforces, and B9's

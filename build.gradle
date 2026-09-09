@@ -17,12 +17,15 @@ def scalaTestProjectPath = ":micronaut-inject-scala-test-compiler"
 // The jar task bundles this configuration, so it is the real input to every
 // packaging question below: what gets shaded in, and which service descriptors
 // collide while it is merged.
+def scalaLtsPluginProjectPath = ":micronaut-inject-scala-compiler-lts"
 def pluginBundled = project(scalaPluginProjectPath).configurations.named("bundled")
 
 tasks.register("verifyCompilerArtifacts") {
     dependsOn(
         "${scalaPluginProjectPath}:jar",
         "${scalaPluginProjectPath}:generatePomFileForMavenPublication",
+        "${scalaLtsPluginProjectPath}:jar",
+        "${scalaLtsPluginProjectPath}:generatePomFileForMavenPublication",
         "${scalaTestProjectPath}:jar",
         "${scalaTestProjectPath}:generatePomFileForMavenPublication",
         ":micronaut-scala-bom:generatePomFileForMavenPublication"
@@ -43,6 +46,32 @@ tasks.register("verifyCompilerArtifacts") {
         assert pluginPom.contains("<artifactId>${pluginArtifactId}</artifactId>")
         assert testPom.contains("<artifactId>${testArtifactId}</artifactId>")
         assert bomPom.contains("<artifactId>${pluginArtifactId}</artifactId>")
+
+        // Every supported compiler release is published from the same sources as its own
+        // variant, and each has to reach the platform. A variant that builds but is not in
+        // the BOM is a variant nobody can resolve by the managed version.
+        def ltsScalaVersion = libs.versions.scalaLts.get()
+        def ltsArtifactId = "micronaut-inject-scala_${ltsScalaVersion}"
+        def ltsProject = project(scalaLtsPluginProjectPath)
+        def ltsJar = ltsProject.layout.buildDirectory.file("libs/${ltsArtifactId}-${project.version}.jar").get().asFile
+        def ltsPom = ltsProject.layout.buildDirectory.file("publications/maven/pom-default.xml").get().asFile.text
+        assert ltsJar.isFile(): "Missing ${ltsJar}"
+        assert ltsPom.contains("<artifactId>${ltsArtifactId}</artifactId>")
+        assert bomPom.contains("<artifactId>${ltsArtifactId}</artifactId>")
+
+        // The variants are the same code for different compilers; a plugin descriptor missing
+        // from one of them is a variant that silently does nothing.
+        assert !zipTree(ltsJar).matching { include("plugin.properties") }.files.empty:
+            "plugin.properties is missing from the root of ${ltsJar.name}"
+
+        // The two must not resolve to the same compiler.
+        assert ltsScalaVersion != scalaVersion:
+            "The LTS variant is pinned to the same Scala version as the primary one"
+        def ltsScalaJars = ltsProject.configurations.named("bundled").get().resolve()
+            .findAll { it.name.startsWith("scala3-") }
+        assert ltsScalaJars.every { it.name.contains(ltsScalaVersion) }:
+            "${ltsArtifactId} bundles Scala artifacts from another release: ${ltsScalaJars*.name}"
+
         assert bomPom.contains("<artifactId>${testArtifactId}</artifactId>")
         assert !bomPom.contains("<artifactId>${scalaPluginProjectPath.substring(1)}</artifactId>")
         assert !bomPom.contains("<artifactId>${scalaTestProjectPath.substring(1)}</artifactId>")

@@ -8,12 +8,19 @@ Scala-specific type handling.
 
 == Supported versions
 
-The initial supported compiler is Scala 3.9.0. The compiler plugin API is not
-binary compatible across all Scala compiler releases, so the compiler version
-is part of the published artifact name. The initial artifacts are:
+Two Scala 3 LTS lines are supported, built from the same sources and published
+as separate artifacts. The compiler plugin API is not binary compatible across
+compiler releases, so the compiler version is part of the artifact name:
 
-* `io.micronaut.scala:micronaut-inject-scala_3.9.0`
+* `io.micronaut.scala:micronaut-inject-scala_3.9.0` — current LTS
+* `io.micronaut.scala:micronaut-inject-scala_3.3.8` — previous LTS
 * `io.micronaut.scala:micronaut-inject-scala-test_3.9.0`
+* `io.micronaut.scala:micronaut-runtime-scala` — application-side support, not
+  crossed with the compiler version
+
+Selecting the wrong one does not fail gracefully: the 3.9.0 plugin loaded into
+the 3.3.8 compiler throws from inside the plugin phase and generates nothing.
+Match the artifact to the compiler exactly.
 
 The repository version is independent of the Micronaut Core version. The
 initial development version is `1.0.0-SNAPSHOT`.

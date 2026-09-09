@@ -2029,13 +2029,16 @@ private object ScalaModelExtractor:
   // `Flags.EnumValue` (`Enum | StableRealizable`) covers simple Scala enum cases and
   // `Flags.EnumCase` (`Case | Enum`) the parameterised ones. Java enum constants are read by
   // dotty's classfile parser, which translates `ACC_ENUM` to a bare `Enum` flag without
-  // `StableRealizable`, so `Flags.JavaEnumValue` never matches one; `Flags.JavaEnum`
-  // (`JavaDefined | Enum`) is the correct set, narrowed to term symbols so the enum class
-  // itself is not mistaken for one of its constants.
+  // `StableRealizable`, so `Flags.JavaEnumValue` never matches one; `JavaDefined | Enum` is
+  // the correct set, narrowed to term symbols so the enum class itself is not mistaken for
+  // one of its constants.
+  //
+  // Written as the union rather than as `Flags.JavaEnum`, which is exactly this pair but
+  // exists only from 3.4 onwards -- the union compiles on every supported compiler.
   private def isEnumConstant(symbol: Symbol)(using Context): Boolean =
     symbol != Symbols.NoSymbol &&
       (hasAllFlags(symbol, Flags.EnumValue) ||
-        (symbol.isTerm && hasAllFlags(symbol, Flags.JavaEnum)) ||
+        (symbol.isTerm && hasAllFlags(symbol, Flags.JavaDefined | Flags.Enum)) ||
         hasAllFlags(symbol, Flags.EnumCase))
 
   private def modifiers(symbol: Symbol)(using Context): Set[ElementModifier] =
