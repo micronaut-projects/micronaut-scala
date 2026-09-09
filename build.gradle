@@ -177,11 +177,103 @@ tasks.register("verifyCompilerArtifacts") {
     }
 }
 
+// A `snippet::` whose target does not resolve is not an error to Asciidoctor: the macro
+// prints a warning to stdout and renders nothing, so a renamed or moved example leaves a
+// heading with no code under it and a green build. That is the exact rot the snippets were
+// adopted to prevent, so the references are resolved here the way the macro resolves them.
+tasks.register("verifyGuideSnippets") {
+    description = "Checks every snippet:: target in the guide resolves to a source file"
+    group = "verification"
+
+    def guideDir = layout.projectDirectory.dir("src/main/docs/guide")
+    def examplesDir = layout.projectDirectory.dir("test-suite-scala/src/main/scala")
+    def repositoryRoot = layout.projectDirectory.asFile
+    inputs.dir(guideDir).withPropertyName("guide")
+    inputs.dir(examplesDir).withPropertyName("examples")
+    outputs.upToDateWhen { true }
+
+    doLast {
+        def extensions = [scala: "scala", java: "java", groovy: "groovy", kotlin: "kt", python: "py"]
+        def defaultProjects = [
+            scala: "test-suite-scala", java: "test-suite", groovy: "test-suite-groovy",
+            kotlin: "test-suite-kotlin", python: "test-suite-python"
+        ]
+        def macro = ~/(?m)^\s*snippet::([^\[]+)\[([^\]]*)]/
+        def problems = []
+        int checked = 0
+
+        guideDir.asFile.eachFileRecurse { file ->
+            if (!file.name.endsWith(".adoc")) {
+                return
+            }
+            def text = file.text
+            def matcher = macro.matcher(text)
+            while (matcher.find()) {
+                def targets = matcher.group(1).split(",")*.trim().findAll { !it.isEmpty() }
+                def attributes = [:]
+                matcher.group(2).split(",").each { attribute ->
+                    def equals = attribute.indexOf("=")
+                    if (equals > 0) {
+                        attributes[attribute.substring(0, equals).trim()] =
+                            attribute.substring(equals + 1).trim().replaceAll(/^["']|["']$/, "")
+                    }
+                }
+
+                // The macro renders every known language when none is named, which would warn
+                // for the four this repository does not ship examples in. Requiring the
+                // attribute keeps a missing file a real failure rather than four expected ones.
+                def language = attributes["language"]
+                if (!language) {
+                    problems << "${file.name}: snippet::${matcher.group(1)} does not name a language"
+                    continue
+                }
+                if (!extensions.containsKey(language)) {
+                    problems << "${file.name}: snippet::${matcher.group(1)} names unknown language '${language}'"
+                    continue
+                }
+
+                def projectBase = attributes["project-base"]
+                def projectDir = attributes["project"]
+                    ?: (projectBase ? "${projectBase}-${language}" : defaultProjects[language])
+                def sourceType = attributes["source"] ?: "test"
+
+                targets.each { target ->
+                    def relative = "${projectDir}/src/${sourceType}/${language}/" +
+                        target.replace(".", "/") + "." + extensions[language]
+                    def source = new File(repositoryRoot, relative)
+                    checked++
+                    if (!source.isFile()) {
+                        problems << "${file.name}: snippet::${target} resolves to ${relative}, which does not exist"
+                        return
+                    }
+                    def tags = attributes["tags"]
+                    if (tags) {
+                        def body = source.text
+                        tags.split(",")*.trim().findAll { !it.isEmpty() }.each { tag ->
+                            if (!body.contains("tag::${tag}[") || !body.contains("end::${tag}[")) {
+                                problems << "${file.name}: snippet::${target} asks for tag '${tag}', " +
+                                    "which ${relative} does not open and close"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!problems.empty) {
+            throw new GradleException(
+                "Guide snippets do not resolve:\n  " + problems.join("\n  ")
+            )
+        }
+        logger.lifecycle("verifyGuideSnippets: ${checked} snippet target(s) resolved")
+    }
+}
+
 // Packaging and publication are the two things this repository cannot test any
 // other way, and until now the only guard for them ran solely if a human typed
 // the task name.
 tasks.named("check") {
-    dependsOn("verifyCompilerArtifacts")
+    dependsOn("verifyCompilerArtifacts", "verifyGuideSnippets")
 }
 
 // The catalog pins micronaut-core to 5.2.0-SNAPSHOT, which is published nowhere,
