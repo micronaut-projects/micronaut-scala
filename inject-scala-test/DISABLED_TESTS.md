@@ -432,10 +432,10 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/ValidatedConfigurationSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/VisibilityIssuesSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/eachbeaninterceptor/EachBeanInterceptorSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/configproperties/eachbeanparameter/EachBeanParameterSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/inject/configproperties/eachbeanparameter/EachBeanParameterSpec.groovy` - covered: `ScalaEachPropertyParitySpec` covers an @EachBean driven off each configuration bean
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/eachbeanreplaces/EachBeanReplacesSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/configproperties/itfce/InterfaceNestingSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/configproperties/nesting/EachPropertyNestingSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/inject/configproperties/itfce/InterfaceNestingSpec.groovy` - covered: `ScalaEachPropertyParitySpec` covers nested configuration reached from an outer @EachProperty bean
+- `inject-java/src/test/groovy/io/micronaut/inject/configproperties/nesting/EachPropertyNestingSpec.groovy` - covered: `ScalaEachPropertyParitySpec` covers a nested @EachProperty whose prefix comes from the outer bean's key
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/records/RecordNestingSpec.groovy` - scala-specific: language-specific Java/Groovy/Kotlin syntax or compiler behavior; replace with Scala-native coverage when relevant
 - `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationBuilderSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationBuilderSpec2.groovy` - candidate: not yet covered; prioritize by the gap buckets above
@@ -470,7 +470,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/inject/factory/proxytarget/FactoryWithScopedProxySpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/field/inheritance/FieldInheritanceInjectionSpec.groovy` - covered: `ScalaInjectionShapeParitySpec` covers an injection point inherited from a trait
 - `inject-java/src/test/groovy/io/micronaut/inject/field/simpleinjection/FieldInjectionSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/foreach/EachPropertyParseSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/inject/foreach/EachPropertyParseSpec.groovy` - covered: `ScalaEachPropertyParitySpec` covers one bean per configuration entry, named by its key, with @Parameter binding
 - `inject-java/src/test/groovy/io/micronaut/inject/generics/GenericTypeArgumentsSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/generics/TypeArgumentsSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/inheritance/AbstractInheritanceSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
