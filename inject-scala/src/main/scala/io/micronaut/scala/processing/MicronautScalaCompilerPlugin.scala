@@ -1665,6 +1665,13 @@ private object ScalaModelExtractor:
   private def annotationMembers(symbol: Symbol)(using Context, AnnotationDefaults): LinkedHashMap[String, ScalaAnnotationMemberData] =
     val members = LinkedHashMap[String, ScalaAnnotationMemberData]()
     val defaults = summon[AnnotationDefaults].values.getOrElse(className(symbol), Map.empty)
+    val constructorParameters =
+      if symbol.primaryConstructor == Symbols.NoSymbol then Map.empty[String, Symbol]
+      else
+        symbol.primaryConstructor.paramSymss.flatten
+          .filter(_.isTerm)
+          .map(parameter => parameter.name.toString -> parameter)
+          .toMap
     symbol.info.decls.toList.foreach { member =>
       val memberName = member.name.toString
       if isAnnotationMember(member, memberName) then
@@ -1673,7 +1680,7 @@ private object ScalaModelExtractor:
           memberName,
           ScalaAnnotationMemberData(
             memberName,
-            annotations(member).asJava,
+            memberAnnotations(member, constructorParameters.get(memberName)).asJava,
             defaults.getOrElse(memberName, null),
             memberType.name,
             memberType.array,
@@ -1685,6 +1692,32 @@ private object ScalaModelExtractor:
         )
     }
     members
+
+  /**
+   * An annotation member is one thing, but Scala spreads a declaration across up to three
+   * symbols: the constructor parameter, the backing field, and the accessor. An annotation
+   * written as `@NonBinding val debug: Boolean` lands on the parameter and the field, not on
+   * the accessor -- Scala targets the accessor only for `@(NonBinding @getter)`, a
+   * meta-annotation nobody writes on an annotation class, because in Java there is only one
+   * place the annotation could go. Reading the accessor alone therefore dropped it, and Core,
+   * which collects `@NonBinding` and `@InstantiatedMember` from the member, saw a bare member:
+   * a member excluded from interceptor binding was compared anyway, and an interceptor that
+   * should have matched did not.
+   */
+  private def memberAnnotations(member: Symbol, parameter: Option[Symbol])(using
+      Context,
+      AnnotationDefaults
+  ): List[ScalaAnnotationData] =
+    val fromMember = annotations(member)
+    val field = member.field
+    val extra =
+      parameter.toList.flatMap(annotations) ++
+        (if field == Symbols.NoSymbol || field == member then Nil else annotations(field))
+    if extra.isEmpty then
+      fromMember
+    else
+      val seen = collection.mutable.LinkedHashSet.from(fromMember.map(_.name()))
+      fromMember ++ extra.filter(annotation => seen.add(annotation.name()))
 
   private def isAnnotationMember(symbol: Symbol, name: String)(using Context): Boolean =
     name.nonEmpty &&
