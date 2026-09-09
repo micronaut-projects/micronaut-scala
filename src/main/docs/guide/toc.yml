@@ -6,6 +6,8 @@ buildTools:
   title: Build Tools
 configuration:
   title: Configuration Options
+annotations:
+  title: Annotations
 dependencies:
   title: Artifacts and Dependencies
 testing:
