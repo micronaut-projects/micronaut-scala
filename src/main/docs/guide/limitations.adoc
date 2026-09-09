@@ -35,6 +35,22 @@ reporting anything wrong:
 Both erase to a correct JVM type; they simply carry less information than they
 could.
 
+=== Annotations on a type argument
+
+A type argument reports the annotations of its own class alongside the ones
+written at the use. In `List[Foo]` where `Foo` is `@Introspected`, the argument's
+annotation metadata carries `@Introspected`; the Java and Kotlin integrations
+build the argument from the type mirror and report only what was written at the
+use.
+
+This is a consequence of how a Scala type use carries its symbol's annotations,
+which is also what lets a generic parameter and a generic type argument pick up
+the annotations of their bound, and what carries a classpath supertype's
+stereotypes to a subclass. It reports more than the other integrations rather
+than less, so an annotation that changes behaviour by its presence alone --
+`@Valid` cascading into a collection's element type, for instance -- is worth
+checking against the intent rather than assumed.
+
 == Incremental compilation
 
 Bean definitions are written into the class output directory by the compiler
