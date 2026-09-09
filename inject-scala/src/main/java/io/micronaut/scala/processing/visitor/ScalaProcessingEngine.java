@@ -59,6 +59,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -133,7 +134,10 @@ public final class ScalaProcessingEngine {
         }
         typeVisitorsProcessed = true;
         ScalaVisitorContext context = visitorContext();
-        setMicronautOptionsAsSystemProperties();
+        withMicronautOptionsAsSystemProperties(() -> processTypeVisitors(context));
+    }
+
+    private void processTypeVisitors(ScalaVisitorContext context) {
         List<LoadedScalaVisitor> loadedVisitors = loadTypeElementVisitors(context);
         for (LoadedScalaVisitor loadedVisitor : loadedVisitors) {
             context.setVisitorKind(loadedVisitor.getVisitor().getVisitorKind());
@@ -142,27 +146,44 @@ public final class ScalaProcessingEngine {
             } catch (ProcessingException e) {
                 reportProcessingException(e);
             } catch (Throwable e) {
-                // Fatal, matching inject-java and the finish() handling below: a visitor whose
-                // start() blew up must not go on to be used for the whole visit pass.
-                context.fail("Error initializing type visitor [" + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), null);
+                // Reported, not thrown. `fail` throws, and throwing here escapes the loop so
+                // no later visitor is even started -- and the caller that catches the
+                // ProcessingException reports the same message again. inject-java reports
+                // without throwing and carries on.
+                context.reportError("Error initializing type visitor [" + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), null);
             }
         }
-        for (LoadedScalaVisitor loadedVisitor : loadedVisitors) {
-            TypeElementQuery query = loadedVisitor.getVisitor().query();
-            Set<String> visitedForVisitor = new HashSet<>();
-            for (ScalaClassData classData : new LinkedHashSet<>(sourceClasses.values())) {
-                if (!visitedForVisitor.add(classData.name())) {
-                    continue;
-                }
-                ClassElement classElement = context.sourceClassElement(classData.name()).orElseThrow();
+        // Class-major, as `TypeElementVisitorProcessor` is. Visitor-major dispatch gives
+        // classes A, B and visitors high, low the order `high:A, high:B, low:A, low:B` where
+        // Java produces `high:A, low:A, high:B, low:B`, which changes what an aggregating
+        // visitor accumulating per-class state sees.
+        Set<String> visitedClasses = new HashSet<>();
+        for (ScalaClassData classData : classSnapshot()) {
+            if (!visitedClasses.add(classData.name())) {
+                continue;
+            }
+            Optional<ScalaClassElement> resolved = context.sourceClassElement(classData.name());
+            if (resolved.isEmpty()) {
+                // Was `orElseThrow()`, which crashed the compiler with a bare
+                // NoSuchElementException naming nothing.
+                context.reportError("No source element for [" + classData.name() + "]; it was collected but cannot be resolved", null);
+                continue;
+            }
+            ClassElement classElement = resolved.get();
+            for (LoadedScalaVisitor loadedVisitor : loadedVisitors) {
                 if (!loadedVisitor.matchesClass(classElement.getAnnotationMetadata())) {
                     continue;
                 }
                 context.setVisitorKind(loadedVisitor.getVisitor().getVisitorKind());
                 try {
-                    visitClass(loadedVisitor, classElement, query, context);
+                    visitClass(loadedVisitor, classElement, loadedVisitor.getVisitor().query(), context);
                 } catch (ProcessingException e) {
                     reportProcessingException(e);
+                } catch (RuntimeException e) {
+                    // A visitor that throws anything else used to escape as a compiler crash
+                    // rather than a diagnostic naming the class it was visiting.
+                    context.reportError("Error visiting [" + classData.name() + "] with ["
+                        + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), classElement);
                 }
             }
         }
@@ -173,7 +194,9 @@ public final class ScalaProcessingEngine {
             } catch (ProcessingException e) {
                 reportProcessingException(e);
             } catch (Throwable e) {
-                context.fail("Error finalizing type visitor [" + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), null);
+                // See the start() loop: reported rather than thrown so the remaining
+                // visitors still get to finish.
+                context.reportError("Error finalizing type visitor [" + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), null);
             }
         }
         context.setVisitorKind(TypeElementVisitor.VisitorKind.ISOLATING);
@@ -194,7 +217,7 @@ public final class ScalaProcessingEngine {
         processTypeVisitors();
         ScalaVisitorContext context = visitorContext();
         startBeanElementVisitors(context);
-        for (ScalaClassData classData : new LinkedHashSet<>(sourceClasses.values())) {
+        for (ScalaClassData classData : classSnapshot()) {
             if (classData.name().endsWith(BeanDefinitionVisitor.PROXY_SUFFIX)) {
                 continue;
             }
@@ -416,10 +439,50 @@ public final class ScalaProcessingEngine {
         return false;
     }
 
-    private void setMicronautOptionsAsSystemProperties() {
+    /**
+     * A stable snapshot of the collected classes.
+     *
+     * <p>Was {@code new LinkedHashSet<>(sourceClasses.values())}. {@link ScalaClassData} is a
+     * record whose components include the dotty {@code TypeDef} it came from, so building a
+     * hash set structurally hashes the entire typed tree of every class -- once per visitor
+     * pass and again for bean definitions, with real recursion risk on a large class. The
+     * map is already keyed by name, so its values are distinct and ordered without any of
+     * that; the copy is only to iterate safely while visitors add classes.</p>
+     */
+    private List<ScalaClassData> classSnapshot() {
+        return List.copyOf(sourceClasses.values());
+    }
+
+    /**
+     * Promotes `micronaut.*` options to system properties for the duration of processing,
+     * restoring what was there before.
+     *
+     * <p>They used to be set and left. A Scala compile daemon is shared between projects, so
+     * one project's `micronaut.processing.*` settings leaked into every later compile in that
+     * daemon and raced between concurrent ones.</p>
+     *
+     * @param work The processing to run with the properties in place
+     */
+    private void withMicronautOptionsAsSystemProperties(Runnable work) {
+        Map<String, String> previous = new LinkedHashMap<>();
+        List<String> added = new ArrayList<>();
         options.entrySet().stream()
             .filter(entry -> entry.getKey().startsWith(VisitorContext.MICRONAUT_BASE_OPTION_NAME))
-            .forEach(entry -> System.setProperty(entry.getKey(), entry.getValue()));
+            .forEach(entry -> {
+                String existing = System.getProperty(entry.getKey());
+                if (existing == null) {
+                    added.add(entry.getKey());
+                } else {
+                    previous.put(entry.getKey(), existing);
+                }
+                System.setProperty(entry.getKey(), entry.getValue());
+            });
+        try {
+            work.run();
+        } finally {
+            previous.forEach(System::setProperty);
+            added.forEach(System::clearProperty);
+        }
     }
 
     private void startBeanElementVisitors(ScalaVisitorContext context) {

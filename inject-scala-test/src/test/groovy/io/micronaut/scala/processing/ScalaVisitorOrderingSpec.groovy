@@ -44,4 +44,32 @@ class OrderedBean:
             'low-finish'
         ]
     }
+    void "dispatches class by class, not visitor by visitor"() {
+        when: "two classes, so the two dispatch orders are distinguishable at all"
+        def events = ScalaVisitorOrderRecorder.withRecording({
+            buildClassLoader('visitororder.First', '''
+package visitororder
+
+class First:
+  def run(): String = "1"
+
+class Second:
+  def run(): String = "2"
+''')
+            ScalaVisitorOrderRecorder.events()
+        } as Supplier)
+
+        then: "every visitor sees a class before any visitor sees the next one, as in inject-java"
+        events == [
+            'high-start',
+            'low-start',
+            'high-class:visitororder.First',
+            'low-class:visitororder.First',
+            'high-class:visitororder.Second',
+            'low-class:visitororder.Second',
+            'high-finish',
+            'low-finish'
+        ]
+    }
+
 }

@@ -417,6 +417,22 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         throw new ProcessingException(element, message);
     }
 
+    /**
+     * Reports an error without throwing.
+     *
+     * <p>{@link #fail} reports *and* throws, which is right when the caller wants to abandon
+     * the unit of work it is in. It is wrong inside a loop over visitors or classes: the
+     * throw escapes the loop, so one failing visitor silently prevents every later visitor
+     * from running, and the caller that catches the `ProcessingException` then reports the
+     * same message a second time. inject-java's reporting does not throw.</p>
+     *
+     * @param message The message
+     * @param element The element the error concerns, if any
+     */
+    void reportError(String message, @Nullable Element element) {
+        errorReporter.accept(message, nativeTypeOf(element));
+    }
+
     @Override
     public void warn(String message, @Nullable Element element) {
         warningReporter.accept(message, nativeTypeOf(element));
