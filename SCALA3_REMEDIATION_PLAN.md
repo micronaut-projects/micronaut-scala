@@ -1964,6 +1964,23 @@ already-broken guard.
     a lifecycle point rather than to invocation, reached through a hand-written
     `@InterceptorBindingDefinitions` because Scala has no repeatable annotations.
 
+23. **Done (P0-P3).** The parity port is complete: every entry in
+    `inject-scala-test/DISABLED_TESTS.md` is accounted for, and that file records the
+    split -- covered, partially covered with what remains named, covered by reference
+    from another language module, or not applicable to Scala.
+
+    Nine known gaps are `@PendingFeature` specs asserting what Java does rather than
+    notes or tests written around the bug, so Spock fails them if they start passing.
+    Two divergences are pinned as current behaviour because they are language
+    differences, not gaps.
+
+    Defects found by the port, beyond those listed above: the level-order fix to the
+    inherited-method walk; annotation members read from the constructor parameter and
+    field as well as the accessor; a classpath type's arguments carried onto its
+    members; the accessor-pair property; `@NullMarked` defaulting; the declarations a
+    method overrides entering its annotation hierarchy; and `@Value` binding an absent
+    property to `None` outside a configuration class.
+
 ### Wave 5 — packaging, runtime artifact, docs
 
 **Order changed:** item 24 now comes first. The thin/shaded choice depends on

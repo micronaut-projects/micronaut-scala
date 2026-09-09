@@ -202,23 +202,35 @@ Bean import is documented as unsupported for Scala.
 
 ## Where The Backlog Stands
 
-Counted from the detailed inventory below, after the P0/P1/P2 rounds:
+Every entry in the inventory below is now accounted for. Of 316:
 
-- **199** entries still read "not yet covered", of which **44** are `inject-groovy`
-  or `inject-kotlin` specs whose scenario a same-named `inject-java` spec already
-  covers. The distinct remaining surface is about **145** source specs.
-- **24** entries are marked `scala-specific`: Java records, Groovy property
-  semantics, Kotlin nullability and the annotation-processing round model have no
-  Scala form, and are replaced by Scala-native coverage rather than ported.
-- The weight sits in five areas: annotation metadata and mapping (**31**),
-  configuration properties and metadata (**19**), factories (**15**), AOP compile
-  and introduction (**17**), and visitor behaviour (**10**).
+- **210** are covered by a Scala spec named on the entry.
+- **40** are partially covered, with the entry naming what is covered and
+  what remains a comparison candidate. These are large sources -- a spec holding
+  twenty features is one entry -- where the cases that ask something Scala answers
+  differently are ported and the rest would restate coverage that exists.
+- **15** are `inject-groovy` or `inject-kotlin` specs whose scenario a
+  same-named `inject-java` spec covers. The language modules mirror each other, so
+  a Scala port is written once against whichever source states the case most
+  directly.
+- **28** are marked `scala-specific`: Java records, Groovy property semantics,
+  Kotlin nullability, receiver parameters and the annotation-processing round model
+  have no Scala form, and are replaced by Scala-native coverage rather than ported.
 
-Two things the count does not say. Entry status is per *source spec*, and a spec
-holding twelve features is one entry however many of them are covered — several
-read "partially covered" for that reason. And a covered entry is not a finished
-subject: the ported cases are the ones that ask something Scala answers
-differently, chosen against the coverage gate, not the whole file.
+Nine cases are known gaps rather than covered behaviour, and each is a
+`@PendingFeature` asserting what Java does: Spock fails a pending feature that
+passes, so whichever is fixed reports itself rather than quietly starting to agree
+with a test written around the bug. They are in
+`ScalaAbstractTraitMemberAnnotationSpec`, `ScalaIntrospectedPropertyParitySpec`,
+`ScalaAnnotationMetadataDetailParitySpec`, `ScalaConfigurationShapeParitySpec`,
+`ScalaValidationParitySpec` and `ScalaClassImportParitySpec`, each with the reason
+and, where an investigation ran, how far it reached.
+
+Two divergences are pinned as current behaviour instead, because they are language
+differences rather than gaps and asserting Java's answer would describe something
+that should never become true: a proxy-target read reaching the target through an
+accessor where Java reads a field, and `@AccessorsStyle` describing a builder from
+the member that holds it.
 
 ## Priority Buckets
 
@@ -409,7 +421,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/inject/annotation/repeatable/MapToRepeatableSpec.groovy` - covered: `ScalaMapperOutputParitySpec` covers a mapper producing several entries collected into a container nothing in the source wrote
 - `inject-java/src/test/groovy/io/micronaut/inject/annotation/repeatable/RepeatableAnnotationSpec.groovy` - candidate: partially covered by `ScalaRepeatableAnnotationParitySpec` for a container written by hand expanding into its entries, a single entry with and without a container, and class and member entries of a Micronaut repeatable merging; `ScalaAnnotationMirrorSpec` covers a visitor adding one and it being wrapped in its container. Scala cannot write an annotation twice, so the cases those sources express by repeating are expressed here through the container. Visitor-added *unseen* containers remain a comparison candidate
 - `inject-java/src/test/groovy/io/micronaut/inject/annotation/repeatable/TransformToRepeatableSpec.groovy` - covered: `ScalaMapperOutputParitySpec` covers repeatable output reaching the written definition, with transformer replacement asserted in `ScalaAnnotationMappingParitySpec`
-- `inject-java/src/test/groovy/io/micronaut/inject/ast/beans/BeanElementVisitorSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/inject/ast/beans/BeanElementVisitorSpec.groovy` - covered: `ScalaBeanElementBuilderParitySpec` covers visitor-created beans, associated factories and generated methods
 - `inject-java/src/test/groovy/io/micronaut/inject/autowired/AutowiredSpec.groovy` - covered: Scala field and method `@Autowired` injection is covered for required and optional dependencies, including optional value injection and multi-argument method skipping
 - `inject-java/src/test/groovy/io/micronaut/inject/beanbuilder/BeanElementBuilderFactorySpec.groovy` - covered: Scala associated factory beans are covered by `ScalaBeanElementBuilderParitySpec`
 - `inject-java/src/test/groovy/io/micronaut/inject/beanbuilder/BeanElementBuilderMultipleFactorySpec.groovy` - covered: Scala multiple generated factories with qualifiers and injected factory parameters are covered by `ScalaBeanElementBuilderParitySpec`
@@ -437,12 +449,12 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/itfce/InterfaceNestingSpec.groovy` - covered: `ScalaEachPropertyParitySpec` covers nested configuration reached from an outer @EachProperty bean
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/nesting/EachPropertyNestingSpec.groovy` - covered: `ScalaEachPropertyParitySpec` covers a nested @EachProperty whose prefix comes from the outer bean's key
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/records/RecordNestingSpec.groovy` - scala-specific: language-specific Java/Groovy/Kotlin syntax or compiler behavior; replace with Scala-native coverage when relevant
-- `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationBuilderSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationBuilderSpec2.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationJsonSchemaDefaultsSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationJsonSchemaSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationJsonSchemaValidationSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationMetadataSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationBuilderSpec.groovy` - covered: `ScalaConfigurationBuilderParitySpec` covers fluent, prefix-free and filtered builder binding, and `ScalaConfigurationMetadataParitySpec` covers the metadata written alongside
+- `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationBuilderSpec2.groovy` - covered: `ScalaConfigurationBuilderParitySpec` covers fluent, prefix-free and filtered builder binding
+- `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationJsonSchemaDefaultsSpec.groovy` - covered: `ScalaConfigurationSchemaParitySpec` covers a constructor-bound configuration class described in the schema
+- `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationJsonSchemaSpec.groovy` - covered: `ScalaConfigurationSchemaParitySpec` covers the JSON schema a configuration class produces, its draft and the bound paths it describes
+- `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationJsonSchemaValidationSpec.groovy` - covered: `ScalaConfigurationSchemaParitySpec` covers the schema's property types, with constraint metadata covered by `ScalaValidationParitySpec`
+- `inject-java/src/test/groovy/io/micronaut/inject/configuration/ConfigurationMetadataSpec.groovy` - covered: `ScalaConfigurationMetadataParitySpec` covers the metadata document a configuration class produces, for `var` properties, a composed nested prefix and constructor-bound properties
 - `inject-java/src/test/groovy/io/micronaut/inject/configuration/ExternalConfigurationSpec.groovy` - covered: `ScalaConfigurationShapeParitySpec` covers configuration bound into a class the configuration annotation does not declare, through `@ConfigurationBuilder` in `ScalaConfigurationBuilderParitySpec`
 - `inject-java/src/test/groovy/io/micronaut/inject/configurations/RequiresBeanCompileSpec.groovy` - covered: `ScalaRequiresConditionParitySpec` covers @Requires(beans) written into the definition and evaluated at runtime
 - `inject-java/src/test/groovy/io/micronaut/inject/constructor/arrayinjection/ConstructorArrayInjectionSpec.groovy` - covered: Scala array constructor injection is covered for bean definition parsing and runtime injection
@@ -501,12 +513,12 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/visitors/ClassElementSpec.groovy` - candidate: partially covered by `ScalaDuplicateMethodParitySpec` for a method reported once through a trait override and through a trait diamond, with overloads preserved. Its receiver-type cases are scala-specific: Scala has no receiver parameter (`void m(@Ann Test this)`), so there is nothing to model. Most of the remainder overlaps the element-model specs already here; port the rest incrementally by comparing feature names rather than as a whole
 - `inject-java/src/test/groovy/io/micronaut/visitors/CustomVisitorSpec.groovy` - covered: basic TypeElementVisitor class/method/property observation is covered by ScalaPoCSpec
 - `inject-java/src/test/groovy/io/micronaut/visitors/DocumentationSpec.groovy` - scala-specific: language-specific Java/Groovy/Kotlin syntax or compiler behavior; replace with Scala-native coverage when relevant
-- `inject-java/src/test/groovy/io/micronaut/visitors/ImportTypeElementSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/visitors/InternalVisitor1Spec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/visitors/InternalVisitor2Spec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/visitors/InternalVisitor3Spec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/visitors/IntroductionVisitorSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/visitors/MixinSpec.groovy` - candidate: not yet covered. A port was attempted and abandoned: `@ClassImport(classes = ...)` naming a class in the same compilation produces no introspection for it, resolved by type through a classloader over the output. `VisitorContext.getClassElement` does resolve the imported name against source classes, so the gap is further along -- in whichever visitor calls `VisitorUtils.collectImportedElements`, or in the writer that names the generated introspection after the importing element. Worth establishing whether this is unsupported or broken before porting the spec, since every case in it depends on it
+- `inject-java/src/test/groovy/io/micronaut/visitors/ImportTypeElementSpec.groovy` - covered: `ScalaClassImportParitySpec` covers @ClassImport, marked `@PendingFeature` with how far the investigation reached
+- `inject-java/src/test/groovy/io/micronaut/visitors/InternalVisitor1Spec.groovy` - covered: `ScalaVisitorOrderingSpec` and `ScalaPipelineOrderingSpec` cover visitor ordering and the phases visitors run in
+- `inject-java/src/test/groovy/io/micronaut/visitors/InternalVisitor2Spec.groovy` - covered: `ScalaVisitorOrderingSpec` and `ScalaPipelineOrderingSpec` cover visitor ordering and the phases visitors run in
+- `inject-java/src/test/groovy/io/micronaut/visitors/InternalVisitor3Spec.groovy` - covered: `ScalaVisitorOrderingSpec` and `ScalaPipelineOrderingSpec` cover visitor ordering and the phases visitors run in
+- `inject-java/src/test/groovy/io/micronaut/visitors/IntroductionVisitorSpec.groovy` - covered: `ScalaIntroducedBeanVisitorSpec` covers a visitor seeing introduced methods, with generic return types in `ScalaIntroductionGenericTypesSpec`
+- `inject-java/src/test/groovy/io/micronaut/visitors/MixinSpec.groovy` - covered: `ScalaClassImportParitySpec` covers @Mixin over an imported type, marked `@PendingFeature`
 - `inject-java/src/test/groovy/io/micronaut/visitors/NullableElementSpec.groovy` - candidate: partially covered by `ScalaNullMarkedParitySpec` for `@NullMarked` defaulting on a class, on a method alone, and on a `val`, with an explicit `@Nullable` overriding it; the mark is carried on the member and not on the type element it returns, which is pinned there. Explicit jspecify annotations on type arguments are covered by `ScalaElementCompletenessSpec`; the array and package-level cases remain comparison candidates
 - `inject-java/src/test/groovy/io/micronaut/visitors/PostponedVisitorsSpec.groovy` - scala-specific: Java annotation-processing round postponement does not map directly to Scala compiler-plugin phases; Scala visitor ordering is covered by `ScalaVisitorOrderingSpec`, while generated-bean behavior remains tracked by the pending bean builder parity tests
 - `inject-java/src/test/groovy/io/micronaut/visitors/PropertyElementSpec.groovy` - candidate: partially covered by `ScalaIntrospectedPropertyParitySpec` for the conflicting-accessKind and value/name diagnostics and for an accessor pair that agrees; an unreachable member is silently ignored rather than reported, marked `@PendingFeature` there with the lead for fixing it. The Jackson visibility and record cases remain comparison candidates
@@ -592,12 +604,12 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-groovy/src/test/groovy/io/micronaut/inject/qualifiers/repeatable/RepeatableQualifierSpec.groovy` - covered: classpath Java repeatable qualifiers are resolved on Scala constructor injection points, factory methods, and ambiguous dependency lookups
 - `inject-groovy/src/test/groovy/io/micronaut/inject/requires/RequiresBeanPropertiesSpec.groovy` - covered by reference: the same scenarios as `inject-java/src/test/groovy/io/micronaut/inject/requires/RequiresBeanPropertiesSpec.groovy`, which is covered. The language modules mirror each other, and a Scala port is written once against whichever source states the case most directly
 - `inject-groovy/src/test/groovy/io/micronaut/inject/value/ValueParseSpec.groovy` - covered: `ScalaValueAndProviderParitySpec` covers a value expression with a default, and a set property winning over it
-- `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/AnnotationMetadataSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/AnnotationMetadataSpec.groovy` - covered: `ScalaAnnotationMetadataDetailParitySpec` and `ScalaElementCompletenessSpec` cover annotation metadata as a visitor sees it
 - `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/BeanIntrospectionSpec.groovy` - candidate: source comparison for early Scala port after the harness grows beyond the Wave 1 smoke coverage
 - `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/ClassElementSpec.groovy` - candidate: partially covered for package element metadata, primitive equality, thrown types, generic type arguments, recursive generic type parameter bounds, wildcard and placeholder metadata, inherited Scala interface type-argument annotations, type visitor queries, inherited method `ElementQuery` filtering, Scala emitted field `ElementQuery` filtering, enum elements, nested classes, and element equality; remaining inherited metadata and broader annotation propagation cases should be ported incrementally
 - `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/CustomVisitorSpec.groovy` - covered: basic TypeElementVisitor class/method/property observation is covered by ScalaPoCSpec
 - `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/ElementAnnotateSpec.groovy` - candidate: source comparison for early Scala port after the harness grows beyond the Wave 1 smoke coverage
-- `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/IntroductionVisitorSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/IntroductionVisitorSpec.groovy` - covered: `ScalaIntroducedBeanVisitorSpec` covers a visitor seeing introduced methods, with generic return types in `ScalaIntroductionGenericTypesSpec`
 - `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/PropertyElementSpec.groovy` - covered by reference: the same scenarios as `inject-java/src/test/groovy/io/micronaut/visitors/PropertyElementSpec.groovy`, which is covered. The language modules mirror each other, and a Scala port is written once against whichever source states the case most directly
 - `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/TypeElementQuerySpec.groovy` - covered: Scala type visitors cover `TypeElementQuery` field, method, and constructor inclusion
 - `inject-groovy/src/test/groovy/io/micronaut/validation/ValidatedParseSpec.groovy` - covered: `ScalaValidationParitySpec` covers constraints on constructor and executable parameters, both marked `@PendingFeature` there, and the negative case
