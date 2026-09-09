@@ -497,7 +497,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/inject/requires/RequiresSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/scope/DefaultScopeSpec.groovy` - covered: source-defined default scope, explicit scope override, factory method override, and unscoped `@Bean` factory method variants are covered
 - `inject-java/src/test/groovy/io/micronaut/inject/value/factorywithvalue/FactoryWithValueSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/visitors/ClassElementAnnotationsRetaining.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/visitors/ClassElementAnnotationsRetaining.groovy` - covered: `ScalaPropertyAnnotationRetentionSpec` covers a type-argument annotation reaching the property from a `var`, from the reader of a hand-written accessor pair and from a read-only `val`, and a plain annotation on the member
 - `inject-java/src/test/groovy/io/micronaut/visitors/ClassElementSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/visitors/CustomVisitorSpec.groovy` - covered: basic TypeElementVisitor class/method/property observation is covered by ScalaPoCSpec
 - `inject-java/src/test/groovy/io/micronaut/visitors/DocumentationSpec.groovy` - scala-specific: language-specific Java/Groovy/Kotlin syntax or compiler behavior; replace with Scala-native coverage when relevant
