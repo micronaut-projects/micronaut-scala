@@ -56,6 +56,8 @@ import io.micronaut.scala.processing.visitor.ScalaProcessingEngine
 import io.micronaut.scala.processing.visitor.ScalaPropertyData
 import io.micronaut.scala.processing.visitor.ScalaTypeData
 
+import dotty.tools.io.JarArchive
+
 import java.io.File
 import java.net.URL
 import java.net.URLClassLoader
@@ -204,6 +206,8 @@ final class MicronautScalaCompilerPluginImpl:
 private final class ProcessingState(options: JMap[String, String]):
 
   private var engine: ScalaProcessingEngine | Null = null
+  private var outputReported = false
+  private var outputUsable = true
 
   def addClasses(classes: List[ScalaClassData])(using ctx: Context): Unit =
     try
@@ -213,18 +217,50 @@ private final class ProcessingState(options: JMap[String, String]):
         reportProcessingException(exception)
 
   def processTypeVisitors()(using ctx: Context): Unit =
+    if !usableOutput then
+      return
     try
       engineInstance.processTypeVisitors()
     catch
       case exception: ProcessingException =>
         reportProcessingException(exception)
 
+  /**
+   * Whether the compiler's output can be written to at all, reported once.
+   *
+   * `-d` may name a jar, which scalac supports and this plugin does not: generated classes
+   * go through `java.io.File`, not the compiler's `AbstractFile`. Without this the plugin
+   * ran anyway and died inside the writer with
+   * `ClassGenerationException: Unable to generate Bean entry at path: META-INF/micronaut/...`,
+   * a crash report rather than a diagnostic. Reporting is not enough on its own -- the engine
+   * is constructed lazily inside the generating phase, by which point the phase's own
+   * runnability has already been decided -- so processing is skipped outright.
+   */
+  private def usableOutput(using ctx: Context): Boolean =
+    if outputReported then
+      outputUsable
+    else
+      outputReported = true
+      val value = ctx.settings.outputDir.valueIn(ctx.settingsState)
+      // Detected by type, not by path or `isDirectory`, because neither says what it looks
+      // like it says: for `-d out.jar` the setting is a `JarArchive` whose `path` is "/" and
+      // whose `isDirectory` is true. The plugin was therefore not writing "into a directory
+      // beside the jar" as this was first described -- it was writing to the filesystem root.
+      outputUsable = !value.isInstanceOf[JarArchive]
+      if !outputUsable then
+        report.error(
+          "micronaut-scala cannot write to an archive output. " +
+            "Compile to a directory with -d and package it afterwards."
+        )
+      outputUsable
+
   def processBeanDefinitions()(using ctx: Context): Unit =
-    try
-      engineInstance.processBeanDefinitions()
-    catch
-      case exception: ProcessingException =>
-        reportProcessingException(exception)
+    if usableOutput then
+      try
+        engineInstance.processBeanDefinitions()
+      catch
+        case exception: ProcessingException =>
+          reportProcessingException(exception)
 
   private def engineInstance(using ctx: Context): ScalaProcessingEngine =
     var current = engine
@@ -241,10 +277,12 @@ private final class ProcessingState(options: JMap[String, String]):
       engine = current
     current
 
+  /** The directory generated classes are written to; see `usableOutput`. */
   private def outputDirectory(using ctx: Context): File =
     val value = ctx.settings.outputDir.valueIn(ctx.settingsState)
     val output = File(value.path)
-    output.mkdirs()
+    if !output.isDirectory && !output.mkdirs() && !output.isDirectory then
+      report.error(s"micronaut-scala could not create the output directory '${output.getPath}'")
     output
 
   private def classpath(using ctx: Context): List[File] =

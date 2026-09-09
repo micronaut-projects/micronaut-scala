@@ -710,8 +710,19 @@ written for definitions that *were* generated. Conversely, visitor errors that
 only report (without throwing) let generation proceed for a compilation that has
 already failed.
 
-**Fix.** Check `ctx.reporter.hasErrors` before generating, and always run
-`context.finish()` in a `finally`.
+**Fix — the `finally` half is done; the phase-skipping half is correct as it is.**
+`context.finish()` and `BeanDefinitionWriter.finish()` now run in a `finally`, so
+a definition cannot be left on disk without the service descriptor that makes it
+visible.
+
+The rest of the finding rests on a premise that B1's fix removed. Visitor errors
+are now reported without throwing, so `processBeanDefinitions()` is no longer
+skipped by an escaping throw. What remains is dotty's own rule — `Phase.isRunnable`
+is `!ctx.reporter.hasErrors` (`dotty/tools/dotc/core/Phases.scala:348`), so
+`BeanDefinitionPhase` does not run once anything has reported an error. That is the
+behaviour this finding asks for in its second half: generation should not proceed
+for a compilation that has already failed. No `hasErrors` check is needed, because
+the compiler already applies one.
 
 ### B4 (MAJOR) Classloader and file-handle leaks
 
@@ -790,8 +801,21 @@ snapshot.
 which case generated definitions and `META-INF/services` never enter the jar and
 the application silently has no beans. The `mkdirs()` result is ignored.
 
-**Fix.** Detect a jar/virtual output and either write through the compiler's
-`AbstractFile` API or fail with a clear message.
+**Fix — done, and the finding's description of the symptom is wrong.** Measured
+with `dotc -d out.jar`: the setting is a `dotty.tools.io.JarArchive` whose `path`
+is `"/"` and whose `isDirectory` is `true`. So the plugin was not writing "into a
+directory beside the jar" — `File("/")` is the **filesystem root** — and neither a
+name check nor an `isDirectory` check detects the case. Both were tried first and
+both silently passed.
+
+Nor is it silent: the compilation dies with
+`ClassGenerationException: Unable to generate Bean entry at path:
+META-INF/micronaut/...`, presented as a compiler crash report.
+
+An archive output is now detected by type and processing is skipped with a clear
+message. Skipping matters as much as reporting: the engine is constructed lazily
+inside the generating phase, so reporting alone came too late to stop that same
+phase, which is how the first attempt still crashed.
 
 ### B10 (MAJOR) No incremental-compilation story
 
@@ -1929,8 +1953,11 @@ D2.
     different generation phase, neither of which is small; the behaviour and its
     workaround are documented instead.
 27. Multi-Scala-variant build layout (D8).
-28. Visitor dispatch order and the remaining engine hygiene items (B1, B2, B3,
-    B6, B7, B8, B9).
+28. **Done.** Visitor dispatch order and the engine hygiene items (B1, B2, B3, B6,
+    B7, B8, B9). Two of the seven turned out to be partly misdescribed: B3's
+    phase-skipping half is already correct behaviour that dotty enforces, and B9's
+    symptom is a crash writing to the filesystem root rather than a silent write
+    beside the jar.
 
 ---
 

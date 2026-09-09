@@ -216,12 +216,30 @@ public final class ScalaProcessingEngine {
         // change to the phase wiring can violate it. processTypeVisitors() is idempotent.
         processTypeVisitors();
         ScalaVisitorContext context = visitorContext();
+        try {
+            generateBeanDefinitions(context);
+        } finally {
+            // Always, even if generation threw. Service descriptors are written here, and a
+            // definition on disk without its descriptor is a bean the runtime cannot see.
+            context.finish();
+            BeanDefinitionWriter.finish();
+        }
+    }
+
+    private void generateBeanDefinitions(ScalaVisitorContext context) {
         startBeanElementVisitors(context);
         for (ScalaClassData classData : classSnapshot()) {
             if (classData.name().endsWith(BeanDefinitionVisitor.PROXY_SUFFIX)) {
                 continue;
             }
-            ClassElement classElement = context.sourceClassElement(classData.name()).orElseThrow();
+            Optional<ScalaClassElement> resolved = context.sourceClassElement(classData.name());
+            if (resolved.isEmpty()) {
+                // Was `orElseThrow()`: a bare NoSuchElementException naming nothing, surfacing
+                // as a compiler crash rather than a diagnostic.
+                context.reportError("No source element for [" + classData.name() + "]; it was collected but cannot be resolved", null);
+                continue;
+            }
+            ClassElement classElement = resolved.get();
             if (classElement.hasAnnotation(Vetoed.class) || classElement.hasAnnotation(Generated.class)) {
                 continue;
             }
@@ -244,8 +262,6 @@ public final class ScalaProcessingEngine {
         }
         finishBeanElementVisitors(context);
         writeBeanDefinitionBuilders(context);
-        context.finish();
-        BeanDefinitionWriter.finish();
     }
 
     private void writeBeanDefinitionBuilders(ScalaVisitorContext context) {
