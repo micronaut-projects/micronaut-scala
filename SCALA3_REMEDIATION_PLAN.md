@@ -1935,9 +1935,10 @@ a separate zero-argument `<method>$default$<n>` getter per defaulted parameter
 so implementing the Kotlin interface here would make Core generate calls to
 methods that do not exist.
 
-**The SPI now exists in Core, on a branch.** The investigation opened against
-micronaut-core landed as `origin/claude/quizzical-panini-49fd3c`, and it is exactly
-the shape this item asked for, in two parts:
+**The SPI is in Core and merged.** The investigation opened against micronaut-core
+landed as **micronaut-core#13041, "Support default parameters for languages other
+than Kotlin"**, and is on `5.2.x`. It is exactly the shape this item asked for, in
+two parts:
 
 - `ParameterElement.hasDefault()` reports only that a default *exists*. How the
   value is obtained is deliberately not part of that contract.
@@ -1953,13 +1954,12 @@ and Core carries a `TestScalaLikeDefaultValueProvider` that is a working bluepri
 `supports` is an `instanceof` against the language's own parameter element, and
 `defaultValueExpression` returns the accessor call.
 
-**Still blocked, but only on merge order.** The work sits on an unmerged branch;
-`checkouts/micronaut-core`, which this build compiles against, is at `367fe9d6a4`
-and has neither `hasDefault()` nor the provider. Implementing against it now would
-not compile here.
+**Ready to implement, once the pinned checkout moves.** `checkouts/micronaut-core`
+is at `367fe9d6a4`, which predates the merge and has neither `hasDefault()` nor the
+provider, so implementing against it today would not compile here. Moving that
+checkout forward is the only prerequisite left.
 
-**Come back when:** that branch merges to `5.2.x`. The work here is then three
-pieces, all small:
+The work is then three pieces, all small:
 
 1. Recognise the `$default$` getters in the extractor and record per parameter
    whether one exists. Scala emits a zero-argument `<method>$default$<n>` per
@@ -1992,7 +1992,10 @@ than the error.
 **Blocked on:** Core recognising language-specific optional containers -- either
 `isOptional()` consulting a registry of empty-value types (`scala.Option`,
 `io.vavr.control.Option`, and so on), or a resolution hook that lets a converter
-produce the empty value for an absent property.
+produce the empty value for an absent property. **An investigation is open against
+micronaut-core**, framed to allow the conclusion that Core should not change:
+`isOptional()` is public API on `TypeInformation` with callers beyond the
+property-resolution path, so widening it is not obviously safe.
 
 **Come back when:** that changes. Nothing further is needed in this repository;
 the converters are in place. Re-enable the `absent` case noted in
