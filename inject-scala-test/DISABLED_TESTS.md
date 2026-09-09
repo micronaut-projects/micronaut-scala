@@ -455,7 +455,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/inject/factory/ExecutableAnnotationOnFactorySpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/factory/FactoryBeanDefinitionSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/factory/FactoryOfBeanWithUnresolvedClassSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/factory/beanfield/FactoryBeanFieldSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/inject/factory/beanfield/FactoryBeanFieldSpec.groovy` - candidate: partially covered by `ScalaFactoryFieldParitySpec` for beans produced from Scala `val` and `var` factory fields, qualifier and primary resolution, and the identity a field bean gives regardless of declared scope; the AOP-on-primitive compilation errors, scope/qualifier override matrix and preDestroy cases remain comparison candidates
 - `inject-java/src/test/groovy/io/micronaut/inject/factory/beanfield/FactoryFieldArraySpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/factory/beanmethod/FactoryBeanMethodSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/factory/collection/FactoryArraySpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
