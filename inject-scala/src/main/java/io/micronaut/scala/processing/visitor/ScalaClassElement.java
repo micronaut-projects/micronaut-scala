@@ -41,6 +41,7 @@ import io.micronaut.inject.ast.utils.AstBeanPropertiesUtils;
 import org.jspecify.annotations.Nullable;
 
 import java.io.Serializable;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -669,12 +670,14 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         Set<MethodSignature> signatures = new HashSet<>();
         data.methods().forEach(method -> addMethodElement(method, this, signatures, elements));
         if (!result.isOnlyDeclared()) {
-            Set<String> visited = new HashSet<>();
             Set<MethodSignature> inheritedSignatures =
                 result.isIncludeOverriddenMethods() ? new HashSet<>() : signatures;
-            collectInheritedMethods(data.superType(), inheritedSignatures, elements, visited);
-            data.interfaces().forEach(interfaceType ->
-                collectInheritedMethods(interfaceType, inheritedSignatures, elements, visited));
+            List<ScalaTypeData> roots = new ArrayList<>();
+            if (data.superType() != null) {
+                roots.add(data.superType());
+            }
+            roots.addAll(data.interfaces());
+            collectInheritedMethods(roots, inheritedSignatures, elements);
         }
     }
 
@@ -702,27 +705,48 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
     }
 
     private void collectInheritedMethods(
-        @Nullable ScalaTypeData type,
+        List<ScalaTypeData> roots,
         Set<MethodSignature> signatures,
-        List<Element> elements,
-        Set<String> visited) {
-        if (type == null || !visited.add(type.name())) {
-            return;
+        List<Element> elements) {
+        // Level order, not depth first. A signature is recorded the first time the walk meets
+        // it, so the order decides which declaration of an overridden method is reported. Depth
+        // first descends one parent to the top before looking at the next, so in
+        // `C extends P1, P2` where P2 narrows a method P1 inherits, it reached the base
+        // declaration through P1 before ever reaching P2's override, and reported the widened
+        // return type. Walking by distance instead meets every direct parent before any
+        // grandparent, and an override always sits nearer the queried class than what it
+        // overrides.
+        ArrayDeque<ScalaTypeData> queue = new ArrayDeque<>(roots);
+        Set<String> visited = new HashSet<>();
+        while (!queue.isEmpty()) {
+            ScalaTypeData type = queue.poll();
+            if (type == null || !visited.add(type.name())) {
+                continue;
+            }
+            Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(type.name());
+            if (sourceElement.isEmpty()) {
+                collectClasspathMethods(type.name(), signatures, elements);
+                continue;
+            }
+            ScalaClassElement inheritedElement = sourceElement.get();
+            ScalaClassData inheritedData = inheritedElement.classData;
+            if (inheritedData == null) {
+                continue;
+            }
+            Map<String, ScalaTypeData> substitutions = type.typeArguments();
+            inheritedData.methods().forEach(method ->
+                addMethodElement(substitute(method, substitutions), inheritedElement, signatures, elements));
+            ScalaTypeData superType = substitute(inheritedData.superType(), substitutions);
+            if (superType != null) {
+                queue.add(superType);
+            }
+            inheritedData.interfaces().forEach(interfaceType -> {
+                ScalaTypeData substituted = substitute(interfaceType, substitutions);
+                if (substituted != null) {
+                    queue.add(substituted);
+                }
+            });
         }
-        Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(type.name());
-        if (sourceElement.isEmpty()) {
-            collectClasspathMethods(type.name(), signatures, elements);
-            return;
-        }
-        ScalaClassElement inheritedElement = sourceElement.get();
-        ScalaClassData inheritedData = inheritedElement.classData;
-        if (inheritedData == null) {
-            return;
-        }
-        Map<String, ScalaTypeData> substitutions = type.typeArguments();
-        inheritedData.methods().forEach(method -> addMethodElement(substitute(method, substitutions), inheritedElement, signatures, elements));
-        collectInheritedMethods(substitute(inheritedData.superType(), substitutions), signatures, elements, visited);
-        inheritedData.interfaces().forEach(interfaceType -> collectInheritedMethods(substitute(interfaceType, substitutions), signatures, elements, visited));
     }
 
     /**
