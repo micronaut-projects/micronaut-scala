@@ -45,6 +45,7 @@ include 'inject-scala-compiler-lts'
 include 'inject-scala-test'
 include 'inject-scala-test-compiler'
 include 'runtime-scala'
+include 'test-suite-scala'
 include 'micronaut-scala-bom'
 
 // The compiler plugin API is not binary compatible across compiler releases, so

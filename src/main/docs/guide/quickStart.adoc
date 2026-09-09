@@ -65,6 +65,37 @@ version participates in the artifact coordinate. Mill builds should use the
 full-cross `:::` dependency syntax. In both tools, select the integration
 version independently from the Scala compiler version.
 
+== Writing beans
+
+Nothing about a bean is Scala-specific: `@Singleton` on a class makes it a bean, and
+its constructor parameters are injected.
+
+snippet::io.micronaut.docs.helloworld.Translator[source=main,language=scala,tags=clazz]
+
+snippet::io.micronaut.docs.helloworld.GreetingService[source=main,language=scala,tags=clazz]
+
+`ApplicationContext.run().getBean(classOf[GreetingService])` then returns a
+`GreetingService` with its `Translator` supplied.
+
+=== Configuration properties
+
+A `@ConfigurationProperties` class binds its constructor parameters from configuration.
+Scala's own types work here, which is what `micronaut-runtime-scala` provides: a
+`List[Int]` binds from a list-valued property, and an `Option[String]` binds to `None`
+when the property is absent rather than failing the bean.
+
+snippet::io.micronaut.docs.config.EngineConfiguration[source=main,language=scala,tags=clazz]
+
+=== Introspection
+
+`@Introspected` on a case class generates a reflection-free introspection over its
+parameters, which is what serialization and validation read.
+
+snippet::io.micronaut.docs.introspection.Book[source=main,language=scala,tags=clazz]
+
+NOTE: These examples live in `test-suite-scala` and are compiled by this repository's
+build and executed by its tests, so what is printed above is code that runs.
+
 == Compiler compatibility
 
 Do not replace `_3.9.0` with a binary Scala line suffix. Compiler plugin APIs

@@ -22,6 +22,13 @@ two source projects apply only the `base` plugin and publish nothing.
 - `inject-scala-test-compiler/` — compiles the `inject-scala-test` source trees,
   publishes `micronaut-inject-scala-test_<scalaVersion>`, and **runs the test
   suite**.
+- `runtime-scala/` — the application-side converters, published as
+  `micronaut-runtime-scala`.
+- `test-suite-scala/` — the guide's Scala examples, in `src/main/scala`, compiled
+  by the plugin and run by `src/test/groovy`. `snippet::` in the guide resolves
+  against this directory name and `source=main`, so neither can be renamed on its
+  own. Its Gradle project name is `:test-suite-scala`, without the `micronaut-`
+  prefix the other projects carry.
 - `micronaut-scala-bom/` — the published platform.
 
 The Scala compiler version comes from one place, `gradle/libs.versions.toml`
@@ -58,9 +65,13 @@ select a different Core branch, use `-PmicronautCoreBranch=<branch>`.
 - `./gradlew publishGuide` (or `pG`) after guide or `toc.yml` changes;
   `./gradlew docs` when Javadoc output matters.
 
-There is no `doc-examples/` module and there are no native or Testcontainers
-tests. The test harness runs `dotty.tools.dotc.Main` in-process; Docker is
-needed only by the vulnerability-audit script.
+Guide examples live in `test-suite-scala/`, not in a `doc-examples/` module, and
+the guide includes them with `snippet::` rather than pasting them. Adding one
+means adding the source under `src/main/scala`, tagging the region, and covering
+it in `GuideExamplesSpec` — a snippet that compiles but never runs only proves
+the source parses. There are no native or Testcontainers tests. The test harness
+runs `dotty.tools.dotc.Main` in-process; Docker is needed only by the
+vulnerability-audit script.
 
 ## Working On The Plugin
 
