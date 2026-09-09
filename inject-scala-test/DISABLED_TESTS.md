@@ -475,10 +475,10 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/inject/generics/TypeArgumentsSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/inheritance/AbstractInheritanceSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/injectscope/InjectScopeSpec.groovy` - covered: Scala constructor and method parameters support `@InjectScope` scoped dependency cleanup
-- `inject-java/src/test/groovy/io/micronaut/inject/lifecycle/PostConstructCompileSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/lifecycle/PreDestroyCompileSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/lifecycle/beanwithpostconstruct/BeanWithPostConstructSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/lifecycle/beanwithprivatepostconstruct/BeanWithPostConstructSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/inject/lifecycle/PostConstructCompileSpec.groovy` - covered: `ScalaLifecycleHookParitySpec` covers an inherited hook and a declared one each running once, and a trait's hook running on the class that mixes it in
+- `inject-java/src/test/groovy/io/micronaut/inject/lifecycle/PreDestroyCompileSpec.groovy` - covered: `ScalaLifecycleHookParitySpec` covers destruction running at shutdown and not before, for a hook a trait declares
+- `inject-java/src/test/groovy/io/micronaut/inject/lifecycle/beanwithpostconstruct/BeanWithPostConstructSpec.groovy` - covered: `ScalaLifecycleHookParitySpec` covers a private post-construct hook being invoked
+- `inject-java/src/test/groovy/io/micronaut/inject/lifecycle/beanwithprivatepostconstruct/BeanWithPostConstructSpec.groovy` - covered: `ScalaLifecycleHookParitySpec` covers a private post-construct hook being invoked
 - `inject-java/src/test/groovy/io/micronaut/inject/method/arrayinjection/SetterArrayInjectionSpec.groovy` - covered: `ScalaInjectionShapeParitySpec` covers an array collected into a setter
 - `inject-java/src/test/groovy/io/micronaut/inject/method/builderinjection/BuilderStyleInjectionSpec.groovy` - covered: `ScalaInjectionShapeParitySpec` covers a builder-style setter that does not return void
 - `inject-java/src/test/groovy/io/micronaut/inject/method/qualifierinjection/SetterWithQualifierSpec.groovy` - covered: `ScalaInjectionShapeParitySpec` covers a qualifier on a setter parameter
@@ -583,8 +583,8 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-groovy/src/test/groovy/io/micronaut/inject/generics/GenericTypeArgumentsSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-groovy/src/test/groovy/io/micronaut/inject/generics/TypeArgumentsSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-groovy/src/test/groovy/io/micronaut/inject/inheritance/AbstractInheritanceSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-groovy/src/test/groovy/io/micronaut/inject/lifecyle/BeanWithPreDestroySpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-groovy/src/test/groovy/io/micronaut/inject/lifecyle/PostConstructCompileSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-groovy/src/test/groovy/io/micronaut/inject/lifecyle/BeanWithPreDestroySpec.groovy` - covered: `ScalaLifecycleHookParitySpec` covers destruction running at shutdown and not before
+- `inject-groovy/src/test/groovy/io/micronaut/inject/lifecyle/PostConstructCompileSpec.groovy` - covered: `ScalaLifecycleHookParitySpec` covers an inherited hook and a declared one each running once, and a trait's hook running on the class that mixes it in
 - `inject-groovy/src/test/groovy/io/micronaut/inject/lifecyle/PreDestroyOnBeanAnnotationSpec.groovy` - covered by reference: the same scenarios as `inject-java/src/test/groovy/io/micronaut/inject/factory/lifecycle/PreDestroyOnBeanAnnotationSpec.groovy`, which is covered. The language modules mirror each other, and a Scala port is written once against whichever source states the case most directly
 - `inject-groovy/src/test/groovy/io/micronaut/inject/property/PropertyWithQualifierSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-groovy/src/test/groovy/io/micronaut/inject/qualifiers/MultipleQualifiersSpec.groovy` - covered: `ScalaQualifierParitySpec` covers a point requiring every qualifier it declares
