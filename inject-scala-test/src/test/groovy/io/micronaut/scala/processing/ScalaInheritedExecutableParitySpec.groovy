@@ -15,6 +15,7 @@
  */
 package io.micronaut.scala.processing
 
+import io.micronaut.context.annotation.Executable
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
 
 /**
@@ -109,5 +110,33 @@ class StatusController extends GenericOperations[String]:
         then: 'a trait is an interface, so the bridge lands on the class implementing it'
         executables.findAll { it.methodName == 'save' }.size() == 1
         executables.find { it.methodName == 'save' }.argumentTypes as List == [String]
+    }
+
+    void "takes an annotation from the abstract trait member a method implements"() {
+        when: '''@Executable is on the trait declaration and the class only overrides it. Nothing is
+                 inherited whole here: an abstract member has no body to carry down, so the
+                 annotation reaches the implementation only if the declarations a method
+                 overrides are part of its annotation hierarchy'''
+        def definition = buildBeanDefinition('inheritedexec.Service', '''
+package inheritedexec
+
+import io.micronaut.context.annotation.Executable
+import jakarta.inject.Singleton
+
+trait Operations:
+  @Executable
+  def hello(): String
+
+@Singleton
+class Service extends Operations:
+  override def hello(): String = "hi"
+''')
+
+        then:
+        definition.executableMethods*.methodName == ['hello']
+
+        and: 'and it arrives as inherited rather than as something the class declared'
+        !definition.getRequiredMethod('hello').hasDeclaredAnnotation(Executable)
+        definition.getRequiredMethod('hello').hasAnnotation(Executable)
     }
 }

@@ -861,8 +861,43 @@ private object ScalaModelExtractor:
       methodAnnotations.asJava,
       modifiers(method.symbol).asJava,
       constructor,
-      method
+      method,
+      (if constructor then Nil else overriddenMethods(method.symbol)).asJava
     )
+
+  /**
+   * The declarations a method overrides, least specific first.
+   *
+   * An annotation on an overridden declaration belongs to the override too -- core's Java module
+   * puts the overridden methods in the annotation hierarchy ahead of the method itself, so they
+   * arrive as inherited rather than declared. Nothing here did, and the hierarchy for a method
+   * was the method alone. A concrete trait method hid it, because the trait's own method is
+   * inherited whole and carries its annotations with it; an *abstract* trait method has nothing
+   * to inherit, so `@Executable` on one reached no implementation and the method was simply
+   * absent from the definition.
+   *
+   * The overridden data is built without its own overridden list: the walk is already transitive
+   * through `allOverriddenSymbols`, and recursing would rebuild the same declarations once per
+   * level.
+   */
+  private def overriddenMethods(symbol: Symbol)(using Context, AnnotationDefaults): List[ScalaMethodData] =
+    if symbol == Symbols.NoSymbol || !symbol.isTerm then
+      Nil
+    else
+      symbol.allOverriddenSymbols
+        .filter(overridden =>
+          overridden != Symbols.NoSymbol &&
+            overridden.isTerm &&
+            // Only declarations being compiled here. A classpath declaration's annotations reach
+            // an implementation through the loaded-element path instead, and modelling one from
+            // this side means reading annotation values the model has no representation for --
+            // a `@throws[Exception]` on an overridden library method reported four errors and
+            // failed the compilation outright.
+            overridden.owner.denot.symbol.source.exists &&
+            overridden.owner.denot.symbol.source == symbol.owner.denot.symbol.source)
+        .map(methodData)
+        .toList
+        .reverse
 
   private def methodData(symbol: Symbol)(using Context, AnnotationDefaults): ScalaMethodData =
     symbol.info match

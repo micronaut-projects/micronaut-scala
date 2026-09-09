@@ -43,10 +43,38 @@ public record ScalaMethodData(
     List<ScalaAnnotationData> annotations,
     Set<ElementModifier> modifiers,
     boolean constructor,
-    Object nativeType
+    Object nativeType,
+    List<ScalaMethodData> overriddenMethods
 ) implements ScalaAnnotatedElementData {
 
+    /**
+     * A method without the declarations it overrides, for the overridden ones themselves.
+     *
+     * @param name The method name
+     * @param returnType The return type
+     * @param parameters The parameters
+     * @param typeParameters The type parameters
+     * @param thrownTypes The declared thrown types
+     * @param annotations The annotations
+     * @param modifiers The modifiers
+     * @param constructor Whether this is a constructor
+     * @param nativeType The native Scala compiler object
+     */
+    public ScalaMethodData(
+        String name,
+        ScalaTypeData returnType,
+        List<ScalaParameterData> parameters,
+        List<ScalaTypeData> typeParameters,
+        List<ScalaTypeData> thrownTypes,
+        List<ScalaAnnotationData> annotations,
+        Set<ElementModifier> modifiers,
+        boolean constructor,
+        Object nativeType) {
+        this(name, returnType, parameters, typeParameters, thrownTypes, annotations, modifiers, constructor, nativeType, List.of());
+    }
+
     public ScalaMethodData {
+        overriddenMethods = overriddenMethods == null ? Collections.emptyList() : List.copyOf(overriddenMethods);
         parameters = parameters == null ? Collections.emptyList() : List.copyOf(parameters);
         typeParameters = typeParameters == null ? Collections.emptyList() : List.copyOf(typeParameters);
         thrownTypes = thrownTypes == null ? Collections.emptyList() : List.copyOf(thrownTypes);

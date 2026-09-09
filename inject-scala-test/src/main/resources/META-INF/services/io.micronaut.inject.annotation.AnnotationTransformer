@@ -1,1 +1,2 @@
+io.micronaut.scala.processing.test.annotation.ScalaInheritableSourceTransformer
 io.micronaut.scala.processing.test.annotation.ScalaTransformedSourceTransformer

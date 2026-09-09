@@ -148,6 +148,15 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
             populateClassHierarchy(classData, hierarchy, new HashSet<>());
             return hierarchy;
         }
+        if (element instanceof ScalaMethodData methodData && !methodData.overriddenMethods().isEmpty()) {
+            // The declarations this method overrides come first, so their annotations arrive as
+            // inherited rather than declared -- the order core's Java module builds for an
+            // ExecutableElement. Without them the hierarchy for a method was the method alone,
+            // and an annotation written on an abstract trait member reached no implementation.
+            List<Object> hierarchy = new ArrayList<>(methodData.overriddenMethods());
+            hierarchy.add(element);
+            return hierarchy;
+        }
         return new ArrayList<>(List.of(element));
     }
 
