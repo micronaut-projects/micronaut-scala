@@ -759,6 +759,49 @@ private object ScalaModelExtractor:
           )
           added.add(propertyName)
       }
+    properties ++= accessorPairProperties(methods, added)
+    properties.toList
+
+  /**
+   * Properties written as a pair of methods rather than as a `val` or `var`.
+   *
+   * `def size: Int` with `def size_=(v: Int): Unit` is how Scala spells a property whose
+   * storage is not a field -- computed, delegated, or backed by something the class does not
+   * own. Only field-backed members were assembled, so both halves were visible as ordinary
+   * methods and `@Introspected` exposed no property at all, while the equivalent `var` did.
+   *
+   * The pair is required. A lone `def size` stays a method: without a prefix to strip there is
+   * nothing to tell an accessor from any other no-argument method, and treating every one of
+   * them as a property would make a property out of `toString`. `@AccessorsStyle` remains the
+   * way to declare that prefix-free reads are accessors. A setter whose parameter type does not
+   * match the getter's return type is not a pair either -- it is an unrelated method that
+   * happens to be named for one.
+   */
+  private def accessorPairProperties(
+      methods: LinkedHashMap[String, ScalaMethodData],
+      added: LinkedHashSet[String]
+  ): List[ScalaPropertyData] =
+    val properties = ListBuffer.empty[ScalaPropertyData]
+    methods.asScala.foreach { (name, readMethod) =>
+      if !name.endsWith("_=") && !added.contains(name)
+        && !readMethod.modifiers().contains(ElementModifier.PRIVATE) then
+        val writeMethod = methods.get(name + "_=")
+        if writeMethod != null
+          && !writeMethod.modifiers().contains(ElementModifier.PRIVATE)
+          && writeMethod.parameters().size == 1
+          && writeMethod.parameters().get(0).`type`().name() == readMethod.returnType().name() then
+          properties += ScalaPropertyData(
+            name,
+            readMethod.returnType(),
+            readMethod,
+            writeMethod,
+            null,
+            propertyAnnotations(readMethod, null),
+            propertyModifiers(readMethod, writeMethod, null),
+            readMethod.nativeType()
+          )
+          added.add(name)
+    }
     properties.toList
 
   private def isPropertyDeclaration(symbol: Symbol, name: String)(using Context): Boolean =

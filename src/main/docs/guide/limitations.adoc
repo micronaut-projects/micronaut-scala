@@ -3,25 +3,6 @@ or has not been established either way.
 
 == Scala shapes not modelled
 
-=== Hand-written property pairs
-
-A property written in Scala's own convention is not assembled into a bean property:
-
-[source,scala]
-----
-class Holder {
-  def size: Int = ...            // not exposed as a property
-  def size_=(v: Int): Unit = ...
-}
-----
-
-Both halves are visible as ordinary methods, so `@Inject` on the setter still
-works and injection is unaffected. What is missing is the property itself, so
-`@Introspected` does not expose `size`. `val`/`var` members and JavaBean-style
-`getX`/`setX` pairs are both recognised; only the hand-written Scala pair is not.
-`@AccessorsStyle(readPrefixes = Array(""), writePrefixes = Array(""))` is the
-supported way to expose accessors that carry no prefix.
-
 === Generic detail on classpath types
 
 Two places report less detail than the Java and Kotlin integrations, without
