@@ -681,12 +681,22 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         List<ScalaTypeData> bounds = Arrays.stream(typeVariable.getBounds())
             .map(bound -> plainTypeData(erasedClass(bound, Object.class)))
             .toList();
+        // A type variable erases to its bound, and the bound is normally parameterized by the
+        // variable itself -- `E extends Enum<E>`. Modelling that literally does not terminate,
+        // so the second level collapses: core's Java module, on meeting a type it is already
+        // inside, resolves every parameter to Object rather than to nothing. Reporting no
+        // arguments at all was a level short of that, and left a caller unable to tell a
+        // parameterized bound from a raw one.
+        Map<String, ScalaTypeData> collapsedArguments = new LinkedHashMap<>();
+        for (TypeVariable<?> parameter : erasedType.getTypeParameters()) {
+            collapsedArguments.put(parameter.getName(), plainTypeData(Object.class));
+        }
         return visitorContext.getElementFactory().newClassElement(new ScalaTypeData(
             erasedType.getName(),
             false,
             0,
             erasedType.isInterface(),
-            Map.of(),
+            collapsedArguments,
             null,
             List.of(),
             List.of(),

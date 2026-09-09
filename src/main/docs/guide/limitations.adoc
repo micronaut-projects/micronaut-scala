@@ -1,15 +1,6 @@
 Known gaps, with the reason for each. Anything not listed here is either supported
 or has not been established either way.
 
-== Scala shapes not modelled
-
-=== Generic detail on classpath types
-
-A type variable of a *classpath* type reports its own type arguments as empty,
-where the Java and Kotlin integrations model two levels before collapsing to
-`Object`. It erases to a correct JVM type; it simply carries less information
-than it could.
-
 == Incremental compilation
 
 Bean definitions are written into the class output directory by the compiler

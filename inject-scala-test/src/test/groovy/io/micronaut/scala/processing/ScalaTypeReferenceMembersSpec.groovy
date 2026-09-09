@@ -118,6 +118,9 @@ class Holder {
                     .map { it.getTypeArguments()['E'].getName() }.orElse(null)
             found.streamArgs = context.getClassElement('java.util.stream.BaseStream')
                     .map { it.getTypeArguments().collectEntries { k, v -> [k, v.getName()] } }.orElse(null)
+            found.enumNested = context.getClassElement('java.lang.Enum')
+                    .map { it.getTypeArguments()['E'].getTypeArguments().collectEntries { k, v -> [k, v.getName()] } }
+                    .orElse(null)
         }, { buildClassLoader('probe.X', 'package probe\n\nclass X\n') })
 
         then: 'java.lang.Enum<E extends Enum<E>> erases E to Enum, not to Object'
@@ -125,5 +128,12 @@ class Holder {
 
         and: 'BaseStream<T, S extends BaseStream<T, S>> erases each on its own bound'
         found.streamArgs == [T: 'java.lang.Object', S: 'java.util.stream.BaseStream']
+
+        and: '''and the bound's own arguments collapse to Object rather than to nothing. The
+                bound is parameterized by the variable itself, so modelling it literally does not
+                terminate; core's Java module resolves every parameter of a type it is already
+                inside to Object, and reporting none at all left a caller unable to tell a
+                parameterized bound from a raw one'''
+        found.enumNested == [E: 'java.lang.Object']
     }
 }
