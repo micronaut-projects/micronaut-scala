@@ -33,24 +33,22 @@ import spock.lang.PendingFeature
  * what should happen rather than what does. Spock fails a pending feature that passes, so
  * whichever of these is fixed reports itself instead of quietly starting to agree.</p>
  *
- * <p>These have three separate causes, established by probe rather than assumed, and the reason
- * on each says which. A <em>classpath</em> annotation on an abstract trait method does reach the
- * implementation -- {@code @Executable} and {@code @Blocking} both do, through the
- * overridden-declaration hierarchy -- so the advice case is about source-declared annotations
- * being dropped from that hierarchy, not about advice. The constraint case is a classpath
- * annotation on a <em>parameter</em>, which is a different path again. The factory case is not
- * about annotations at all.</p>
+ * <p>What decides whether a non-declared annotation crosses is {@code @Inherited}: core carries a
+ * hierarchy annotation only when it is inherited or is a stereotype
+ * ({@code AbstractAnnotationMetadataBuilder}). {@code @Executable} and {@code @Blocking} are
+ * {@code @Inherited} and do cross; a constraint like {@code @NotBlank} is not, and would not
+ * cross in Java either. Two drafts of this spec expected annotations that are not
+ * {@code @Inherited} to be inherited, which is why the advice case read as broken and is not.</p>
+ *
+ * <p>What remains: an {@code @Inherited} annotation reaches the implementing <em>method</em> but
+ * not its <em>parameter</em>, and a factory's producing member declared abstract on a trait
+ * produces no bean. Neither is about annotation inheritance in general.</p>
  *
  * <p>A concrete trait method cannot stand in for any of them. The trait's own method is inherited
  * whole and carries its annotations along, so this path is never taken.</p>
  */
 class ScalaAbstractTraitMemberAnnotationSpec extends AbstractScalaTypeElementSpec {
 
-    @PendingFeature(reason = 'Narrowed by probe: a *classpath* annotation on an abstract trait '
-        + 'method does reach the implementation -- @Executable and @Blocking both do -- while a '
-        + 'source-declared one does not. The advice annotation here is declared in the same '
-        + 'compilation, so this is not about advice at all: it is source-declared annotations '
-        + 'being dropped from the overridden-declaration hierarchy')
     void "applies advice declared on an abstract trait method"() {
         when: 'the advice annotation is on the trait declaration, the body only on the class'
         def context = buildContext('''
@@ -62,6 +60,7 @@ import io.micronaut.aop.MethodInterceptor
 import io.micronaut.aop.MethodInvocationContext
 import jakarta.inject.Singleton
 import java.lang.annotation.ElementType
+import java.lang.annotation.Inherited
 import java.lang.annotation.Retention
 import java.lang.annotation.RetentionPolicy
 import java.lang.annotation.Target
@@ -69,6 +68,7 @@ import scala.annotation.StaticAnnotation
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(Array(ElementType.TYPE, ElementType.METHOD))
+@Inherited
 @Around
 class Shout extends StaticAnnotation, java.lang.annotation.Annotation:
   override def annotationType(): Class[? <: java.lang.annotation.Annotation] =
@@ -98,23 +98,36 @@ class DefaultGreeter extends Greeter:
         context?.close()
     }
 
-    @PendingFeature(reason = 'A different cause from the advice case above: the constraint here '
-        + 'is a classpath annotation, and those do reach an overriding *method*. What does not is '
-        + 'a parameter. Core takes the parameter at each index from every overridden method '
-        + '(JavaAnnotationMetadataBuilder); mirroring that did not move this, and parameter '
-        + 'metadata being cached under the native symbol is the likeliest reason')
-    void "keeps a constraint declared on an abstract trait method"() {
-        when:
+    @PendingFeature(reason = 'An @Inherited annotation on an abstract trait method reaches the '
+        + 'implementing method, but not the implementing method\'s parameter. Core takes the '
+        + 'parameter at each index from every overridden method '
+        + '(JavaAnnotationMetadataBuilder, VariableElement branch); mirroring that did not move '
+        + 'this, and parameter metadata being cached under the native symbol is the likeliest '
+        + 'reason')
+    void "keeps an inherited annotation declared on an abstract trait method's parameter"() {
+        when: '''the annotation is @Inherited, which is what decides whether a non-declared
+                 annotation crosses at all -- a constraint like @NotBlank is not, so neither
+                 language carries one here'''
         def definition = buildBeanDefinition('abstracttrait.DefaultChecker', '''
 package abstracttrait
 
 import io.micronaut.context.annotation.Executable
 import jakarta.inject.Singleton
-import jakarta.validation.constraints.NotBlank
+import java.lang.annotation.ElementType
+import java.lang.annotation.Inherited
+import java.lang.annotation.Retention
+import java.lang.annotation.RetentionPolicy
+import java.lang.annotation.Target
+import scala.annotation.StaticAnnotation
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.PARAMETER))
+@Inherited
+class Tagged extends StaticAnnotation
 
 trait Checker:
   @Executable
-  def check(@NotBlank name: String): String
+  def check(@Tagged name: String): String
 
 @Singleton
 class DefaultChecker extends Checker:
@@ -122,11 +135,8 @@ class DefaultChecker extends Checker:
 ''')
         def method = definition.getRequiredMethod('check', String)
 
-        then: 'the constraint is on the parameter of the implementing method'
-        method.arguments[0].annotationMetadata.hasAnnotation('jakarta.validation.constraints.NotBlank')
-
-        and: 'as inherited rather than declared, since the class never wrote it'
-        !method.arguments[0].annotationMetadata.hasDeclaredAnnotation('jakarta.validation.constraints.NotBlank')
+        then: 'the parameter of the implementing method carries what the trait declared'
+        method.arguments[0].annotationMetadata.hasAnnotation('abstracttrait.Tagged')
     }
 
     @PendingFeature(reason = 'A third cause again: nothing here is about annotation inheritance. '
