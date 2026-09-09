@@ -18,6 +18,7 @@ package io.micronaut.scala.processing.visitor;
 import io.micronaut.context.annotation.ConfigurationInject;
 import io.micronaut.context.annotation.ConfigurationReader;
 import io.micronaut.context.annotation.Property;
+import io.micronaut.context.annotation.Value;
 import io.micronaut.context.visitor.ConfigurationReaderVisitor;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationValue;
@@ -71,29 +72,49 @@ public final class ScalaConstructorElement extends ScalaMethodElement implements
     }
 
     private void annotateConfigurationInjectIfNecessary() {
-        if (declaringType.hasStereotype(ConfigurationReader.class) && constructorParametersAreBeanProperties()) {
+        boolean configuration = declaringType.hasStereotype(ConfigurationReader.class)
+            && constructorParametersAreBeanProperties();
+        if (configuration) {
             annotate(ConfigurationInject.class);
-            ParameterElement[] parameters = getParameters();
-            ParameterElement[] updatedParameters = new ParameterElement[parameters.length];
-            boolean changed = false;
-            for (int i = 0; i < parameters.length; i++) {
-                ParameterElement parameter = parameters[i];
-                if (parameter.stringValue(Property.class, "name").isEmpty()
-                    && ConfigurationReaderVisitor.isPropertyParameter(parameter, visitorContext)) {
-                    AnnotationMetadata metadata = visitorContext.getScalaAnnotationMetadataBuilder().annotate(
-                        parameter.getAnnotationMetadata(),
-                        AnnotationValue.builder(Property.class).member("name", propertyPath(parameter)).build()
-                    );
-                    updatedParameters[i] = parameter.withAnnotationMetadata(optionalDefault(parameter, metadata));
+        }
+        ParameterElement[] parameters = getParameters();
+        ParameterElement[] updatedParameters = new ParameterElement[parameters.length];
+        boolean changed = false;
+        for (int i = 0; i < parameters.length; i++) {
+            ParameterElement parameter = parameters[i];
+            if (configuration
+                && parameter.stringValue(Property.class, "name").isEmpty()
+                && ConfigurationReaderVisitor.isPropertyParameter(parameter, visitorContext)) {
+                AnnotationMetadata metadata = visitorContext.getScalaAnnotationMetadataBuilder().annotate(
+                    parameter.getAnnotationMetadata(),
+                    AnnotationValue.builder(Property.class).member("name", propertyPath(parameter)).build()
+                );
+                updatedParameters[i] = parameter.withAnnotationMetadata(optionalDefault(parameter, metadata));
+                changed = true;
+            } else if (readsAProperty(parameter)) {
+                // Not a configuration class, but still a parameter bound from a property: a
+                // `@Value` on any bean reaches the same resolution, and the same core limitation.
+                AnnotationMetadata metadata = optionalDefault(parameter, parameter.getAnnotationMetadata());
+                if (metadata != parameter.getAnnotationMetadata()) {
+                    updatedParameters[i] = parameter.withAnnotationMetadata(metadata);
                     changed = true;
                 } else {
                     updatedParameters[i] = parameter;
                 }
-            }
-            if (changed) {
-                replaceParameters(updatedParameters);
+            } else {
+                updatedParameters[i] = parameter;
             }
         }
+        if (changed) {
+            replaceParameters(updatedParameters);
+        }
+    }
+
+    /**
+     * Whether this parameter takes its value from a property rather than from another bean.
+     */
+    private boolean readsAProperty(ParameterElement parameter) {
+        return parameter.hasAnnotation(Value.class) || parameter.hasAnnotation(Property.class);
     }
 
     /**
