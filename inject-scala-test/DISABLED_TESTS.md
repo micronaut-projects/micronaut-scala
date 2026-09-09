@@ -612,7 +612,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/IntroductionVisitorSpec.groovy` - covered: `ScalaIntroducedBeanVisitorSpec` covers a visitor seeing introduced methods, with generic return types in `ScalaIntroductionGenericTypesSpec`
 - `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/PropertyElementSpec.groovy` - covered by reference: the same scenarios as `inject-java/src/test/groovy/io/micronaut/visitors/PropertyElementSpec.groovy`, which is covered. The language modules mirror each other, and a Scala port is written once against whichever source states the case most directly
 - `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/TypeElementQuerySpec.groovy` - covered: Scala type visitors cover `TypeElementQuery` field, method, and constructor inclusion
-- `inject-groovy/src/test/groovy/io/micronaut/validation/ValidatedParseSpec.groovy` - covered: `ScalaValidationParitySpec` covers constraints on constructor and executable parameters, both marked `@PendingFeature` there, and the negative case
+- `inject-groovy/src/test/groovy/io/micronaut/validation/ValidatedParseSpec.groovy` - covered: `ScalaValidationParitySpec` covers a constrained value-bound parameter validated at the injection point, a constrained executable parameter validated through `@Validated` advice, and the negative case
 
 ### Kotlin AbstractKotlinCompilerSpec
 
