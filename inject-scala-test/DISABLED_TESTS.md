@@ -375,7 +375,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/OriginatingElementsSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/PostConstructInterceptorCompileSpec.groovy` - covered: `ScalaLifecycleInterceptorParitySpec` covers interceptors bound by `InterceptorKind` to construction and destruction, on both a class bean and a factory-produced one, declared through a hand-written `@InterceptorBindingDefinitions` because Scala has no repeatable annotations
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/ValidatedNonBeanSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/aop/factory/AdviceDefinedOnFactorySpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/aop/factory/AdviceDefinedOnFactorySpec.groovy` - covered: `ScalaFactoryAdviceParitySpec` covers class-level advice on a factory advising the factory's own producer method while leaving the produced bean unproxied
 - `inject-java/src/test/groovy/io/micronaut/aop/factory/SessionProxySpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/aop/factory/mapped/FactoryMappedAdviceReflectionSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/aop/factory/mapped/FactoryMappedAdviceSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
