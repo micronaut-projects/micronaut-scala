@@ -806,10 +806,34 @@ compile leaves orphaned `$Foo$Definition.class` files that the next compile can
 load — `ScalaVisitorContext.createClassLoader` puts the output directory first on
 the visitor classpath.
 
-**Fix.** Verify `DirectoryClassWriterOutputVisitor.finish()`'s merge behaviour
-against a pre-existing service file and read-merge-write if it truncates; move
-generation after `GenBCode`; document that a clean build is required until this
-is properly incremental.
+**Measured, and the finding splits in two.**
+
+*Not a defect: the service-file concern.* `DirectoryClassWriterOutputVisitor`
+does not write an aggregated `META-INF/services/...` file at all, and has no
+`finish()` to merge in. `visitServiceDescriptor` writes one **empty marker file
+per implementation** at `META-INF/micronaut/<type>/<classname>`
+(`core-processor/.../DirectoryClassWriterOutputVisitor.java:63`). There is
+therefore nothing for a partial recompile to truncate, and the definitions of
+sources that were not recompiled are not lost. This also settles open question 2
+in section G. The description in this finding is the Micronaut 3 service format
+and no longer applies.
+
+*Real: products are not registered.* Definitions are written into the class output
+directory rather than through the compiler's own output mechanism, so the build
+tool never records them as products of the source that produced them. Demonstrated
+through a real Gradle build in `ScalaGradlePluginFunctionalSpec`: compile two
+beans, delete one source, rebuild, and the deleted bean's
+`$Second$Definition.class` **and its marker are both still there** — so a deleted
+bean is still a bean at runtime. A definition left by a compilation that later
+failed survives the same way.
+
+**Fix.** Registering products properly means reaching zinc's `AnalysisCallback`,
+which a dotty plugin phase has no access to; writing through the compiler's own
+output would mean generating during a phase that owns the output, which the
+current design does not. Neither is a small change, and neither is attempted here.
+What is done: the behaviour is pinned by the functional test so it cannot regress
+unnoticed, and it is documented in `limitations` and `troubleshooting` with the
+workaround, which is a clean build after deleting or renaming a bean.
 
 ### B11 (MAJOR) Scala `object` is excluded from processing
 
@@ -1897,8 +1921,13 @@ D2.
 
 ### Wave 6 — structural
 
-26. Incremental compilation: service-file merge behaviour, generated-file
-    registration, output-after-`GenBCode` (B10).
+26. **Measured and documented, not fixed (B10).** The service-file half of the
+    finding does not reproduce — Core writes one marker file per implementation,
+    so there is nothing to truncate. The generated-file registration half is real
+    and is now pinned by a functional test: a deleted source leaves its bean
+    definition behind. Fixing it needs access to zinc's `AnalysisCallback` or a
+    different generation phase, neither of which is small; the behaviour and its
+    workaround are documented instead.
 27. Multi-Scala-variant build layout (D8).
 28. Visitor dispatch order and the remaining engine hygiene items (B1, B2, B3,
     B6, B7, B8, B9).

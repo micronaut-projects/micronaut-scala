@@ -77,6 +77,14 @@ configuration. Zinc is built for Scala 2.13 and needs the 2.13 `scala-library` a
 `scala-reflect`; it is Gradle's toolchain, not the project's. Exempt the `zinc`
 configuration from any Scala pinning rule.
 
+== A deleted bean is still being injected
+
+The source was deleted or renamed, and the application still resolves the old bean.
+
+Bean definitions are not registered with the build tool as products of their
+source, so it does not clean them when the source goes. Run a clean build. See
+<<limitations, Limitations>>.
+
 == A `-P:micronaut-scala:` option appears to do nothing
 
 Options are passed through to `VisitorContext.getOptions()` and the set is open, so

@@ -130,6 +130,11 @@ class Demo {
      */
     private String run(Collection<String> pluginFiles) {
         writeProject(pluginFiles)
+        return rerun()
+    }
+
+    /** Runs the build again over whatever is currently in the project directory. */
+    private String rerun() {
         def wrapper = new File(System.getProperty('micronaut.scala.repository.root'), 'gradlew')
         def process = new ProcessBuilder(
                 wrapper.absolutePath,
@@ -217,6 +222,77 @@ class Demo {
         then:
         def e = thrown(IllegalStateException)
         e.message.contains('NoClassDefFoundError')
+    }
+
+    private java.nio.file.Path sourceDir() {
+        projectDir.resolve('src/main/scala/demo')
+    }
+
+    private List<String> generatedDefinitions() {
+        def classes = projectDir.resolve('build/classes/scala/main/demo').toFile()
+        classes.exists() ? classes.list().findAll { it.endsWith('$Definition.class') }.sort() : []
+    }
+
+    private List<String> beanMarkers() {
+        def markers = projectDir.resolve(
+                'build/classes/scala/main/META-INF/micronaut/io.micronaut.inject.BeanDefinitionReference').toFile()
+        markers.exists() ? markers.list().sort() : []
+    }
+
+    void 'a bean whose source is deleted leaves its definition behind'() {
+        given: 'two beans, compiled together'
+        writeProject([pluginJar()])
+        sourceDir().resolve('Second.scala').toFile().text = '''
+package demo
+
+import jakarta.inject.Singleton
+
+@Singleton
+class Second {
+  def hi(): String = "second"
+}
+'''
+        rerun()
+
+        expect:
+        generatedDefinitions() == ['$Demo$Definition.class', '$Second$Definition.class']
+        beanMarkers().size() == 2
+
+        when: 'one source is deleted and the project is rebuilt'
+        sourceDir().resolve('Second.scala').toFile().delete()
+        rerun()
+
+        then: 'the definition and its marker are still there'
+        // Bean definitions are written straight into the class output directory, so the
+        // build tool never records them as products of the source that produced them and
+        // cannot clean them when it goes. The stale definition is loadable, and its
+        // marker still advertises it, so the deleted bean is still a bean.
+        generatedDefinitions().contains('$Second$Definition.class')
+        beanMarkers().any { it.contains('Second') }
+    }
+
+    void 'each bean gets its own marker file rather than a shared service file'() {
+        given:
+        writeProject([pluginJar()])
+        sourceDir().resolve('Second.scala').toFile().text = '''
+package demo
+
+import jakarta.inject.Singleton
+
+@Singleton
+class Second
+'''
+        rerun()
+
+        expect: 'one empty file per implementation, named for the class'
+        beanMarkers() == ['demo.$Demo$Definition', 'demo.$Second$Definition']
+
+        and: 'so a partial recompile cannot truncate the others, which a single'
+        beanMarkers().every {
+            projectDir.resolve(
+                'build/classes/scala/main/META-INF/micronaut/io.micronaut.inject.BeanDefinitionReference'
+            ).resolve(it).toFile().length() == 0
+        }
     }
 
 }

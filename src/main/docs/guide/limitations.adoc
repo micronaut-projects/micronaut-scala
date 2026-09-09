@@ -71,6 +71,24 @@ reporting anything wrong:
 Both erase to a correct JVM type; they simply carry less information than they
 could.
 
+== Incremental compilation
+
+Bean definitions are written into the class output directory by the compiler
+plugin, not through the compiler's own output mechanism, so the build tool does
+not record them as products of the source that produced them.
+
+The visible consequence is that **deleting a bean's source does not remove its bean
+definition**. The generated `$Foo$Definition.class` and its
+`META-INF/micronaut/io.micronaut.inject.BeanDefinitionReference/` marker both
+survive the rebuild, so a deleted bean is still a bean at runtime. The same
+applies to a definition left behind by a compilation that later failed.
+
+Run a clean build after deleting or renaming a bean.
+
+NOTE: A partial recompile does *not* lose the definitions of sources it did not
+recompile. Each implementation gets its own empty marker file named for the class,
+so there is no shared service file for a partial run to truncate.
+
 == Not defects
 
 Listed because they look like gaps and are not:
