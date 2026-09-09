@@ -200,6 +200,26 @@ Bean import is documented as unsupported for Scala.
 | Kotlin AbstractKotlinCompilerSpec | 2 | 14 | 0 | 3 | 19 |
 | Total | 32 | 243 | 1 | 25 | 301 |
 
+## Where The Backlog Stands
+
+Counted from the detailed inventory below, after the P0/P1/P2 rounds:
+
+- **199** entries still read "not yet covered", of which **44** are `inject-groovy`
+  or `inject-kotlin` specs whose scenario a same-named `inject-java` spec already
+  covers. The distinct remaining surface is about **145** source specs.
+- **24** entries are marked `scala-specific`: Java records, Groovy property
+  semantics, Kotlin nullability and the annotation-processing round model have no
+  Scala form, and are replaced by Scala-native coverage rather than ported.
+- The weight sits in five areas: annotation metadata and mapping (**31**),
+  configuration properties and metadata (**19**), factories (**15**), AOP compile
+  and introduction (**17**), and visitor behaviour (**10**).
+
+Two things the count does not say. Entry status is per *source spec*, and a spec
+holding twelve features is one entry however many of them are covered — several
+read "partially covered" for that reason. And a covered entry is not a finished
+subject: the ported cases are the ones that ask something Scala answers
+differently, chosen against the coverage gate, not the whole file.
+
 ## Priority Buckets
 
 ### P0: Catalog, Element API, and Annotation Parity
@@ -336,24 +356,24 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/annotation/processing/visitor/JavaVisitorSpec.groovy` - scala-specific: language-specific Java/Groovy/Kotlin syntax or compiler behavior; replace with Scala-native coverage when relevant
 - `inject-java/src/test/groovy/io/micronaut/aop/adapter/MethodAdapterSpec.groovy` - candidate: partially covered by Scala `@Adapter` methods for classpath Java SAM interfaces; broader adapter overload, error, and intercepted-adapter variants remain comparison candidates
 - `inject-java/src/test/groovy/io/micronaut/aop/adapter/intercepted/InterceptedAdapterSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/aop/compile/AbstractClassIntroductionSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/aop/compile/AbstractClassIntroductionSpec.groovy` - covered: `ScalaIntroductionAdviceParitySpec` covers the abstract/concrete split on an introduced abstract class and trait, and a concrete member carrying its own around advice
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/AnnotatedConstructorArgumentSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/aop/compile/AroundCompileSpec.groovy` - candidate: partially covered for around advice on inherited Scala trait default methods; broader around-advice scenarios remain comparison candidates
+- `inject-java/src/test/groovy/io/micronaut/aop/compile/AroundCompileSpec.groovy` - candidate: partially covered for around advice on inherited Scala trait default methods, and by `ScalaInterceptorBindingParitySpec` for member binding with `@NonBinding`, a method-level binding overriding the type-level one, and two advice annotations on one method; interceptor binding through annotation mappers, ENUM parameter and return shapes, and stereotype-level matching remain comparison candidates
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/AroundConstructCompileSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/aop/compile/ExecutableFactoryMethodSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/aop/compile/ExecutableFactoryMethodSpec.groovy` - covered: `ScalaExecutableFactoryParitySpec` covers a concrete trait method made executable through an `@Executable` factory, and the most specific override across a trait diamond with its type arguments
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/FinalModifierSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/GeneratedAnnotationSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/InheritedAnnotationMetadataSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/InjectFieldAbstractIntroductionSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/aop/compile/IntroductionAnnotationSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/aop/compile/IntroductionAnnotationSpec.groovy` - candidate: partially covered by `ScalaIntroductionAdviceParitySpec` for the abstract/concrete split and the intercepted type the definition reports, and by `ScalaMicronautFeatureSpec` for `@Min`/`@NotBlank` on introduced executable methods; unimplemented-advice exception behaviour remains a comparison candidate
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/IntroductionCompileSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/IntroductionGenericTypesSpec.groovy` - covered: Scala introduction proxy method metadata resolves inherited generic return types through source-defined trait type arguments, including nested generics, method type variables, and arrays
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/IntroductionInnerInterfaceSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/IntroductionWithAroundSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/aop/compile/LifeCycleWithProxySpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/aop/compile/LifeCycleWithProxySpec.groovy` - covered: `ScalaLifecycleProxyParitySpec` covers hooks under proxy-subclass and proxy-target advice and hook collection either side of an advised method. Java's field read through the proxy has no Scala equivalent -- every Scala accessor is a method, so the proxy delegates it -- and the spec counts hook runs outside the bean instead
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/LifeCycleWithProxyTargetSpec.groovy` - covered: Scala source-defined `@Around(proxyTarget = true)` advice is covered for generated proxy-target beans, interceptor invocation, and target lifecycle
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/OriginatingElementsSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/aop/compile/PostConstructInterceptorCompileSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/aop/compile/PostConstructInterceptorCompileSpec.groovy` - covered: `ScalaLifecycleInterceptorParitySpec` covers interceptors bound by `InterceptorKind` to construction and destruction, on both a class bean and a factory-produced one, declared through a hand-written `@InterceptorBindingDefinitions` because Scala has no repeatable annotations
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/ValidatedNonBeanSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/aop/factory/AdviceDefinedOnFactorySpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/aop/factory/SessionProxySpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
@@ -408,7 +428,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/ConfigurationPropertiesInjectSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/ImmutableConfigurationPropertiesSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/InheritedConfigurationReaderPrefixSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/configproperties/InterfaceConfigurationPropertiesSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/inject/configproperties/InterfaceConfigurationPropertiesSpec.groovy` - candidate: partially covered by `ScalaInterfaceConfigurationParitySpec` for advice-resolved trait configuration in both the JavaBean and prefix-free Scala spellings, and for `Option` standing in for `Optional`; `@EachProperty` on an interface, nested interface configuration and bean-valued accessors remain comparison candidates
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/ValidatedConfigurationSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/VisibilityIssuesSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/eachbeaninterceptor/EachBeanInterceptorSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
