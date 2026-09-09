@@ -493,7 +493,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/inject/qualifiers/replaces/AnnotateReplacesSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/qualifiers/replaces/ReplacesSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/records/RecordBeansSpec.groovy` - scala-specific: language-specific Java/Groovy/Kotlin syntax or compiler behavior; replace with Scala-native coverage when relevant
-- `inject-java/src/test/groovy/io/micronaut/inject/requires/RequiresBeanPropertiesSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/inject/requires/RequiresBeanPropertiesSpec.groovy` - candidate: partially covered by `ScalaRequiresBeanPropertyParitySpec` for a required bean property present, absent, excluded by `notEquals`, and read from a hand-written accessor pair; the inner-configuration and multiple-bean cases remain comparison candidates
 - `inject-java/src/test/groovy/io/micronaut/inject/requires/RequiresSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/scope/DefaultScopeSpec.groovy` - covered: source-defined default scope, explicit scope override, factory method override, and unscoped `@Bean` factory method variants are covered
 - `inject-java/src/test/groovy/io/micronaut/inject/value/factorywithvalue/FactoryWithValueSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
