@@ -1,0 +1,160 @@
+/*
+ * Copyright 2017-2026 original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.micronaut.scala.processing
+
+import io.micronaut.aop.Intercepted
+import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
+import spock.lang.PendingFeature
+
+/**
+ * An annotation written on an <em>abstract</em> trait member, reaching the class that implements
+ * it, for the kinds of annotation where being missed does something other than lose a method.
+ *
+ * <p>Putting the overridden declarations in a method's annotation hierarchy fixed
+ * {@code @Executable}, which is read from the method's own metadata. It did not fix these, and
+ * this spec exists to say so precisely rather than leave the earlier fix sounding general.
+ * Each of them fails by doing nothing -- advice that never proxies, a constraint that never
+ * validates, a qualifier that never qualifies -- so none would be noticed without an assertion.</p>
+ *
+ * <p>Each is written as what Java does and marked {@code @PendingFeature}, so the assertions say
+ * what should happen rather than what does. Spock fails a pending feature that passes, so
+ * whichever of these is fixed reports itself instead of quietly starting to agree.</p>
+ *
+ * <p>What was tried: extending the same hierarchy to parameters, the way core's Java module does
+ * ({@code JavaAnnotationMetadataBuilder} takes the parameter at each index from every overridden
+ * method). It did not move the constraint case, which suggests the parameter metadata is read
+ * through a path that does not consult the hierarchy, or is cached under the native symbol before
+ * the overridden data is attached -- the accessor pass builds methods before the member walk
+ * does. That is the lead. Advice and the factory qualifier are separate: both are decided while
+ * the class is processed rather than when the method's metadata is read.</p>
+ *
+ * <p>A concrete trait method cannot stand in for any of them. The trait's own method is inherited
+ * whole and carries its annotations along, so this path is never taken.</p>
+ */
+class ScalaAbstractTraitMemberAnnotationSpec extends AbstractScalaTypeElementSpec {
+
+    @PendingFeature(reason = 'Advice is decided while the class is processed, not when the '
+        + 'method metadata is read, so the annotation on the overridden declaration is not seen')
+    void "applies advice declared on an abstract trait method"() {
+        when: 'the advice annotation is on the trait declaration, the body only on the class'
+        def context = buildContext('''
+package abstracttrait
+
+import io.micronaut.aop.Around
+import io.micronaut.aop.InterceptorBean
+import io.micronaut.aop.MethodInterceptor
+import io.micronaut.aop.MethodInvocationContext
+import jakarta.inject.Singleton
+import java.lang.annotation.ElementType
+import java.lang.annotation.Retention
+import java.lang.annotation.RetentionPolicy
+import java.lang.annotation.Target
+import scala.annotation.StaticAnnotation
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE, ElementType.METHOD))
+@Around
+class Shout extends StaticAnnotation, java.lang.annotation.Annotation:
+  override def annotationType(): Class[? <: java.lang.annotation.Annotation] =
+    classOf[Shout]
+
+@Singleton
+@InterceptorBean(Array(classOf[Shout]))
+class ShoutInterceptor extends MethodInterceptor[Object, Object]:
+  override def intercept(context: MethodInvocationContext[Object, Object]): Object =
+    String.valueOf(context.proceed()) + "!"
+
+trait Greeter:
+  @Shout
+  def greet(): String
+
+@Singleton
+class DefaultGreeter extends Greeter:
+  override def greet(): String = "hello"
+''', [:], true)
+        def bean = getBean(context, 'abstracttrait.DefaultGreeter')
+
+        then: 'the class is proxied because of an annotation it does not itself carry'
+        bean instanceof Intercepted
+        bean.greet() == 'hello!'
+
+        cleanup:
+        context?.close()
+    }
+
+    @PendingFeature(reason = 'Parameter metadata is cached under the native symbol and the '
+        + 'accessor pass builds methods first, so attaching the overridden parameters on either '
+        + 'construction path did not reach the instance the constraint is read from')
+    void "keeps a constraint declared on an abstract trait method"() {
+        when:
+        def definition = buildBeanDefinition('abstracttrait.DefaultChecker', '''
+package abstracttrait
+
+import io.micronaut.context.annotation.Executable
+import jakarta.inject.Singleton
+import jakarta.validation.constraints.NotBlank
+
+trait Checker:
+  @Executable
+  def check(@NotBlank name: String): String
+
+@Singleton
+class DefaultChecker extends Checker:
+  override def check(name: String): String = name
+''')
+        def method = definition.getRequiredMethod('check', String)
+
+        then: 'the constraint is on the parameter of the implementing method'
+        method.arguments[0].annotationMetadata.hasAnnotation('jakarta.validation.constraints.NotBlank')
+
+        and: 'as inherited rather than declared, since the class never wrote it'
+        !method.arguments[0].annotationMetadata.hasDeclaredAnnotation('jakarta.validation.constraints.NotBlank')
+    }
+
+    @PendingFeature(reason = 'A factory member is collected while the class is processed, and '
+        + 'an abstract member contributes nothing to collect')
+    void "produces a qualified bean from an abstract trait factory member"() {
+        when: 'the trait names the qualifier, and the factory implements the member'
+        def context = buildContext('''
+package abstracttrait
+
+import io.micronaut.context.annotation.Bean
+import io.micronaut.context.annotation.Factory
+import jakarta.inject.Named
+import jakarta.inject.Singleton
+
+class Widget(val name: String)
+
+trait WidgetSource:
+  @Bean
+  @Named("special")
+  def widget(): Widget
+
+@Factory
+@Singleton
+class DefaultWidgetSource extends WidgetSource:
+  override def widget(): Widget = new Widget("made")
+''', [:], true)
+        def widgetType = context.classLoader.loadClass('abstracttrait.Widget')
+
+        then: 'the produced bean carries the qualifier the trait declared'
+        !context.getBeanDefinitions(widgetType).isEmpty()
+        context.getBean(widgetType, io.micronaut.inject.qualifiers.Qualifiers.byName('special')).name() == 'made'
+
+        cleanup:
+        context?.close()
+    }
+}
