@@ -38,6 +38,12 @@ final class ScalaGenericPlaceholderElement extends ScalaClassElement implements 
         this(typeData, visitorContext, placeholderMetadata(typeData, visitorContext));
     }
 
+    private ScalaGenericPlaceholderElement(ScalaTypeData typeData, ScalaVisitorContext visitorContext, AnnotationMetadata annotationMetadata) {
+        super(typeData, visitorContext, annotationMetadata);
+        this.typeData = typeData;
+        this.visitorContext = visitorContext;
+    }
+
     /**
      * The annotations of a type variable: its bound's, with any of its own layered on top.
      *
@@ -63,12 +69,6 @@ final class ScalaGenericPlaceholderElement extends ScalaClassElement implements 
         MutableAnnotationMetadata combined = MutableAnnotationMetadata.of(visitorContext.annotationMetadata(bound));
         combined.addAnnotationMetadata(own);
         return combined;
-    }
-
-    private ScalaGenericPlaceholderElement(ScalaTypeData typeData, ScalaVisitorContext visitorContext, AnnotationMetadata annotationMetadata) {
-        super(typeData, visitorContext, annotationMetadata);
-        this.typeData = typeData;
-        this.visitorContext = visitorContext;
     }
 
     @Override
