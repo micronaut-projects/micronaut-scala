@@ -1317,13 +1317,29 @@ private object ScalaModelExtractor:
     else
       Nil
 
+  /**
+   * The annotations of a type as written, plus -- outside a nested position -- the ones its own
+   * symbol declares.
+   *
+   * The symbol's annotations are what carries a supertype's stereotypes down to a subclass, and
+   * what lets a type variable report the annotations of its bound. At a type argument they are
+   * wrong: `List[Foo]` says nothing about Foo beyond naming it, and merging Foo's own
+   * annotations in made the argument report whatever Foo happens to be annotated with --
+   * `@Introspected`, `@Singleton`, a validation annotation -- as though it had been written at
+   * the use. Java builds a type argument from the type mirror and reports only what was written
+   * there, and an annotation that acts by its presence alone acts on the difference.
+   *
+   * A type variable is unaffected: it is built by `typeParameterData`, not here.
+   */
   private def typeAnnotationsFor(
       symbol: Symbol,
       typeAnnotations: List[Annotation],
       explicitNullable: Boolean
-  )(using Context, AnnotationDefaults): List[ScalaAnnotationData] =
+  )(using Context, AnnotationDefaults, TypePosition): List[ScalaAnnotationData] =
     val nullable = if explicitNullable then List(NullableAnnotationData) else Nil
-    nullable ++ typeAnnotations.map(annotationData(_, Set.empty)) ++ annotations(symbol)
+    val declared =
+      if summon[TypePosition] == TypePosition.TopLevel then annotations(symbol) else Nil
+    nullable ++ typeAnnotations.map(annotationData(_, Set.empty)) ++ declared
 
   /**
    * The supertypes of a type.

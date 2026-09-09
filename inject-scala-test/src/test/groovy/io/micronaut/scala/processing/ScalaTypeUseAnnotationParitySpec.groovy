@@ -59,7 +59,7 @@ class Test:
         method.arguments[0].typeParameters[0].annotationMetadata.intValue(Min).asInt == 10
     }
 
-    void "reports the argument class's own annotations on the type argument too"() {
+    void "does not merge the argument class's own annotations into the type argument"() {
         when: 'Foo is a @Singleton, and @Valid is written at the use'
         def definition = buildBeanDefinition('typeuse.Test', '''
 package typeuse
@@ -81,21 +81,11 @@ class Test:
         then: 'the annotation written at the use is there'
         metadata.hasAnnotation(Valid)
 
-        and: '''and so is the one declared on the class, which is a divergence: Java builds a
-                type argument from the type mirror, whose annotations are only the type-use
-                ones, so its `typeParameters[0]` reports @Valid alone.
-
-                A Scala type use carries its symbol\u0027s annotations by design, and the design is
-                load-bearing -- it is how a generic parameter and a generic type argument pick up
-                the annotations of their bound, and how a classpath supertype\u0027s stereotypes
-                reach a subclass. Dropping the merge outright fails those four tests. Telling a
-                placeholder\u0027s bound apart from a concrete argument\u0027s class is the fix, and it
-                is not a small one, so the behaviour is pinned here rather than left unstated.
-
-                The consequence to watch is a type argument looking annotated because of what its
-                element type happens to be: a `List[Foo]` whose Foo is `@Introspected` reports
-                `@Introspected` at the argument.'''
-        metadata.hasAnnotation(Singleton)
+        and: '''and the one declared on the class is not. `List[Foo]` says nothing about Foo
+                beyond naming it, so an annotation Foo happens to carry must not read as though
+                it had been written at the use -- @Introspected, @Singleton, or a validation
+                annotation that acts by its presence alone'''
+        !metadata.hasAnnotation(Singleton)
     }
 
     void "does not merge the parameter class's own annotations into the parameter"() {
