@@ -57,6 +57,43 @@ public final class ScalaParameterElement extends AbstractScalaElement implements
         this.visitorContext = visitorContext;
     }
 
+    /**
+     * Whether this parameter declares a default value that a caller can supply.
+     *
+     * <p>Reports a default only when the generated accessor is reachable from a call site;
+     * see {@code defaultAccessor} in the extractor. Core pairs this with a
+     * {@link io.micronaut.inject.writer.ParameterDefaultValueProvider}, which
+     * {@link ScalaParameterDefaultValueProvider} supplies.</p>
+     */
+    @Override
+    public boolean hasDefault() {
+        return parameterData.defaultAccessor() != null;
+    }
+
+    /**
+     * The generated accessor supplying this parameter's default, for the provider to call.
+     *
+     * @return the accessor name, or {@code null} when there is no reachable default
+     */
+    @Nullable
+    String defaultAccessor() {
+        return parameterData.defaultAccessor();
+    }
+
+    /**
+     * @return whether {@link #defaultAccessor()} is static on the declaring class
+     */
+    boolean isDefaultAccessorStatic() {
+        return parameterData.defaultAccessorStatic();
+    }
+
+    /**
+     * @return the method or constructor this parameter belongs to
+     */
+    MethodElement declaringMethod() {
+        return methodElement;
+    }
+
     @Override
     public ClassElement getType() {
         if (type == null) {

@@ -1992,66 +1992,46 @@ first; they are listed here so they are not mistaken for oversights.
 
 | item | Core change | state |
 | --- | --- | --- |
-| Scala default arguments | micronaut-core#13041 | **merged, on `5.2.x`** — implementable here now |
+| Scala default arguments | micronaut-core#13041 | **merged and implemented here** |
 | Annotating synthetic and reflective elements | micronaut-core#13062 | **merged, on `5.2.x`** — and the Scala-side half turned out to be this repository's own missing `getMethodAnnotationMetadata()` override, fixed separately |
 | An absent property bound to `scala.Option` | none yet | investigation open against micronaut-core |
 
 
-### Scala default arguments at injection points (from B13)
+### Scala default arguments — **done**
 
-A parameter with a default is treated as required, so a Scala bean whose
-constructor or `@Executable` method relies on defaults cannot be satisfied the
-way the source implies.
+micronaut-core#13041 merged to `5.2.x`, the pinned checkout moved forward, and the
+Scala side is implemented. A default argument is now used where it was previously
+invisible:
 
-Core models optional parameters only through
-`io.micronaut.inject.ast.KotlinParameterElement`, and the blocker is the
-*generated code* rather than the marker interface:
-`inject/writer/MethodGenUtils` builds an integer bitmask and calls Kotlin's
-synthetic `$default` overload, which is Kotlin's calling convention. Scala emits
-a separate zero-argument `<method>$default$<n>` getter per defaulted parameter
-(`$lessinit$greater$default$<n>` for constructors), with no mask and no overload,
-so implementing the Kotlin interface here would make Core generate calls to
-methods that do not exist.
+```scala
+@Singleton
+class Greeter(val greeting: String = "hello", val times: Int = 2)   // both defaults applied
+```
 
-**The SPI is in Core and merged.** The investigation opened against micronaut-core
-landed as **micronaut-core#13041, "Support default parameters for languages other
-than Kotlin"**, and is on `5.2.x`. It is exactly the shape this item asked for, in
-two parts:
+Scala compiles a default to a zero-argument accessor rather than to anything in the
+signature — `$lessinit$greater$default$<n>()` for a constructor,
+`<method>$default$<n>()` for a method — which is why the caller-side SPI fits it and
+Kotlin's bitmask convention never could.
 
-- `ParameterElement.hasDefault()` reports only that a default *exists*. How the
-  value is obtained is deliberately not part of that contract.
-- `io.micronaut.inject.writer.ParameterDefaultValueProvider` is a service-loaded
-  provider supplying the default as an `ExpressionDef` the **caller** evaluates at
-  the invocation site. It is asked `supports(parameter)` in `Ordered` order and the
-  first to return an expression wins.
+**A default is reported only when the accessor is reachable.** The constructor
+accessor is static on the class only through the companion's static forwarder, which
+the backend emits only for a *static* companion. For a class nested inside another
+class the accessor is an instance method on the inner companion; `hasDefault()` is
+false there, so the parameter stays required rather than the generated code calling
+a method that does not exist or silently injecting a type default. Same forwarder
+rule as the companion `@Creator` work.
 
-The provider interface is written for exactly this case — its own javadoc uses Scala
-as the motivating example, emitting
-`new Greeter(greeting != null ? greeting : Greeter.$lessinit$greater$default$1())` —
-and Core carries a `TestScalaLikeDefaultValueProvider` that is a working blueprint:
-`supports` is an `instanceof` against the language's own parameter element, and
-`defaultValueExpression` returns the accessor call.
+**The accessor is passed as annotation metadata, not through a type.** Core loads a
+`ParameterDefaultValueProvider` with *Core's* classloader, which is not always the
+plugin's isolated one. When it is not, the provider's `ScalaParameterElement` and the
+parameter's are two classes with the same name, `instanceof` is false, and the
+default silently never applies — which is exactly what happened first, and took a
+classloader comparison to see, because every symptom pointed at the provider not
+being registered. Metadata is data rather than a type and crosses that boundary.
 
-**Ready to implement, once the pinned checkout moves.** `checkouts/micronaut-core`
-is at `367fe9d6a4`, which predates the merge and has neither `hasDefault()` nor the
-provider, so implementing against it today would not compile here. Moving that
-checkout forward is the only prerequisite left.
-
-The work is then three pieces, all small:
-
-1. Recognise the `$default$` getters in the extractor and record per parameter
-   whether one exists. Scala emits a zero-argument `<method>$default$<n>` per
-   defaulted parameter, `$lessinit$greater$default$<n>` for constructors; the
-   symbol-name detection added for annotation members in `defaultGetterReference`
-   is the same mechanism.
-2. Override `hasDefault()` on `ScalaParameterElement` from that.
-3. Add a `ScalaParameterDefaultValueProvider` returning the accessor call as an
-   `ExpressionDef`, registered in `META-INF/services`. Note the receiver: the
-   constructor getters are static on the companion, so `target` is unused there,
-   while a method's are instance methods on the declaring class.
-
-Add specs for a constructor default and an `@Executable` method default, and move
-this item back into a numbered wave.
+Pinned by four cases in `ScalaLanguageFeatureSpec`: the injected constructor default,
+introspection instantiating with defaults, `hasDefault()` on constructor and method
+parameters, and a nested class correctly reporting none.
 
 ### An absent property bound to a `scala.Option` (from B14) — **fixed here**
 

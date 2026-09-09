@@ -406,6 +406,9 @@ private object ScalaModelExtractor:
 
   private val CreatorAnnotationName = "io.micronaut.core.annotation.Creator"
 
+  /** Synthetic marker carrying a Scala default-argument accessor across classloaders. */
+  private val DefaultAccessorAnnotationName = "io.micronaut.scala.ScalaDefaultValue"
+
   private val ScalaPrimitiveNames = Map(
     "scala.Boolean" -> "boolean",
     "scala.Byte" -> "byte",
@@ -1061,12 +1064,58 @@ private object ScalaModelExtractor:
   private def parameterData(parameter: tpd.ValDef)(using Context, AnnotationDefaults): ScalaParameterData =
     val parameterType = byNameTypeData(parameter.tpt.tpe).getOrElse(typeData(parameter.tpt))
     val parameterAnnotations = annotations(parameter.symbol) ++ typeUseNullabilityAnnotations(parameterType)
+    val accessor = defaultAccessor(parameter.symbol)
+    // Carried as annotation metadata as well as on the record. Core hands the parameter to a
+    // `ParameterDefaultValueProvider` loaded by *Core's* classloader, which in a test harness
+    // is not the plugin's isolated one, so an `instanceof` check against this plugin's own
+    // element type is false even though the class names match. Metadata is data rather than a
+    // type, so it crosses that boundary.
+    val defaultAnnotations = accessor.map { case (name, isStatic) =>
+      ScalaAnnotationData(
+        DefaultAccessorAnnotationName,
+        java.util.Map.of[CharSequence, Object]("accessor", name, "static", java.lang.Boolean.valueOf(isStatic)),
+        null
+      )
+    }
     ScalaParameterData(
       parameter.name.toString,
       parameterType,
-      parameterAnnotations.asJava,
+      (parameterAnnotations ++ defaultAnnotations).asJava,
+      accessor.map(_._1).orNull,
+      accessor.exists(_._2),
       parameter
     )
+
+  /**
+   * The generated accessor that supplies a parameter's default value, if a caller can reach it.
+   *
+   * Scala compiles a default argument to a zero-argument accessor rather than to anything in
+   * the method signature: `def repeat(word: String, count: Int = 3)` emits
+   * `repeat$default$2()` as an instance method, and a constructor default emits
+   * `$lessinit$greater$default$<n>()`. Core's `ParameterDefaultValueProvider` is built for
+   * exactly this -- an expression the *caller* evaluates -- so the model only has to say
+   * which accessor to call and whether it is static.
+   *
+   * The constructor accessor is static on the class only through the companion's static
+   * forwarder, which the backend emits only for a *static* companion. For a class nested
+   * inside another class the accessor is an instance method on the inner companion and is
+   * not reachable from a call site, so no default is reported and the parameter stays
+   * required -- which is the current behaviour, and better than emitting a call to a method
+   * that does not exist or silently injecting a type default.
+   */
+  private def defaultAccessor(symbol: Symbol)(using Context): Option[(String, Boolean)] =
+    if !hasFlag(symbol, Flags.HasDefault) then
+      None
+    else
+      val owner = symbol.owner
+      val index = owner.info.paramNamess.flatten.indexWhere(_ == symbol.name) + 1
+      if index <= 0 then
+        None
+      else if owner.denot.isConstructor then
+        val cls = owner.owner
+        Option.when(cls.isStatic)((s"$$lessinit$$greater$$default$$$index", true))
+      else
+        Some((s"${methodName(owner.name.toString)}$$default$$$index", false))
 
   private def parameterData(name: String, tpe: Type, nativeType: Object)(using Context, AnnotationDefaults): ScalaParameterData =
     val parameterType = byNameTypeData(tpe).getOrElse(typeData(tpe))

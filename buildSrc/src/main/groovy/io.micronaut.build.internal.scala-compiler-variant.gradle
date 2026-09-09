@@ -153,6 +153,11 @@ def mergedServiceDirectory = layout.buildDirectory.dir("merged-service-files")
 // implementation with no build error anywhere. Union every descriptor instead.
 def mergeServiceFiles = tasks.register("mergeServiceFiles") {
     inputs.files(configurations.bundled)
+    // The project's own descriptors are an input too. Without this the task stays
+    // up-to-date when one of them is added or changed, and the new descriptor silently
+    // never reaches the jar -- which is exactly what happened when the parameter default
+    // value provider was registered.
+    inputs.dir(ownServiceDirectory).withPropertyName("ownServiceDescriptors")
     outputs.dir(mergedServiceDirectory)
     def serviceDirectory = ownServiceDirectory
     def outputDirectory = mergedServiceDirectory

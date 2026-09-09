@@ -15,6 +15,8 @@
  */
 package io.micronaut.scala.processing.visitor;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.Collections;
 import java.util.List;
 
@@ -24,14 +26,25 @@ import java.util.List;
  * @param name The parameter name
  * @param type The parameter type
  * @param annotations The annotations
+ * @param defaultAccessor The name of the generated accessor supplying this parameter's
+ *     default value, or {@code null} when it has no default or the accessor cannot be
+ *     reached from the call site
+ * @param defaultAccessorStatic Whether that accessor is a static method of the declaring
+ *     class rather than an instance method
  * @param nativeType The native Scala compiler object
  */
 public record ScalaParameterData(
     String name,
     ScalaTypeData type,
     List<ScalaAnnotationData> annotations,
+    @Nullable String defaultAccessor,
+    boolean defaultAccessorStatic,
     Object nativeType
 ) implements ScalaAnnotatedElementData {
+
+    public ScalaParameterData(String name, ScalaTypeData type, List<ScalaAnnotationData> annotations, Object nativeType) {
+        this(name, type, annotations, null, false, nativeType);
+    }
 
     public ScalaParameterData {
         annotations = annotations == null ? Collections.emptyList() : List.copyOf(annotations);

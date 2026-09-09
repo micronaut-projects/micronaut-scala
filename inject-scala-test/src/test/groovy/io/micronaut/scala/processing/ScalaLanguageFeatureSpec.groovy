@@ -207,6 +207,84 @@ class Defaulted(val name: String = "fallback")
         element.getEnclosedElements(ElementQuery.ALL_METHODS).every { !it.name.contains('$default$') }
     }
 
+
+    void "test a constructor default argument is used when nothing is injected"() {
+        when: "the accessor Scala emits for the default is static on the class"
+        def context = buildContext('''
+package defaultsfeature
+
+import jakarta.inject.Singleton
+
+@Singleton
+class Greeter(val greeting: String = "hello", val times: Int = 2)
+''', [:], true)
+
+        then: "so core can call it at the injection site instead of failing or passing null"
+        def bean = getBean(context, 'defaultsfeature.Greeter')
+        bean.greeting() == 'hello'
+        bean.times() == 2
+
+        cleanup:
+        context?.close()
+    }
+
+    void "test an introspection instantiates using default arguments"() {
+        given:
+        def introspection = buildBeanIntrospection('defaultsfeature.Greeter', '''
+package defaultsfeature
+
+import io.micronaut.core.annotation.Introspected
+
+@Introspected
+case class Greeter(greeting: String = "hello", times: Int = 2)
+''')
+
+        expect: "a no-argument instantiate exists only because every parameter has a default"
+        introspection.instantiate().greeting() == 'hello'
+        introspection.instantiate().times() == 2
+
+        and: "and supplying values still works"
+        introspection.instantiate('hi', 3).greeting() == 'hi'
+    }
+
+    void "test hasDefault is reported only where the accessor can be reached"() {
+        given:
+        def element = buildClassElement('defaultsfeature.Holder', '''
+package defaultsfeature
+
+class Holder(val greeting: String = "hello", val plain: String) {
+  def repeat(word: String, count: Int = 3): String = word * count
+}
+''')
+
+        expect: "a constructor default, and a parameter without one"
+        element.getPrimaryConstructor().get().getParameters()
+                .collectEntries { [it.name, it.hasDefault()] } == [greeting: true, plain: false]
+
+        and: "a method default, whose accessor is an instance method"
+        element.getEnclosedElements(ElementQuery.ALL_METHODS.onlyDeclared())
+                .find { it.name == 'repeat' }
+                .getParameters()
+                .collectEntries { [it.name, it.hasDefault()] } == [word: false, count: true]
+    }
+
+    void "test a nested class reports no default, because its accessor is unreachable"() {
+        given: "the accessor is an instance method on the inner companion, not static"
+        def element = buildClassElement('defaultsfeature.Outer', '''
+package defaultsfeature
+
+class Outer {
+  class Nested(val value: String = "d")
+}
+''')
+
+        when:
+        def nested = element.getEnclosedElements(ElementQuery.of(ClassElement)).first()
+
+        then: "claiming a default here would emit a call to a method that does not exist"
+        nested.getPrimaryConstructor().get().getParameters()*.hasDefault() == [false]
+    }
+
     void "test varargs method parameter is modelled as its erased Seq type"() {
         given:
         ClassElement element = buildClassElement('test.Varargs', '''

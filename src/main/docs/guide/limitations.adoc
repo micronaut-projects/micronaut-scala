@@ -1,26 +1,6 @@
 Known gaps, with the reason for each. Anything not listed here is either supported
 or has not been established either way.
 
-== Waiting on Micronaut Core
-
-=== Default arguments at injection points
-
-A Scala default argument is invisible to injection, so the parameter is treated as
-required:
-
-[source,scala]
-----
-@Singleton
-class Greeter(greeting: String = "hello")   // greeting is required, not defaulted
-----
-
-Micronaut models optional parameters, but through Kotlin's calling convention: a
-bitmask plus a synthetic `$default` overload. Scala's convention is unrelated — a
-zero-argument `<method>$default$<n>` getter per defaulted parameter, no mask and no
-overload — so implementing the Kotlin interface would make Core emit calls to
-methods that do not exist. A language-neutral SPI exists on a Core branch and this
-becomes a small change once it merges.
-
 == Scala shapes not modelled
 
 === Hand-written property pairs
