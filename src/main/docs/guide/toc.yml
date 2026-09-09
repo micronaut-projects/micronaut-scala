@@ -2,5 +2,17 @@ introduction:
   title: Introduction
 quickStart:
   title: Quick Start
+buildTools:
+  title: Build Tools
+configuration:
+  title: Configuration Options
+dependencies:
+  title: Artifacts and Dependencies
+testing:
+  title: Testing
+limitations:
+  title: Limitations
+troubleshooting:
+  title: Troubleshooting
 repository: Repository
 releaseHistory: Release History

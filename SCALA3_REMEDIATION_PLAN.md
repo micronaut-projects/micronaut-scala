@@ -1657,9 +1657,20 @@ limitations page.
   target it, and JDKs below 25 are explicitly out of scope.
 - Scala 2 is out of scope.
 
-### E4 Target documentation set
+### E4 Target documentation set — **done**
 
-New `toc.yml`:
+Written, and the guide builds with every cross-reference resolving. `buildTools`
+carries a complete build file for Gradle, Maven, sbt and Mill; the Gradle one is
+the build `ScalaGradlePluginFunctionalSpec` generates and runs, and the page says
+so, while the other three are marked as following each tool's documented mechanism
+but unverified here. `troubleshooting` is written from failures actually hit in
+this work — the plugin classloader `NoClassDefFoundError`, the `Missing
+plugin.properties` fan-out, the `java.compiler` module, the `_3` versus `_3.9.0`
+suffix, the Zinc/`scala-library` conflict, and collections failing to bind when
+`micronaut-runtime-scala` is absent. `limitations` lists what is still open with
+the reason, and separates that from the shapes that look like gaps and are not.
+
+Original target `toc.yml`:
 
 `introduction` · `quickStart` · `buildTools` (Gradle, sbt, Mill, Maven — complete
 working build files for each) · `configuration` (the `-P:micronaut-scala:` option
@@ -1882,7 +1893,7 @@ D2.
 23. Service-file merging and the remaining jar hygiene items (D3); complete the
     Scala toolchain pin (D5).
 24. Add the end-user functional test (Gradle, and sbt if practical) (D6).
-25. Write the documentation set in E4.
+25. **Done.** The documentation set in E4.
 
 ### Wave 6 — structural
 

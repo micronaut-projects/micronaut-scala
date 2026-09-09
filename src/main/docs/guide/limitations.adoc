@@ -1,0 +1,87 @@
+Known gaps, with the reason for each. Anything not listed here is either supported
+or has not been established either way.
+
+== Waiting on Micronaut Core
+
+=== Default arguments at injection points
+
+A Scala default argument is invisible to injection, so the parameter is treated as
+required:
+
+[source,scala]
+----
+@Singleton
+class Greeter(greeting: String = "hello")   // greeting is required, not defaulted
+----
+
+Micronaut models optional parameters, but through Kotlin's calling convention: a
+bitmask plus a synthetic `$default` overload. Scala's convention is unrelated — a
+zero-argument `<method>$default$<n>` getter per defaulted parameter, no mask and no
+overload — so implementing the Kotlin interface would make Core emit calls to
+methods that do not exist. A language-neutral SPI exists on a Core branch and this
+becomes a small change once it merges.
+
+=== An absent property bound to `scala.Option`
+
+`Option[T]` binds correctly from a property that is set. A property that is
+*absent* fails with "Property doesn't exist" rather than yielding `None`:
+
+[source,scala]
+----
+@ConfigurationProperties("app")
+case class AppConfig(timeout: Option[Int])   // app.timeout unset -> binding error
+----
+
+`TypeInformation.isOptional()` in Core is `type == java.util.Optional`, so an empty
+`scala.Option` argument reads as a missing property. Declaring the parameter
+`@Nullable` is not a workaround: it substitutes a Java `null` for the `None`, so
+the bean holds `null` where its own type says `Option`.
+
+== Scala shapes not modelled
+
+=== Hand-written property pairs
+
+A property written in Scala's own convention is not assembled into a bean property:
+
+[source,scala]
+----
+class Holder {
+  def size: Int = ...            // not exposed as a property
+  def size_=(v: Int): Unit = ...
+}
+----
+
+Both halves are visible as ordinary methods, so `@Inject` on the setter still
+works and injection is unaffected. What is missing is the property itself, so
+`@Introspected` does not expose `size`. `val`/`var` members and JavaBean-style
+`getX`/`setX` pairs are both recognised; only the hand-written Scala pair is not.
+`@AccessorsStyle(readPrefixes = Array(""), writePrefixes = Array(""))` is the
+supported way to expose accessors that carry no prefix.
+
+=== Generic detail on classpath types
+
+Two places report less detail than the Java and Kotlin integrations, without
+reporting anything wrong:
+
+* A type variable of a *classpath* type reports its own type arguments as empty,
+  where the other integrations model two levels before collapsing to `Object`.
+* A lower-bounded wildcard (`? >: T`) is reported as its upper bound, so
+  `List[? >: String]` gives `Object`.
+
+Both erase to a correct JVM type; they simply carry less information than they
+could.
+
+== Not defects
+
+Listed because they look like gaps and are not:
+
+* **Varargs.** `def f(xs: String*)` compiles to a single method taking
+  `scala.collection.immutable.Seq` with `ACC_VARARGS` unset, so the parameter type
+  and `isVarArgs() == false` are both accurate.
+* **`protected`.** Scala `protected` and `protected[pkg]` compile to public
+  members, and the model reports what the bytecode contains.
+* **Field visibility.** Every Scala `val` and `var` is a private field behind
+  accessors, so queries that select public fields return nothing. The fields are
+  present; they are not accessible.
+* **Trait parameters, `inline`, and extension methods declared in a class body**
+  are all modelled.

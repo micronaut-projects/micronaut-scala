@@ -1,0 +1,84 @@
+== No bean definitions are generated
+
+The compilation succeeds and no `$*$Definition` classes appear.
+
+The plugin is not being applied. A Scala compiler plugin has to be registered with
+the compiler itself, not added as a dependency — check that it is on the compiler
+plugin configuration (`scalaCompilerPlugins`, `addCompilerPlugin`,
+`scalacPluginIvyDeps`, or `<compilerPlugins>`) and not on `implementation`.
+
+Run the compiler with `-Xplugin-list` to see which plugins actually loaded.
+
+== `NoClassDefFoundError` from inside the compiler
+
+----
+java.lang.NoClassDefFoundError: io/micronaut/inject/processing/ProcessingException
+----
+
+The plugin jar has been stripped of the classes it bundles, or replaced with one
+that never had them.
+
+A Scala compiler plugin is loaded in a classloader built from *its own*
+`-Xplugin` argument, and that classloader cannot see the compile classpath. The
+published jar therefore carries the Micronaut and ASM classes it needs. Repacking
+it, or substituting a jar of only this project's classes, removes exactly the
+classes the plugin loads first.
+
+Declaring the dependencies separately does not help: build tools pass each
+resolved file as its own `-Xplugin` argument, so each gets its own classloader.
+
+== `Missing plugin.properties` warnings
+
+----
+warning: Missing plugin.properties in <some-jar>
+----
+
+Something is passing more jars to `-Xplugin` than intended, usually transitive
+resolution of the compiler plugin configuration. The warnings are harmless — a jar
+without a plugin descriptor is skipped — but they indicate the configuration is
+resolving more than the one artifact it needs.
+
+== Errors mentioning `javax.lang.model`
+
+The `java.compiler` module is not resolved in the compiler process. Add:
+
+----
+-J--add-modules=java.compiler
+----
+
+to the Scala compiler arguments. See <<buildTools, Build Tools>> for where it goes in each tool.
+
+== `Could not find ..._3:<version>`
+
+The artifact coordinate is using the binary Scala line rather than the full
+compiler version. This project publishes `micronaut-inject-scala_3.9.0`, not
+`micronaut-inject-scala_3`, because compiler plugin APIs can change between
+compiler releases.
+
+In sbt use `CrossVersion.full`; in Mill use the `:::` syntax; in Gradle and Maven
+write the full version into the artifact ID.
+
+== Scala collections or `Option` fail to bind at runtime
+
+The code compiles, and injecting a `List[T]`, `Map[String, T]` or `Option[T]`
+fails when the application starts.
+
+`micronaut-runtime-scala` is missing from the runtime classpath. The converters
+live there rather than in the compiler plugin — see <<dependencies, Artifacts and Dependencies>>.
+
+== `The version of 'scala-library' was changed while using the default Zinc version`
+
+----
+Version 3.9.0 is not compatible with org.scala-sbt:zinc_2.13:1.12.0
+----
+
+A dependency-resolution rule is forcing the Scala 3 version onto Gradle's own Zinc
+configuration. Zinc is built for Scala 2.13 and needs the 2.13 `scala-library` and
+`scala-reflect`; it is Gradle's toolchain, not the project's. Exempt the `zinc`
+configuration from any Scala pinning rule.
+
+== A `-P:micronaut-scala:` option appears to do nothing
+
+Options are passed through to `VisitorContext.getOptions()` and the set is open, so
+an unrecognised key is accepted rather than rejected. Check the spelling against
+<<configuration, Configuration Options>>.

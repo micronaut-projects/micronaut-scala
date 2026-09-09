@@ -1,0 +1,57 @@
+This project publishes three artifacts. They are not interchangeable, and the most
+common setup problem is using one where another is meant.
+
+|===
+|Artifact |Where it goes |Crossed with the compiler version
+
+|`micronaut-inject-scala_<scala version>`
+|Scala compiler plugin configuration only
+|Yes
+
+|`micronaut-runtime-scala`
+|Application runtime classpath
+|No
+
+|`micronaut-inject-scala-test_<scala version>`
+|Test compile classpath of *this* kind of project only
+|Yes
+|===
+
+== The compiler plugin
+
+`micronaut-inject-scala_3.9.0` runs inside the Scala compiler and generates bean
+definitions. It bundles the Micronaut and ASM classes it compiles against, at
+their original package paths, because a Scala compiler plugin is loaded in an
+isolated classloader that cannot see the compile classpath.
+
+That has two consequences worth knowing:
+
+* The published POM deliberately declares almost nothing. Its dependencies are
+  inside the jar, and declaring them as well would put every one of those classes
+  on a consumer's classpath twice.
+* It must not go on an application's runtime classpath. Doing so places a second
+  copy of Micronaut and ASM into the running application.
+
+== The runtime support
+
+`micronaut-runtime-scala` is an ordinary small library holding the converters that
+let Micronaut bind Scala collections and `scala.Option`. Without it on the runtime
+classpath, a bean that injects a `List[T]`, a `Map[String, T]` or an `Option[T]`
+will fail to bind at runtime even though it compiled.
+
+It is not crossed with the compiler version, because it is not a compiler plugin.
+
+== Visitors on the compilation classpath
+
+`TypeElementVisitor` implementations are discovered with `ServiceLoader` from the
+*compilation* classpath. A visitor supplied by another Micronaut module — for
+example the validation processor — therefore has to be a compile-time dependency
+of the module being compiled, not a runtime one.
+
+== Version relationships
+
+The Scala version in the artifact name is the full compiler version, not the
+binary line. `_3.9.0` is correct; `_3` is not published. See
+<<introduction, Supported versions>> for why.
+
+The project version is independent of the Micronaut Core version.

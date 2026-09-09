@@ -1,0 +1,62 @@
+`micronaut-inject-scala-test_<scala version>` provides the harness this repository
+uses to compile Scala sources in-process and inspect the result: the element model,
+the generated bean definitions, or a running `ApplicationContext`.
+
+It is intended for projects that extend the Scala integration itself. An
+application does not need it to test its own beans.
+
+== Adding it
+
+[source,kotlin]
+----
+dependencies {
+    testImplementation("io.micronaut.scala:micronaut-inject-scala-test_3.9.0:1.0.0-SNAPSHOT")
+}
+----
+
+== Required system properties
+
+The harness compiles by invoking the Scala compiler directly, so it has to be told
+where the plugin and the compilation classpath are. Both are required, and the
+harness fails immediately if either is missing.
+
+|===
+|Property |Value
+
+|`micronaut.scala.plugin.jar`
+|Absolute path to the compiler plugin jar.
+
+|`micronaut.scala.test.classpath`
+|The classpath compiled sources are resolved against, usually the test runtime classpath.
+|===
+
+[source,kotlin]
+----
+tasks.withType<Test>().configureEach {
+    doFirst {
+        systemProperty("micronaut.scala.plugin.jar", pluginJar.absolutePath)
+        systemProperty(
+            "micronaut.scala.test.classpath",
+            sourceSets.test.get().runtimeClasspath.asPath
+        )
+    }
+}
+----
+
+The properties are set in `doFirst` rather than at configuration time so that
+resolving the classpath does not happen during configuration.
+
+== What the harness offers
+
+`AbstractScalaTypeElementSpec` exposes the operations the specs in this repository
+are written against:
+
+* `buildClassElement(name, source)` — compile a source and return its `ClassElement`
+* `buildBeanDefinition(name, source)` — compile and load the generated definition
+* `buildBeanIntrospection(name, source)` — compile and load the generated introspection
+* `buildContext(source, properties, includeAllBeans)` — compile and start an `ApplicationContext`
+* `buildClassLoader(name, source)` — compile and return a classloader over the output
+
+A visitor can be installed for the duration of one compilation to capture the
+`VisitorContext`, which is how the specs assert against elements the compiler
+produced rather than against elements they constructed.
