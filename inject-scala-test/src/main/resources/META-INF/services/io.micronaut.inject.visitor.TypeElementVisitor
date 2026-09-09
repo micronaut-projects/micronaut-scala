@@ -1,4 +1,5 @@
 io.micronaut.scala.processing.test.ScalaAnnotatingVisitor
+io.micronaut.scala.processing.test.ScalaAnnotationRemovalVisitor
 io.micronaut.scala.processing.test.ScalaBeanElementBuilderVisitor
 io.micronaut.scala.processing.test.ScalaClassElementCaptureVisitor
 io.micronaut.scala.processing.test.ScalaDiagnosticVisitor

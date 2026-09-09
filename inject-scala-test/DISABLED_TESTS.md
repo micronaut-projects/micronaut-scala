@@ -404,7 +404,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/inject/annotation/JavaAnnotationMetadataBuilderSpec.groovy` - scala-specific: language-specific Java/Groovy/Kotlin syntax or compiler behavior; replace with Scala-native coverage when relevant
 - `inject-java/src/test/groovy/io/micronaut/inject/annotation/JavaxMapperSpec.groovy` - scala-specific: language-specific Java/Groovy/Kotlin syntax or compiler behavior; replace with Scala-native coverage when relevant
 - `inject-java/src/test/groovy/io/micronaut/inject/annotation/PriorityAnnotationMapperSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-java/src/test/groovy/io/micronaut/inject/annotation/RemoveAnnotationSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/inject/annotation/RemoveAnnotationSpec.groovy` - covered: `ScalaAnnotationRemovalParitySpec` covers `removeAnnotation`, `removeAnnotationIf`, `removeStereotype`, remove-then-annotate, and removing a repeatable type together with its container
 - `inject-java/src/test/groovy/io/micronaut/inject/annotation/RetentionSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/annotation/repeatable/MapToRepeatableSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/annotation/repeatable/RepeatableAnnotationSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
