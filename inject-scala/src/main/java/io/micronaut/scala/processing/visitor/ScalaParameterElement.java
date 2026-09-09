@@ -117,6 +117,19 @@ public final class ScalaParameterElement extends AbstractScalaElement implements
         return new ParameterElementKey(methodElement, parameterData.name());
     }
 
+    /**
+     * A parameter is null-marked when the method that declares it is: `@NullMarked` on a class
+     * reaches a parameter only through the method, the same route the Java module takes.
+     */
+    @Override
+    public boolean isNonNull() {
+        return ParameterElement.super.isNonNull()
+            || methodElement instanceof AbstractScalaMemberElement member
+            && member.hasNullMarked()
+            && !isNullable();
+    }
+
     private record ParameterElementKey(MethodElement methodElement, String name) {
     }
+
 }

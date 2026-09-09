@@ -18,6 +18,7 @@ package io.micronaut.scala.processing.visitor;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.ElementModifier;
+import io.micronaut.core.annotation.NullMarked;
 import io.micronaut.inject.ast.MemberElement;
 
 import java.util.Set;
@@ -45,6 +46,27 @@ abstract class AbstractScalaMemberElement extends AbstractScalaElement implement
     @Override
     protected Object equalityKey() {
         return new MemberElementKey(declaringType, getName());
+    }
+
+    /**
+     * Whether an absent nullability annotation on this member means non-null.
+     *
+     * <p>`@NullMarked` annotates nothing itself: it changes what saying nothing means for
+     * everything inside it. Core leaves that to the language module -- `isNonNull()` on the
+     * shared `AnnotatedElement` only asks whether the stereotype is present -- and the Java
+     * module implements it by walking from the member out to its owning type. Without the same
+     * walk here, every unannotated member of a `@NullMarked` Scala class reported neither
+     * nullable nor non-null, so binding and validation treated it as unconstrained.</p>
+     *
+     * @return true when this member, or the type declaring it, is null-marked
+     */
+    protected boolean hasNullMarked() {
+        return hasStereotype(NullMarked.class) || getOwningType().hasStereotype(NullMarked.class);
+    }
+
+    @Override
+    public boolean isNonNull() {
+        return MemberElement.super.isNonNull() || hasNullMarked() && !isNullable();
     }
 
     private record MemberElementKey(ClassElement declaringType, String name) {
