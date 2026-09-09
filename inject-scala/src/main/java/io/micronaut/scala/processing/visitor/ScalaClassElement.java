@@ -617,7 +617,24 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         ClassElement resolved = visitorContext.sourceClassElement(typeData.name())
             .map(ClassElement.class::cast)
             .orElseGet(() -> visitorContext.getClassElement(typeData.name()).orElse(null));
-        return resolved == null || resolved == this ? this : resolved;
+        if (resolved == null || resolved == this) {
+            return this;
+        }
+        // The reference knows what the type was used at; the declaration only knows how it was
+        // declared. Reflection reads `Function.apply` as `Object apply(Object)` however the
+        // `Function` was parameterized, so delegating without carrying the arguments over lost
+        // them for every member of a classpath type.
+        Map<String, ClassElement> arguments = elementFactory.typeArguments(typeData);
+        if (arguments.isEmpty()) {
+            return resolved;
+        }
+        Map<String, ClassElement> declared = resolved.getTypeArguments();
+        if (declared.isEmpty()) {
+            return resolved;
+        }
+        Map<String, ClassElement> substituted = new LinkedHashMap<>(declared.size());
+        declared.forEach((name, value) -> substituted.put(name, arguments.getOrDefault(name, value)));
+        return resolved.withTypeArguments(substituted);
     }
 
     @Override

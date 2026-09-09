@@ -256,6 +256,17 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         return supertype.withTypeArguments(substituted);
     }
 
+    /**
+     * Replaces a type variable of this class with the argument it was resolved at.
+     *
+     * <p>A classpath member is built from reflection, which knows the declaration and not the
+     * use: {@code Function.apply} reads as {@code Object apply(Object)} however the
+     * {@code Function} was parameterized. The type arguments were being applied to supertypes
+     * but not to members, so a factory producing {@code Function[String, Integer]} wrote a
+     * definition whose recorded arguments said {@code T=String, R=Integer} while its one
+     * executable method still took and returned {@code Object} -- and a caller looking the
+     * method up by the types the definition itself reports found nothing.</p>
+     */
     private ClassElement substitute(ClassElement argument) {
         if (argument instanceof GenericPlaceholderElement placeholder) {
             ClassElement bound = typeArguments.get(placeholder.getVariableName());
@@ -544,8 +555,12 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         Class<?>[] parameterTypes = executable.getParameterTypes();
         ParameterElement[] parameterElements = new ParameterElement[parameters.length];
         for (int i = 0; i < parameters.length; i++) {
+            // Only the generic type is substituted. The erasure is the JVM signature, and a
+            // generated adapter or proxy overrides the method by it: substituting there made
+            // an @Adapter implement `onApplicationEvent(StartupEvent)` and leave the
+            // interface's own `onApplicationEvent(Object)` abstract.
             ClassElement type = classElement(parameterTypes[i], visitorContext);
-            ClassElement genericType = classElement(genericParameterTypes[i], parameterTypes[i], visitorContext);
+            ClassElement genericType = substitute(classElement(genericParameterTypes[i], parameterTypes[i], visitorContext));
             parameterElements[i] = new LoadedParameterElement(
                 type,
                 genericType,
@@ -958,7 +973,8 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
 
         @Override
         public ClassElement getGenericReturnType() {
-            return classElement(method.getGenericReturnType(), method.getReturnType(), visitorContext);
+            ClassElement returnType = classElement(method.getGenericReturnType(), method.getReturnType(), visitorContext);
+            return owningType instanceof ScalaLoadedClassElement loaded ? loaded.substitute(returnType) : returnType;
         }
 
         @Override
