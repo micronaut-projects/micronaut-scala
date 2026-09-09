@@ -1910,6 +1910,15 @@ D2.
 Items that cannot be closed in this repository. Each needs a change to Core
 first; they are listed here so they are not mistaken for oversights.
 
+**Status of the Core work, checked against the repository rather than assumed:**
+
+| item | Core change | state |
+| --- | --- | --- |
+| Scala default arguments | micronaut-core#13041 | **merged, on `5.2.x`** — implementable here now |
+| Annotating synthetic and reflective elements | micronaut-core#13062 | **merged, on `5.2.x`** — and the Scala-side half turned out to be this repository's own missing `getMethodAnnotationMetadata()` override, fixed separately |
+| An absent property bound to `scala.Option` | none yet | investigation open against micronaut-core |
+
+
 ### Scala default arguments at injection points (from B13)
 
 A parameter with a default is treated as required, so a Scala bean whose
