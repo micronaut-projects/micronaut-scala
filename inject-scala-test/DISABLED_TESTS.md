@@ -374,7 +374,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/LifeCycleWithProxyTargetSpec.groovy` - covered: Scala source-defined `@Around(proxyTarget = true)` advice is covered for generated proxy-target beans, interceptor invocation, and target lifecycle
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/OriginatingElementsSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/aop/compile/PostConstructInterceptorCompileSpec.groovy` - covered: `ScalaLifecycleInterceptorParitySpec` covers interceptors bound by `InterceptorKind` to construction and destruction, on both a class bean and a factory-produced one, declared through a hand-written `@InterceptorBindingDefinitions` because Scala has no repeatable annotations
-- `inject-java/src/test/groovy/io/micronaut/aop/compile/ValidatedNonBeanSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/aop/compile/ValidatedNonBeanSpec.groovy` - covered: `ScalaValidationParitySpec` covers an unconstrained bean not being marked validated
 - `inject-java/src/test/groovy/io/micronaut/aop/factory/AdviceDefinedOnFactorySpec.groovy` - covered: `ScalaFactoryAdviceParitySpec` covers class-level advice on a factory advising the factory's own producer method while leaving the produced bean unproxied
 - `inject-java/src/test/groovy/io/micronaut/aop/factory/SessionProxySpec.groovy` - covered: `ScalaAdvisedBeanShapeParitySpec` covers an advised bean resolved by qualifier through its proxy
 - `inject-java/src/test/groovy/io/micronaut/aop/factory/mapped/FactoryMappedAdviceReflectionSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
@@ -429,7 +429,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/ImmutableConfigurationPropertiesSpec.groovy` - covered: `ScalaConfigurationShapeParitySpec` covers a configuration class whose properties are constructor parameters
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/InheritedConfigurationReaderPrefixSpec.groovy` - covered: `ScalaConfigurationShapeParitySpec` covers prefix composition, with the inherited-property rule asserted in `ScalaConfigurationParitySpec`
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/InterfaceConfigurationPropertiesSpec.groovy` - candidate: partially covered by `ScalaInterfaceConfigurationParitySpec` for advice-resolved trait configuration in both the JavaBean and prefix-free Scala spellings, and for `Option` standing in for `Optional`; `@EachProperty` on an interface, nested interface configuration and bean-valued accessors remain comparison candidates
-- `inject-java/src/test/groovy/io/micronaut/inject/configproperties/ValidatedConfigurationSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-java/src/test/groovy/io/micronaut/inject/configproperties/ValidatedConfigurationSpec.groovy` - covered: `ScalaValidationParitySpec` covers a constrained configuration property marking the definition validated
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/VisibilityIssuesSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/eachbeaninterceptor/EachBeanInterceptorSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-java/src/test/groovy/io/micronaut/inject/configproperties/eachbeanparameter/EachBeanParameterSpec.groovy` - covered: `ScalaEachPropertyParitySpec` covers an @EachBean driven off each configuration bean
@@ -526,7 +526,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-groovy/src/test/groovy/io/micronaut/aop/compile/IntroductionWithAroundSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-groovy/src/test/groovy/io/micronaut/aop/compile/LifeCycleWithProxySpec.groovy` - covered by reference: the same scenarios as `inject-java/src/test/groovy/io/micronaut/aop/compile/LifeCycleWithProxySpec.groovy`, which is covered. The language modules mirror each other, and a Scala port is written once against whichever source states the case most directly
 - `inject-groovy/src/test/groovy/io/micronaut/aop/compile/PropertyAdviceSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
-- `inject-groovy/src/test/groovy/io/micronaut/aop/compile/ValidatedNonBeanSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-groovy/src/test/groovy/io/micronaut/aop/compile/ValidatedNonBeanSpec.groovy` - covered: `ScalaValidationParitySpec` covers an unconstrained bean not being marked validated
 - `inject-groovy/src/test/groovy/io/micronaut/aop/factory/SessionProxySpec.groovy` - covered: `ScalaAdvisedBeanShapeParitySpec` covers an advised bean resolved by qualifier through its proxy
 - `inject-groovy/src/test/groovy/io/micronaut/aop/introduction/InterfaceIntroductionAdviceSpec.groovy` - covered: `ScalaIntroductionShapeParitySpec` covers an introduced method whose return type is generic
 - `inject-groovy/src/test/groovy/io/micronaut/aop/introduction/IntroductionAdviceWithNewInterfaceSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
@@ -565,7 +565,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-groovy/src/test/groovy/io/micronaut/inject/configproperties/ImmutableConfigurationPropertiesSpec.groovy` - covered: `ScalaConfigurationShapeParitySpec` covers a configuration class whose properties are constructor parameters
 - `inject-groovy/src/test/groovy/io/micronaut/inject/configproperties/InheritedConfigurationReaderPrefixSpec.groovy` - covered: `ScalaConfigurationShapeParitySpec` covers prefix composition, with the inherited-property rule asserted in `ScalaConfigurationParitySpec`
 - `inject-groovy/src/test/groovy/io/micronaut/inject/configproperties/InterfaceConfigurationPropertiesSpec.groovy` - covered by reference: the same scenarios as `inject-java/src/test/groovy/io/micronaut/inject/configproperties/InterfaceConfigurationPropertiesSpec.groovy`, which is covered. The language modules mirror each other, and a Scala port is written once against whichever source states the case most directly
-- `inject-groovy/src/test/groovy/io/micronaut/inject/configproperties/ValidatedConfigurationSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-groovy/src/test/groovy/io/micronaut/inject/configproperties/ValidatedConfigurationSpec.groovy` - covered: `ScalaValidationParitySpec` covers a constrained configuration property marking the definition validated
 - `inject-groovy/src/test/groovy/io/micronaut/inject/configproperties/VisibilityIssuesSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-groovy/src/test/groovy/io/micronaut/inject/configuration/GroovyConfigBuilderSpec.groovy` - scala-specific: language-specific Java/Groovy/Kotlin syntax or compiler behavior; replace with Scala-native coverage when relevant
 - `inject-groovy/src/test/groovy/io/micronaut/inject/context/NoPackageSpec.groovy` - scala-specific: language-specific Java/Groovy/Kotlin syntax or compiler behavior; replace with Scala-native coverage when relevant
@@ -600,7 +600,7 @@ Start with small tests that exercise already-supported Scala forms before the br
 - `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/IntroductionVisitorSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
 - `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/PropertyElementSpec.groovy` - covered by reference: the same scenarios as `inject-java/src/test/groovy/io/micronaut/visitors/PropertyElementSpec.groovy`, which is covered. The language modules mirror each other, and a Scala port is written once against whichever source states the case most directly
 - `inject-groovy/src/test/groovy/io/micronaut/inject/visitor/TypeElementQuerySpec.groovy` - covered: Scala type visitors cover `TypeElementQuery` field, method, and constructor inclusion
-- `inject-groovy/src/test/groovy/io/micronaut/validation/ValidatedParseSpec.groovy` - candidate: not yet covered; prioritize by the gap buckets above
+- `inject-groovy/src/test/groovy/io/micronaut/validation/ValidatedParseSpec.groovy` - covered: `ScalaValidationParitySpec` covers constraints on constructor and executable parameters, both marked `@PendingFeature` there, and the negative case
 
 ### Kotlin AbstractKotlinCompilerSpec
 
