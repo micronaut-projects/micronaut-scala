@@ -110,7 +110,7 @@ class Test {
         argument.getName() == 'java.lang.CharSequence'
     }
 
-    void 'a lower-bounded wildcard reports its upper bound'() {
+    void 'a lower-bounded wildcard erases to its upper bound and keeps its lower one'() {
         given:
         def method = argumentOf('''
 class Test {
@@ -118,9 +118,16 @@ class Test {
 }
 ''', 'lower')
 
-        expect: 'less detail than the Java and Kotlin modules give, but not a wrong JVM type'
+        expect: '''the name is the erasure, as it is in the Java module: JavaWildcardElement
+                    takes its identity from the most-upper bound, which for `? super String` is
+                    Object, and carries the lower bounds alongside rather than in the name'''
         def argument = method.getGenericReturnType().getTypeArguments()['E']
         argument.isWildcard()
         argument.getName() == 'java.lang.Object'
+
+        and: 'and the lower bound is kept, so nothing about the declaration is lost'
+        argument.getLowerBounds()*.getName() == ['java.lang.String']
+        argument.hasExplicitLowerBound()
+        !argument.hasExplicitUpperBound()
     }
 }

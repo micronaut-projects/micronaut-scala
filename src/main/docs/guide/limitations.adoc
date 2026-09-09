@@ -5,16 +5,10 @@ or has not been established either way.
 
 === Generic detail on classpath types
 
-Two places report less detail than the Java and Kotlin integrations, without
-reporting anything wrong:
-
-* A type variable of a *classpath* type reports its own type arguments as empty,
-  where the other integrations model two levels before collapsing to `Object`.
-* A lower-bounded wildcard (`? >: T`) is reported as its upper bound, so
-  `List[? >: String]` gives `Object`.
-
-Both erase to a correct JVM type; they simply carry less information than they
-could.
+A type variable of a *classpath* type reports its own type arguments as empty,
+where the Java and Kotlin integrations model two levels before collapsing to
+`Object`. It erases to a correct JVM type; it simply carries less information
+than it could.
 
 == Incremental compilation
 
