@@ -1065,7 +1065,6 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         private final Method method;
         private final ParameterElement[] parameters;
         private final ScalaVisitorContext visitorContext;
-        private @Nullable MethodElementAnnotationMetadata composedAnnotationMetadata;
 
         private LoadedMethodElement(
             ClassElement owningType,
@@ -1211,10 +1210,10 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
          */
         @Override
         public AnnotationMetadata getAnnotationMetadata() {
-            if (composedAnnotationMetadata == null) {
-                composedAnnotationMetadata = new MethodElementAnnotationMetadata(this);
-            }
-            return composedAnnotationMetadata.getAnnotationMetadata();
+            // Built per call rather than cached: the hierarchy resolves its merged view once,
+            // and a visitor that annotates the method afterwards -- which is when Micronaut Data
+            // records the query it derived -- would not appear in a view built before it ran.
+            return new MethodElementAnnotationMetadata(this).getAnnotationMetadata();
         }
 
         @Override

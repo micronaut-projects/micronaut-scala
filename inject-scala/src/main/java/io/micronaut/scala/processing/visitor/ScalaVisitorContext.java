@@ -46,6 +46,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -78,6 +79,7 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
      */
     private final Map<String, ScalaPackageElement> packageElements = new LinkedHashMap<>();
     private final IdentityHashMap<Object, MutableAnnotationMetadata> elementAnnotationMetadata = new IdentityHashMap<>();
+    private final Map<Object, MutableAnnotationMetadata> loadedElementAnnotationMetadata = new HashMap<>();
     private final List<AbstractBeanDefinitionBuilder> beanDefinitionBuilders = new ArrayList<>();
     private final Map<String, String> options;
     private final Function<String, ScalaAnnotationTypeData> annotationTypeResolver;
@@ -391,7 +393,10 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
      * @return The shared mutable metadata
      */
     MutableAnnotationMetadata loadedAnnotationMetadata(Object nativeType, Supplier<AnnotationMetadata> initial) {
-        return elementAnnotationMetadata.computeIfAbsent(
+        // Keyed by equality, not identity. Reflection hands back a fresh `Method` for every call
+        // to `getMethods()` -- they are copies -- so the identity map the extracted elements use
+        // never matched twice and each rebuilt element still got its own metadata.
+        return loadedElementAnnotationMetadata.computeIfAbsent(
             nativeType,
             ignored -> MutableAnnotationMetadata.of(initial.get())
         );
