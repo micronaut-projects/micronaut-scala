@@ -1379,7 +1379,8 @@ private object ScalaModelExtractor:
    * Deliberately not applied to value classes. A value class erases to its underlying type in
    * ordinary position but stays boxed as a type argument -- `List[UserId]` really does have the
    * signature `List<UserId>` -- so the answer depends on where the type appears, which this
-   * cannot see. Recorded in B13 of SCALA3_REMEDIATION_PLAN.md.
+   * cannot see. Substituting the erasure there was tried and reverted: it broke `@Adapter`,
+   * which failed with an AbstractMethodError at context startup.
    */
   private def jvmModelledType(tpe: Type)(using Context, TypePosition): Type =
     tpe match

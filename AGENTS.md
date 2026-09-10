@@ -93,15 +93,16 @@ vulnerability-audit script.
   `org.scala-lang:scala3-compiler_3:<scala3>:sources`. Composite `FlagSet`s in
   particular need `isAllOf`, not `isOneOf`.
 
-## Planning Documents
+## Where the reasoning lives
 
-- `SCALA3_SUPPORT_PLAN.md` — compatibility policy, release sequencing,
-  packaging rules.
-- `SCALA3_REMEDIATION_PLAN.md` — the reviewed gap analysis and the wave-ordered
-  work plan. Findings are marked *confirmed* or *suspected*; re-verify the
-  suspected ones against primary sources before acting.
-- `inject-scala-test/DISABLED_TESTS.md` — parity coverage against the Java,
-  Groovy and Kotlin suites, with the P-1..P3 priority buckets.
+The planning documents that drove the initial Scala 3 work were removed once it
+was finished. What they concluded is now in the places it applies: compatibility
+and packaging rules in `src/main/docs/guide`, parity coverage in the specs under
+`inject-scala-test/src/test/groovy` (each names the Java, Groovy or Kotlin spec
+it answers), and the reason for a given change in the commit that made it.
+
+Anything a plan asserted is worth re-verifying against primary sources — the
+Core source, the dotty source, a probe — rather than trusted from prose.
 
 ## Contributing Guidelines
 

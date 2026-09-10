@@ -18,8 +18,8 @@ package io.micronaut.scala.processing
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
 
 /**
- * P1 configuration parity, covering the three shapes {@code DISABLED_TESTS.md} lists that
- * nothing else here exercises: configuration declared on a trait, a prefix inherited from a
+ * P1 configuration parity, covering three shapes nothing else here exercises:
+ * configuration declared on a trait, a prefix inherited from a
  * configuration superclass, and {@code @ConfigurationBuilder}.
  *
  * <p>All three already work. They are worth pinning because each is bound at runtime from

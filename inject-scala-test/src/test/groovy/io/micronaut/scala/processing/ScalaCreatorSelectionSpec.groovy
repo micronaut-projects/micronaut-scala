@@ -20,8 +20,8 @@ import io.micronaut.inject.ast.ElementQuery
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
 
 /**
- * P1 parity: creator selection, which {@code DISABLED_TESTS.md} lists for
- * {@code ScalaBeanIntrospectionSpec} and which nothing covered.
+ * P1 parity: creator selection, which {@code ScalaBeanIntrospectionSpec} was the listed
+ * source for and which nothing covered.
  *
  * <p>Scala's primary constructor comes first, but being first does not make it the one
  * Micronaut should call. Core's own default prefers a constructor annotated {@code @Inject}

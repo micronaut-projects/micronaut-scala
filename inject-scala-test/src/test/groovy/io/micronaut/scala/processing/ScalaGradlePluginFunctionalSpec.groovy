@@ -197,7 +197,8 @@ class Demo {
     }
 
     void 'a thin plugin jar cannot load, even with its dependencies declared alongside it'() {
-        given: 'the decisive case for packaging -- see D2 in SCALA3_REMEDIATION_PLAN.md'
+        given: '''the decisive case for packaging: if this loaded, the plugin jar would not
+                  have to bundle what it compiles against'''
         def thin = thinJar()
         def dependencies = jarsOf('micronaut.scala.plugin.runtimeClasspath')
 
