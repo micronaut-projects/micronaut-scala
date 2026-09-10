@@ -141,6 +141,13 @@ configuration.
 The dependency is `io.micronaut.serde:micronaut-serde-jackson`, added the same
 way as in any other language.
 
+Scala's own types need one thing more. `Option`, the Scala collections and a
+Scala 3 `enum` are none of them types Micronaut Serialization ships a serializer
+for — a Scala `List` is not a `java.util.List`, and a Scala 3 `enum` is not a
+`java.lang.Enum` — so `micronaut-runtime-scala` supplies those, and must be on
+the runtime classpath. <<serialization, Serialization>> is the chapter on what
+each of them becomes in a document.
+
 == Around advice
 
 *Aspect-oriented programming* (AOP) is how behaviour that is not specific to one

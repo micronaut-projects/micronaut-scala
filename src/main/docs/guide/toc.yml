@@ -14,6 +14,8 @@ annotations:
   title: Annotations
 documentation:
   title: Documentation in Generated Files
+serialization:
+  title: Serialization
 dependencies:
   title: Artifacts and Dependencies
 testing:
