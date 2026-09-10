@@ -66,10 +66,10 @@ abstract class AbstractScalaElement implements Element {
     @Override
     public Optional<String> getDocumentation(boolean parse) {
         Optional<String> raw = rawDocumentation();
-        if (raw.isEmpty() || !parse) {
+        if (raw.isEmpty()) {
             return raw;
         }
-        return ScalaDocParser.description(raw.get());
+        return parse ? ScalaDocParser.description(raw.get()) : ScalaDocParser.content(raw.get());
     }
 
     @Override

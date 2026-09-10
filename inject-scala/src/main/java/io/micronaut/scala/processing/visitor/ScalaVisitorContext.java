@@ -83,6 +83,9 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
     private final BiConsumer<String, Object> warningReporter;
     private final BiConsumer<String, Object> errorReporter;
     private final ClassLoader classLoader;
+    // Only ever used to reach the two-argument getAnnotationType, whose resolutions are
+    // cached in a registry shared by every metadata instance.
+    private final MutableAnnotationMetadata annotationTypeRegistrar = new MutableAnnotationMetadata();
     // Keyed by the native compiler object each element carries, because that is the only
     // identity shared between the extracted model and the elements built from it. Doc
     // comments live in the compiler's own side table rather than on the trees, so they
@@ -144,6 +147,30 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
      */
     Optional<String> documentation(@Nullable Object nativeType) {
         return nativeType == null ? Optional.empty() : Optional.ofNullable(documentation.get(nativeType));
+    }
+
+    /**
+     * Makes an annotation type loadable by name for anything that asks the metadata for it.
+     *
+     * <p>{@code AnnotationMetadata.getAnnotationType(String)} resolves through the classloader of
+     * the metadata implementation, which here is the plugin jar: it bundles Micronaut, and
+     * nothing else. Every annotation an application actually uses -- {@code @Get},
+     * {@code @Controller}, its own -- lives on the compilation classpath instead, which the
+     * plugin's own classloader cannot see. Java has no such split, because its processor path
+     * carries the annotations alongside the processor, so a visitor written against the Element
+     * API works there and silently does nothing here: {@code getAnnotationTypeByStereotype}
+     * returns empty, and micronaut-openapi took that to mean the method was not an endpoint,
+     * generating a specification with no paths at all.</p>
+     *
+     * <p>The two-argument form takes the classloader to use and caches what it resolves in the
+     * shared registry the no-argument form reads, so resolving each annotation once against the
+     * compilation classpath is what makes it findable afterwards, whichever classloader the
+     * caller's own lookup would have used.</p>
+     *
+     * @param annotationName The annotation type name
+     */
+    void makeAnnotationTypeResolvable(String annotationName) {
+        annotationTypeRegistrar.getAnnotationType(annotationName, getProcessingClassLoader());
     }
 
     Optional<ScalaClassElement> sourceClassElement(String name) {

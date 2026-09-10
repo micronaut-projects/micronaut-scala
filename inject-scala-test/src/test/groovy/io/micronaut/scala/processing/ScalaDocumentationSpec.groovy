@@ -61,8 +61,11 @@ class Greeter(val prefix: String):
 ''')
         def greet = element.getEnclosedElements(ElementQuery.ALL_METHODS.named('greet'))[0]
 
-        expect: 'unparsed documentation is the comment as written, delimiters included'
-        element.getDocumentation(false).get().startsWith('/**')
+        expect: '''unparsed documentation is the comment's content without its markers, which
+                   is what javac and KSP hand back and what consumers parse tags out of'''
+        !element.getDocumentation(false).get().contains('/**')
+        !element.getDocumentation(false).get().contains('*/')
+        element.getDocumentation(false).get().startsWith('Greets a person.')
         element.getDocumentation(false).get().contains('@param prefix')
 
         and: 'parsing keeps the whole description and drops the block tags'

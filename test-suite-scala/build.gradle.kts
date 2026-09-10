@@ -26,6 +26,10 @@ dependencies {
     }
     implementation(libs.micronaut.json.core)
     implementation(libs.micronaut.jackson.core)
+    implementation(libs.micronaut.http)
+    implementation(libs.micronaut.openapi.annotations)
+    compileOnly(libs.micronaut.openapi)
+    compileOnly(libs.slf4j.simple)
     implementation(libs.jackson.databind)
 
     testImplementation(libs.spock) {

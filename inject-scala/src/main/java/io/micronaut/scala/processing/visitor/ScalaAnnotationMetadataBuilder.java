@@ -749,6 +749,12 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
         if (annotationType == null || nativeAnnotationTypes.putIfAbsent(annotationType.name(), annotationType) != null) {
             return;
         }
+        // The one place every annotation type passes exactly once, which is where it becomes
+        // loadable by name for the visitors that ask the metadata for the type rather than
+        // the name.
+        if (visitorContext instanceof ScalaVisitorContext scalaVisitorContext) {
+            scalaVisitorContext.makeAnnotationTypeResolvable(annotationType.name());
+        }
         registerAnnotationTypes(annotationType.annotations());
         for (ScalaAnnotationMemberData member : annotationType.members().values()) {
             registerAnnotationTypes(member.annotations());

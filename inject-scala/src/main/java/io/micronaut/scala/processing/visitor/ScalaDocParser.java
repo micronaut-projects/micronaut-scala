@@ -42,6 +42,26 @@ final class ScalaDocParser {
     }
 
     /**
+     * The comment's content, with the delimiters and per-line asterisks removed.
+     *
+     * <p>This is what the other languages call unparsed documentation: javac's
+     * {@code getDocComment} and KSP's {@code docString} both hand back the content without
+     * the markers, and consumers parse tags out of it themselves -- micronaut-openapi runs its
+     * own Javadoc parser over exactly this. Returning dotty's {@code Comment.raw} instead put
+     * a literal {@code /**} at the front of every summary it generated.</p>
+     *
+     * @param raw The raw comment
+     * @return The content, or empty when the comment holds nothing
+     */
+    static Optional<String> content(@Nullable String raw) {
+        if (raw == null) {
+            return Optional.empty();
+        }
+        String text = String.join("\n", strip(raw)).strip();
+        return text.isEmpty() ? Optional.empty() : Optional.of(text);
+    }
+
+    /**
      * The prose description, with the block tags removed.
      *
      * @param raw The raw comment
