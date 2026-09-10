@@ -60,7 +60,8 @@ The default is what a document that omits the field falls back to. Without it th
 
 That is not a limitation of the plugin. Micronaut Serialization decides whether to ask a type
 for a default from a fixed list, and the list is `java.util.Optional` and its primitive
-variants. A `Deserializer` cannot add itself to it.
+variants; a `Deserializer` cannot add itself to it. Tracked upstream as
+https://github.com/micronaut-projects/micronaut-serialization/issues/1416[micronaut-serialization#1416].
 
 TIP: Write `= None` regardless of serialization. It is the idiomatic declaration anyway — it
 makes the member optional at the call site as well as in the document, so `Order("A-2",

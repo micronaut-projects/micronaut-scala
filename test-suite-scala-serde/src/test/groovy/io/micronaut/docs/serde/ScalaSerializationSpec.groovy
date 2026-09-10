@@ -109,7 +109,9 @@ class ScalaSerializationSpec extends Specification {
     void "an Option with no default cannot be filled in from an absent field"() {
         when: '''worth pinning rather than leaving as folklore: Micronaut Serialization decides
                  whether to ask for a default from a fixed list of types that is java.util.Optional
-                 and nothing else, so a Scala Option has to bring its own default'''
+                 and nothing else, so a Scala Option has to bring its own default. Raised upstream
+                 as micronaut-serialization#1416; this asserts what happens until that changes,
+                 and is the test to invert when it does'''
         def read = mapper.readValue('{"reference":"A-5"}', Undefaulted)
 
         then: 'which is why the guide says to write `= None`'

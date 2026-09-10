@@ -129,6 +129,11 @@ public final class ScalaOptionSerde<T> implements
     public Option<T> getDefaultValue(DecoderContext context, Argument<? super Option<T>> type) {
         // A member the document omits is `None`, not null. Asked of the bean rather than of the
         // specific deserializer, because that is where a missing property is resolved.
+        //
+        // Neither is consulted today: serialization decides whether to ask for a default from a
+        // fixed list of types that a Deserializer cannot add itself to, so an option with no
+        // default of its own still reads as null. Written as the answer this type has whenever
+        // that is asked for -- micronaut-serialization#1416.
         return Option.empty();
     }
 
