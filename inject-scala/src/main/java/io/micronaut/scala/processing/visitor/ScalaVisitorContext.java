@@ -410,6 +410,21 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         return nativeType == null ? element : nativeType;
     }
 
+    /**
+     * Loads a type named by an annotation member from the compilation classpath.
+     *
+     * @param name The type name
+     * @return The type, or {@code null} when the classpath does not have it
+     */
+    @Nullable
+    Class<?> loadClasspathType(String name) {
+        try {
+            return Class.forName(name, false, classLoader);
+        } catch (ClassNotFoundException | LinkageError e) {
+            return null;
+        }
+    }
+
     ClassLoader getProcessingClassLoader() {
         return classLoader;
     }

@@ -72,6 +72,8 @@ import java.util.function.Function;
 public final class ScalaProcessingEngine {
 
     private static final String MODULE_INSTANCE_FIELD = "MODULE$";
+    private static final String MICRONAUT_INTROSPECTIONS_USE_CONTEXT_CLASSLOADER =
+        "micronaut.introspections.use.context.classloader";
 
     private final File outputDirectory;
     private final Collection<File> classpath;
@@ -150,7 +152,8 @@ public final class ScalaProcessingEngine {
         }
         typeVisitorsProcessed = true;
         ScalaVisitorContext context = visitorContext();
-        withMicronautOptionsAsSystemProperties(() -> processTypeVisitors(context));
+        withMicronautOptionsAsSystemProperties(() ->
+            withProcessingClassLoader(context, () -> processTypeVisitors(context)));
     }
 
     private void processTypeVisitors(ScalaVisitorContext context) {
@@ -307,7 +310,7 @@ public final class ScalaProcessingEngine {
         processTypeVisitors();
         ScalaVisitorContext context = visitorContext();
         try {
-            generateBeanDefinitions(context);
+            withProcessingClassLoader(context, () -> generateBeanDefinitions(context));
         } finally {
             // Always, even if generation threw. Service descriptors are written here, and a
             // definition on disk without its descriptor is a bean the runtime cannot see.
@@ -564,6 +567,60 @@ public final class ScalaProcessingEngine {
      *
      * @param work The processing to run with the properties in place
      */
+    /**
+     * Runs processing with the compilation classpath as the thread's context classloader, and
+     * with the two switches that tell Micronaut to use it.
+     *
+     * <p>The plugin jar bundles Micronaut, so anything in it that resolves a type or a service
+     * through "its own" classloader searches the plugin and not the application. That is not a
+     * problem for the Java integration, whose processor path carries the framework alongside
+     * everything the application compiles against, and Core provides these switches for exactly
+     * the case where the two differ. Without them Micronaut Data could not find the
+     * introspection for the query builder its {@code @JdbcRepository} names, fell back to the
+     * default JPA builder, and generated {@code DELETE io.micronaut.docs.data.Book AS book_}
+     * where Java generated {@code DELETE FROM `book`} -- valid JPA-QL, and not something any
+     * SQL database will accept.</p>
+     *
+     * @param context The visitor context, which owns the compilation classpath
+     * @param work The processing to run
+     */
+    private void withProcessingClassLoader(ScalaVisitorContext context, Runnable work) {
+        Thread thread = Thread.currentThread();
+        ClassLoader previousClassLoader = thread.getContextClassLoader();
+        thread.setContextClassLoader(context.getProcessingClassLoader());
+        try {
+            withSystemProperties(
+                Map.of(
+                    VisitorContext.MICRONAUT_PROCESSING_USE_CONTEXT_CLASSLOADER, "true",
+                    MICRONAUT_INTROSPECTIONS_USE_CONTEXT_CLASSLOADER, "true"
+                ),
+                work
+            );
+        } finally {
+            thread.setContextClassLoader(previousClassLoader);
+        }
+    }
+
+    private void withSystemProperties(Map<String, String> properties, Runnable work) {
+        Map<String, String> previous = new LinkedHashMap<>();
+        List<String> added = new ArrayList<>();
+        properties.forEach((key, value) -> {
+            String existing = System.getProperty(key);
+            if (existing == null) {
+                added.add(key);
+            } else {
+                previous.put(key, existing);
+            }
+            System.setProperty(key, value);
+        });
+        try {
+            work.run();
+        } finally {
+            previous.forEach(System::setProperty);
+            added.forEach(System::clearProperty);
+        }
+    }
+
     private void withMicronautOptionsAsSystemProperties(Runnable work) {
         Map<String, String> previous = new LinkedHashMap<>();
         List<String> added = new ArrayList<>();

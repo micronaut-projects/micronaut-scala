@@ -578,16 +578,48 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
 
     private AnnotationClassValue<?> annotationClassValue(Object value) {
         if (value instanceof AnnotationClassValue<?> annotationClassValue) {
-            return annotationClassValue;
+            // An annotation read from a class file names its class values but carries no type:
+            // the reader has only the name in the constant pool. Resolving it here is what makes
+            // the member readable as a type rather than only as a string.
+            return annotationClassValue.getType().isPresent()
+                ? annotationClassValue
+                : classValue(annotationClassValue.getName());
         }
         if (value instanceof ScalaClassValueData classValueData) {
             registerAnnotationType(classValueData.annotationType());
-            return new AnnotationClassValue<>(classValueData.name());
+            return classValue(classValueData.name());
         }
         if (value instanceof Class<?> type) {
             return new AnnotationClassValue<>(type);
         }
         return new AnnotationClassValue<>(String.valueOf(value));
+    }
+
+    /**
+     * A class value that carries the type itself where the compilation classpath has it.
+     *
+     * <p>A name-only class value resolves its type through the classloader of the metadata
+     * classes, which here is the plugin jar: it bundles Micronaut and nothing else. Every type an
+     * annotation names in an application -- a query builder, an operations interface, a
+     * converter -- is on the compilation classpath instead, so the value could not be resolved
+     * and every reader saw the member as absent. Micronaut Data reads
+     * {@code @RepositoryConfiguration(queryBuilder = ...)} that way and, finding nothing, built
+     * its queries with the default JPA builder: a Scala repository generated
+     * {@code DELETE io.micronaut.docs.data.Book AS book_} where the same repository in Java
+     * generated {@code DELETE FROM `book`}. Java has no such split, because its processor path
+     * carries these classes alongside the processor.</p>
+     *
+     * @param name The type name the annotation member names
+     * @return The class value, carrying the loaded type when it can be found
+     */
+    private AnnotationClassValue<?> classValue(String name) {
+        if (visitorContext instanceof ScalaVisitorContext scalaVisitorContext) {
+            Class<?> type = scalaVisitorContext.loadClasspathType(name);
+            if (type != null) {
+                return new AnnotationClassValue<>(type);
+            }
+        }
+        return new AnnotationClassValue<>(name);
     }
 
     private AnnotationClassValue<?>[] annotationClassValues(Class<?>[] types) {
