@@ -15,8 +15,11 @@
  */
 package io.micronaut.scala.processing.visitor;
 
+import io.micronaut.context.annotation.Mixin;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.context.annotation.Requires.Sdk;
+import io.micronaut.context.visitor.VisitorUtils;
+import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Generated;
 import io.micronaut.core.annotation.Vetoed;
 import io.micronaut.core.io.service.ServiceDefinition;
@@ -156,19 +159,8 @@ public final class ScalaProcessingEngine {
         // classes A, B and visitors high, low the order `high:A, high:B, low:A, low:B` where
         // Java produces `high:A, low:A, high:B, low:B`, which changes what an aggregating
         // visitor accumulating per-class state sees.
-        Set<String> visitedClasses = new HashSet<>();
-        for (ScalaClassData classData : classSnapshot()) {
-            if (!visitedClasses.add(classData.name())) {
-                continue;
-            }
-            Optional<ScalaClassElement> resolved = context.sourceClassElement(classData.name());
-            if (resolved.isEmpty()) {
-                // Was `orElseThrow()`, which crashed the compiler with a bare
-                // NoSuchElementException naming nothing.
-                context.reportError("No source element for [" + classData.name() + "]; it was collected but cannot be resolved", null);
-                continue;
-            }
-            ClassElement classElement = resolved.get();
+        applyMixins(context);
+        for (ClassElement classElement : classElementsToVisit(context)) {
             for (LoadedScalaVisitor loadedVisitor : loadedVisitors) {
                 if (!loadedVisitor.matchesClass(classElement.getAnnotationMetadata())) {
                     continue;
@@ -181,7 +173,7 @@ public final class ScalaProcessingEngine {
                 } catch (RuntimeException e) {
                     // A visitor that throws anything else used to escape as a compiler crash
                     // rather than a diagnostic naming the class it was visiting.
-                    context.reportError("Error visiting [" + classData.name() + "] with ["
+                    context.reportError("Error visiting [" + classElement.getName() + "] with ["
                         + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), classElement);
                 }
             }
@@ -199,6 +191,91 @@ public final class ScalaProcessingEngine {
             }
         }
         context.setVisitorKind(TypeElementVisitor.VisitorKind.ISOLATING);
+    }
+
+    /**
+     * The classes the visitors run over: every collected source class, followed by the ones
+     * {@code @ClassImport} names that are not source classes themselves.
+     *
+     * <p>An imported type is not compiled here -- it is a third-party model or a generated class
+     * that nobody can annotate -- so nothing would ever visit it if the list were only what the
+     * compiler handed us. {@code TypeElementVisitorProcessor} extends its own round the same way,
+     * and {@link VisitorUtils#collectImportedElements} is what marks each imported element with
+     * {@code @ImportedClass} and applies the annotations the import asked for. Without that mark
+     * the introspection writer has no originating element and no target package to write to.</p>
+     *
+     * <p>A type can be imported by several importers, or be imported and compiled at once, so the
+     * names already queued are what decides whether an import adds anything.</p>
+     *
+     * @param context The visitor context
+     * @return The class elements to process, source classes first
+     */
+    private List<ClassElement> classElementsToVisit(ScalaVisitorContext context) {
+        var classElements = new ArrayList<ClassElement>();
+        var names = new HashSet<String>();
+        for (ScalaClassData classData : classSnapshot()) {
+            if (!names.add(classData.name())) {
+                continue;
+            }
+            Optional<ScalaClassElement> resolved = context.sourceClassElement(classData.name());
+            if (resolved.isEmpty()) {
+                // Was `orElseThrow()`, which crashed the compiler with a bare
+                // NoSuchElementException naming nothing.
+                context.reportError("No source element for [" + classData.name() + "]; it was collected but cannot be resolved", null);
+                continue;
+            }
+            classElements.add(resolved.get());
+        }
+        for (ClassElement classElement : List.copyOf(classElements)) {
+            for (ClassElement imported : VisitorUtils.collectImportedElements(classElement, context)) {
+                if (names.add(imported.getName())) {
+                    classElements.add(imported);
+                }
+            }
+        }
+        return classElements;
+    }
+
+    /**
+     * Copies each mixin's annotations onto the type it targets, before anything reads them.
+     *
+     * <p>A mixin is a separate declaration that annotates a type its author does not own, so the
+     * annotations have to be in place before the visitors run -- afterwards is too late, the
+     * introspection or bean definition has already been written from metadata that never had
+     * them. Java gets the ordering from a separate annotation processor,
+     * {@code MixinVisitorProcessor}, which claims {@code @Mixin} and runs its round first; here
+     * there is one pass, so the step is explicit.</p>
+     *
+     * @param context The visitor context
+     */
+    private void applyMixins(ScalaVisitorContext context) {
+        for (ScalaClassData classData : classSnapshot()) {
+            ScalaClassElement mixin = context.sourceClassElement(classData.name()).orElse(null);
+            if (mixin == null) {
+                continue;
+            }
+            AnnotationValue<Mixin> mixinAnnotation = mixin.getAnnotation(Mixin.class);
+            if (mixinAnnotation == null) {
+                continue;
+            }
+            String target = mixinAnnotation.stringValue("target").orElse(mixinAnnotation.stringValue().orElse(null));
+            if (target == null || Object.class.getName().equals(target)) {
+                continue;
+            }
+            ClassElement mixinTarget = context.getClassElement(target).orElse(null);
+            if (mixinTarget == null) {
+                context.warn("Cannot access class: " + target, mixin);
+                continue;
+            }
+            try {
+                VisitorUtils.applyMixin(mixinAnnotation, mixin, mixinTarget, context);
+            } catch (ProcessingException e) {
+                reportProcessingException(e);
+            } catch (RuntimeException e) {
+                context.reportError("Error applying mixin [" + mixin.getName() + "] to ["
+                    + target + "]: " + exceptionMessage(e), mixin);
+            }
+        }
     }
 
     /**
@@ -227,24 +304,18 @@ public final class ScalaProcessingEngine {
 
     private void generateBeanDefinitions(ScalaVisitorContext context) {
         startBeanElementVisitors(context);
-        for (ScalaClassData classData : classSnapshot()) {
-            if (classData.name().endsWith(BeanDefinitionVisitor.PROXY_SUFFIX)) {
+        for (ClassElement classElement : classElementsToVisit(context)) {
+            if (classElement.getName().endsWith(BeanDefinitionVisitor.PROXY_SUFFIX)) {
                 continue;
             }
-            Optional<ScalaClassElement> resolved = context.sourceClassElement(classData.name());
-            if (resolved.isEmpty()) {
-                // Was `orElseThrow()`: a bare NoSuchElementException naming nothing, surfacing
-                // as a compiler crash rather than a diagnostic.
-                context.reportError("No source element for [" + classData.name() + "]; it was collected but cannot be resolved", null);
-                continue;
-            }
-            ClassElement classElement = resolved.get();
             if (classElement.hasAnnotation(Vetoed.class) || classElement.hasAnnotation(Generated.class)) {
                 continue;
             }
             try {
                 DefaultElementBeanDefinitionBuilderFactory beanDefinitionBuilderFactory = new DefaultElementBeanDefinitionBuilderFactory(context);
-                String suppressedDefinition = scalaObjectSelfDefinitionName(classData);
+                String suppressedDefinition = classElement instanceof ScalaClassElement scalaClassElement
+                    && scalaClassElement.classData() != null
+                    ? scalaObjectSelfDefinitionName(scalaClassElement.classData()) : null;
                 for (OutputObjectDef outputObjectDef : BeanDefinitionCreatorFactory.produce(classElement, beanDefinitionBuilderFactory, context)) {
                     if (outputObjectDef.objectDef().getName().equals(suppressedDefinition)) {
                         continue;

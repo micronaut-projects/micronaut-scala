@@ -17,7 +17,6 @@ package io.micronaut.scala.processing
 
 import io.micronaut.core.beans.BeanIntrospector
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
-import spock.lang.PendingFeature
 
 /**
  * P3 parity, ported from {@code inject-java}'s {@code ImportTypeElementSpec} and
@@ -28,10 +27,12 @@ import spock.lang.PendingFeature
  * controls -- a third-party model, a generated class -- is made introspectable, which is the
  * whole reason serialization uses them.</p>
  *
- * <p>Both are marked pending. The import produces no introspection here, and the reason string
- * carries how far the investigation got, so the next attempt does not repeat it: the imported
- * name <em>does</em> resolve, since {@code VisitorContext.getClassElement} checks source classes
- * before the classpath, so the gap is past resolution.</p>
+ * <p>An import on its own introspects nothing, in Java as here: core's own
+ * {@code ImportTypeElementSpec} passes {@code annotate = Introspected.class} in every case, and
+ * {@code IntrospectedTypeElementVisitor.visitClass} returns immediately for an element without
+ * the stereotype. What the import contributes is reaching the type at all and marking it with
+ * {@code @ImportedClass}, which is what gives the written introspection an originating element
+ * and a package to be written into.</p>
  */
 class ScalaClassImportParitySpec extends AbstractScalaTypeElementSpec {
 
@@ -40,22 +41,21 @@ class ScalaClassImportParitySpec extends AbstractScalaTypeElementSpec {
             .findIntrospection(classLoader.loadClass(className)).orElse(null)
     }
 
-    @PendingFeature(reason = 'No introspection is produced for the imported type. The name '
-        + 'resolves -- VisitorContext.getClassElement checks source classes before the classpath '
-        + '-- so the gap is in whichever visitor calls VisitorUtils.collectImportedElements, or '
-        + 'in the writer that names the generated introspection after the importing element')
     void "introspects a type named by ClassImport rather than annotated itself"() {
-        when: 'Imported carries no @Introspected of its own'
+        when: '''Imported carries no @Introspected of its own -- the import both reaches it and
+                 applies the annotation, which is the shape every case in core's
+                 ImportTypeElementSpec uses'''
         def classLoader = buildClassLoader('classimport.Importer', '''
 package classimport
 
 import io.micronaut.context.annotation.ClassImport
+import io.micronaut.core.annotation.Introspected
 
 class Imported:
   var name: String = null
   var size: Int = 0
 
-@ClassImport(classes = Array(classOf[Imported]))
+@ClassImport(classes = Array(classOf[Imported]), annotate = Array(classOf[Introspected]))
 class Importer
 ''')
         // Resolved by type rather than by generated name: the introspection is written for the
@@ -67,24 +67,31 @@ class Importer
         introspection.propertyNames.toList().sort() == ['name', 'size']
     }
 
-    @PendingFeature(reason = 'Depends on @ClassImport producing an introspection at all, which '
-        + 'is the pending case above')
     void "annotates an imported type through a mixin"() {
-        when: 'the mixin declares a member of the same name and annotates it'
+        when: '''the mixin declares a member of the same name and annotates it, and carries the
+                 @Introspected that makes the target introspectable -- the shape core's own
+                 MixinSpec uses. What a mixin moves is annotations: the property keeps its own
+                 name and gains the annotation, it is not renamed by one'''
         def classLoader = buildClassLoader('classimport.Importer', '''
 package classimport
 
 import io.micronaut.context.annotation.ClassImport
 import io.micronaut.context.annotation.Mixin
 import io.micronaut.core.annotation.Introspected
+import java.lang.annotation.Retention
+import java.lang.annotation.RetentionPolicy
+import scala.annotation.StaticAnnotation
+
+@Retention(RetentionPolicy.RUNTIME)
+class Marker(val value: String) extends StaticAnnotation
 
 class Imported:
   var name: String = null
 
-@Mixin(Array(classOf[Imported]))
+@Mixin(classOf[Imported])
 @Introspected
 class ImportedMixin:
-  @Introspected.Property(value = "renamed")
+  @Marker("hello")
   var name: String = null
 
 @ClassImport(classes = Array(classOf[Imported]))
@@ -92,8 +99,10 @@ class Importer
 ''')
         def introspection = introspectionFor(classLoader, 'classimport.Imported')
 
-        then: 'the annotation written on the mixin reaches the imported type'
+        then: 'the @Introspected on the mixin is what makes the imported type introspectable'
         introspection != null
-        introspection.getProperty('renamed').present
+
+        and: 'and the annotation written on the mixin reaches the property of the same name'
+        introspection.getProperty('name').get().stringValue('classimport.Marker').get() == 'hello'
     }
 }

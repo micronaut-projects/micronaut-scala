@@ -341,6 +341,15 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             .toList();
     }
 
+    /**
+     * @return The extracted compiler data for this class, or {@code null} when it is a
+     *     classpath type rather than one being compiled
+     */
+    @Nullable
+    ScalaClassData classData() {
+        return classData;
+    }
+
     @Override
     public List<PropertyElement> getBeanProperties(PropertyElementQuery propertyElementQuery) {
         if (classData == null) {
