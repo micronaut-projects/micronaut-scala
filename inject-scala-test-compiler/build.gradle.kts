@@ -50,8 +50,8 @@ dependencies {
     // the tests that build an ApplicationContext need them on the classpath explicitly.
     testImplementation(projects.micronautRuntimeScala)
 
-    testImplementation(libs.micronaut.openapi)
-    testImplementation(libs.micronaut.openapi.annotations)
+    testImplementation(platform(libs.test.boms.micronaut.data))
+    testImplementation(libs.micronaut.data.model) { exclude(group = "io.micronaut") }
     testImplementation(libs.managed.graalvm.nativeimage)
     testImplementation(libs.micronaut.http)
     testImplementation(platform(libs.test.boms.micronaut.validation))

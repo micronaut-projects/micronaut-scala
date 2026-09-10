@@ -783,7 +783,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             }
             Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(type.name());
             if (sourceElement.isEmpty()) {
-                collectClasspathMethods(type.name(), signatures, elements);
+                collectClasspathMethods(type, signatures, elements);
                 continue;
             }
             ScalaClassElement inheritedElement = sourceElement.get();
@@ -821,8 +821,22 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
      * metadata -- merging them in would make the two element kinds disagree about what a
      * class inherits.</p>
      */
-    private void collectClasspathMethods(String name, Set<MethodSignature> signatures, List<Element> elements) {
-        classpathElement(name).ifPresent(classpathElement -> {
+    /**
+     * Inherited methods of a classpath supertype, with the supertype's type variables bound.
+     *
+     * <p>Only the name used to be passed, so the element was built from the declaration alone and
+     * every inherited signature came back at its erasure: a repository extending
+     * {@code CrudRepository[Book, java.lang.Long]} reported {@code findAll} as
+     * {@code List<Object>}. The source-supertype walk beside this one already substitutes; this
+     * is the same step for a supertype compiled earlier, which is the common case, since the
+     * interfaces worth inheriting from are the ones a library published.</p>
+     *
+     * @param type The supertype reference, carrying whatever it was parameterized with
+     * @param signatures The signatures already collected
+     * @param elements The collected elements
+     */
+    private void collectClasspathMethods(ScalaTypeData type, Set<MethodSignature> signatures, List<Element> elements) {
+        classpathElement(type.name()).map(element -> bindTypeArguments(element, type)).ifPresent(classpathElement -> {
             for (MethodElement method : classpathElement.getEnclosedElements(ElementQuery.ALL_METHODS)) {
                 if (universalSupertype(method.getDeclaringType().getName())) {
                     continue;
@@ -845,6 +859,24 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
                 }
             }
         });
+    }
+
+    /**
+     * Applies a supertype reference's arguments to the element resolved for its declaration.
+     *
+     * @param element The declaration element
+     * @param type The reference, whose arguments are keyed by the declared parameter names
+     * @return The element with its type variables bound, or unchanged when the reference is raw
+     */
+    private ClassElement bindTypeArguments(ClassElement element, ScalaTypeData type) {
+        Map<String, ScalaTypeData> arguments = type.typeArguments();
+        if (arguments.isEmpty()) {
+            return element;
+        }
+        Map<String, ClassElement> resolved = new LinkedHashMap<>(arguments.size());
+        arguments.forEach((name, argument) ->
+            resolved.put(name, visitorContext.getElementFactory().newClassElement(argument)));
+        return element.withTypeArguments(resolved);
     }
 
     private Optional<ClassElement> classpathElement(String name) {

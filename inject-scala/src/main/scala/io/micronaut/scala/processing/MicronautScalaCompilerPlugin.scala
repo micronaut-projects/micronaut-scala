@@ -682,7 +682,10 @@ private object ScalaModelExtractor:
           val allMethods = template.body.collect { case method: tpd.DefDef => method }
           // Computed once per method: this record was previously built twice for every
           // method in the body, once for the accessor map and once for the method list.
-          val extractedMethods = allMethods.map(method => method -> methodData(method, constructor = false, owner = symbol))
+          val parameterAnnotations = constructorParameterAnnotations(template.constr)
+          val extractedMethods = allMethods.map(method =>
+            method -> withParameterAnnotations(
+              methodData(method, constructor = false, owner = symbol), parameterAnnotations))
           val methodByName = LinkedHashMap[String, ScalaMethodData]()
           extractedMethods.foreach { (method, data) =>
             // Only accessor-shaped methods are candidates. Keying every method by its bare
@@ -699,7 +702,7 @@ private object ScalaModelExtractor:
           declarations.foreach { declaration =>
             val declarationName = declaration.name.toString
             if isPropertyDeclaration(declaration, declarationName) || isPropertySetterDeclaration(declaration, declarationName) then
-              methodByName.put(declarationName, methodData(declaration))
+              methodByName.put(declarationName, withParameterAnnotations(methodData(declaration), parameterAnnotations))
           }
           val methods = extractedMethods
             .filterNot((method, _) => skipMethod(method.symbol))
@@ -724,7 +727,10 @@ private object ScalaModelExtractor:
             .map(method => methodData(method, constructor = true, owner = symbol))
           val constructors = methodData(template.constr, constructor = true, owner = symbol) +: secondaryConstructors
           val constructorProps = constructorProperties(template.constr, methodByName, allFields)
-          val properties = constructorProps ++ bodyProperties(declarations, methodByName, allFields, constructorProps.map(_.name).toSet)
+          val properties = withPropertyAnnotations(
+            constructorProps ++ bodyProperties(declarations, methodByName, allFields, constructorProps.map(_.name).toSet),
+            parameterAnnotations
+          )
           val parents = template.parents
             .filterNot(parent => typeName(parent.tpe) == classOf[Object].getName)
             .map(typeData)
@@ -750,6 +756,113 @@ private object ScalaModelExtractor:
           Some(if hasFlag(symbol, Flags.ModuleClass) then moduleClassData(classData, symbol) else classData)
         case _ =>
           None
+
+  /**
+   * The annotations written on each primary-constructor parameter, by parameter name.
+   *
+   * A Scala class parameter is one declaration that becomes a private field, a pair of
+   * accessors and a property, and an annotation written on it stays on the parameter: Scala
+   * applies an annotation where it is written unless the annotation opts into
+   * `scala.annotation.meta` targets. Java has the same shape in a record and resolves it in the
+   * compiler, propagating a record component's annotations to the field and the accessor, so
+   * `@Id` on a record component is already on the property by the time a visitor looks.
+   *
+   * Without the same step the annotation is reachable only from the constructor parameter,
+   * which is not where anything looks: `@Id` on a `@MappedEntity` case class was invisible and
+   * Micronaut Data rejected the entity for having no identity.
+   *
+   * @param constructor The primary constructor
+   * @return The annotations of each parameter that has any
+   */
+  private def constructorParameterAnnotations(
+      constructor: tpd.DefDef
+  )(using Context, AnnotationDefaults): Map[String, List[ScalaAnnotationData]] =
+    constructor.termParamss.flatten
+      .map(parameter => parameter.name.toString -> annotations(parameter.symbol))
+      .filter(_._2.nonEmpty)
+      .toMap
+
+  /**
+   * Carries a class parameter's annotations onto the accessor it generates.
+   *
+   * The accessor is where they have to land rather than only on the property: annotation
+   * metadata is cached against the native symbol an element was built from, and a property
+   * backed by an accessor shares that symbol with the accessor, so whichever is built first
+   * decides what both report.
+   *
+   * @param method The extracted method
+   * @param parameterAnnotations The annotations of each constructor parameter
+   * @return The method, carrying the annotations of the parameter it accesses
+   */
+  private def withParameterAnnotations(
+      method: ScalaMethodData,
+      parameterAnnotations: Map[String, List[ScalaAnnotationData]]
+  ): ScalaMethodData =
+    if parameterAnnotations.isEmpty || method.parameters().size() > 0 then
+      method
+    else
+      parameterAnnotations.get(method.name()) match
+        case None => method
+        case Some(fromParameter) =>
+          val added = newAnnotations(method.annotations().asScala.toList, fromParameter)
+          if added.isEmpty then
+            method
+          else
+            ScalaMethodData(
+              method.name(),
+              method.returnType(),
+              method.parameters(),
+              method.typeParameters(),
+              method.thrownTypes(),
+              (method.annotations().asScala.toList ++ added).asJava,
+              method.modifiers(),
+              method.constructor(),
+              method.nativeType(),
+              method.overriddenMethods()
+            )
+
+  /**
+   * Carries a class parameter's annotations onto the property it declares, for a property that
+   * has no accessor to carry them instead.
+   *
+   * @param properties The properties collected for the class
+   * @param parameterAnnotations The annotations of each constructor parameter
+   * @return The properties, each carrying the annotations of the parameter of the same name
+   */
+  private def withPropertyAnnotations(
+      properties: List[ScalaPropertyData],
+      parameterAnnotations: Map[String, List[ScalaAnnotationData]]
+  ): List[ScalaPropertyData] =
+    if parameterAnnotations.isEmpty then
+      properties
+    else
+      properties.map { property =>
+        parameterAnnotations.get(property.name()) match
+          case None => property
+          case Some(fromParameter) =>
+            val added = newAnnotations(property.annotations().asScala.toList, fromParameter)
+            if added.isEmpty then
+              property
+            else
+              ScalaPropertyData(
+                property.name(),
+                property.`type`(),
+                property.readMethod(),
+                property.writeMethod(),
+                property.field(),
+                (property.annotations().asScala.toList ++ added).asJava,
+                property.modifiers(),
+                property.nativeType()
+              )
+      }
+
+  /** The annotations of `candidates` that `existing` does not already declare. */
+  private def newAnnotations(
+      existing: List[ScalaAnnotationData],
+      candidates: List[ScalaAnnotationData]
+  ): List[ScalaAnnotationData] =
+    val declared = existing.map(_.name()).toSet
+    candidates.filterNot(annotation => declared.contains(annotation.name()))
 
   private def constructorProperties(
       constructor: tpd.DefDef,

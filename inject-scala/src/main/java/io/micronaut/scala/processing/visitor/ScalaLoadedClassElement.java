@@ -27,6 +27,7 @@ import io.micronaut.inject.ast.ElementModifier;
 import io.micronaut.inject.ast.ElementQuery;
 import io.micronaut.inject.ast.FieldElement;
 import io.micronaut.inject.ast.GenericPlaceholderElement;
+import io.micronaut.inject.ast.WildcardElement;
 import io.micronaut.inject.ast.MemberElement;
 import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
@@ -70,6 +71,8 @@ import java.util.function.Predicate;
  * Reflection-backed classpath element used by the Scala visitor context.
  */
 final class ScalaLoadedClassElement extends AbstractScalaElement implements ArrayableClassElement {
+
+    private static final int MAX_SUBSTITUTION_DEPTH = 16;
 
     private final Class<?> type;
     private final Class<?> componentType;
@@ -279,6 +282,72 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
             }
         }
         return argument;
+    }
+
+    /**
+     * Resolves a type, including the variables nested inside it.
+     *
+     * <p>A repository returns {@code List<E>} far more often than a bare {@code E}, and it
+     * declares its own variables in terms of the class's -- {@code <S extends E> S save(S)} --
+     * so neither the arguments of the type nor the bound of the variable can be left alone.</p>
+     *
+     * <p>Deliberately not what {@link #substitute} does when resolving a supertype. Applying
+     * the same depth there changes the interface an {@code @Adapter} is generated against, and
+     * the adapted method is then resolved by argument types that no longer match: the listener
+     * for one event ends up dispatching into the method written for another.</p>
+     *
+     * @param argument The declared type
+     * @param depth Guards a variable bounded, however indirectly, by itself
+     * @return The return type with this element's bindings applied
+     */
+    private ClassElement substituteDeep(ClassElement argument, int depth) {
+        if (depth > MAX_SUBSTITUTION_DEPTH) {
+            return argument;
+        }
+        if (argument instanceof GenericPlaceholderElement placeholder) {
+            ClassElement bound = typeArguments.get(placeholder.getVariableName());
+            if (bound != null) {
+                return bound;
+            }
+            List<? extends ClassElement> bounds = placeholder.getBounds();
+            if (!bounds.isEmpty()) {
+                ClassElement declaredBound = bounds.get(0);
+                ClassElement resolved = substituteDeep(declaredBound, depth + 1);
+                // Only when following the bound reached something this element actually binds.
+                // A variable of a type used raw -- the interface an `@Adapter` names -- is
+                // genuinely unbound, and collapsing it to its bound rewrites the signature the
+                // adapter is generated against.
+                if (resolved != declaredBound) {
+                    return resolved;
+                }
+            }
+            return argument;
+        }
+        if (argument instanceof WildcardElement wildcard) {
+            // `? extends E` is an E once E is known. The bound is what every caller reads --
+            // what the collection holds -- so the resolved bound stands in for the wildcard.
+            List<? extends ClassElement> upperBounds = wildcard.getUpperBounds();
+            if (!upperBounds.isEmpty()) {
+                ClassElement declaredBound = upperBounds.get(0);
+                ClassElement resolved = substituteDeep(declaredBound, depth + 1);
+                if (resolved != declaredBound) {
+                    return resolved;
+                }
+            }
+            return argument;
+        }
+        Map<String, ClassElement> arguments = argument.getTypeArguments();
+        if (arguments.isEmpty()) {
+            return argument;
+        }
+        Map<String, ClassElement> substituted = new LinkedHashMap<>(arguments.size());
+        boolean changed = false;
+        for (Map.Entry<String, ClassElement> entry : arguments.entrySet()) {
+            ClassElement resolved = substituteDeep(entry.getValue(), depth + 1);
+            changed |= resolved != entry.getValue();
+            substituted.put(entry.getKey(), resolved);
+        }
+        return changed ? argument.withTypeArguments(substituted) : argument;
     }
 
     @Override
@@ -564,7 +633,7 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
             // an @Adapter implement `onApplicationEvent(StartupEvent)` and leave the
             // interface's own `onApplicationEvent(Object)` abstract.
             ClassElement type = classElement(parameterTypes[i], visitorContext);
-            ClassElement genericType = substitute(classElement(genericParameterTypes[i], parameterTypes[i], visitorContext));
+            ClassElement genericType = substituteDeep(classElement(genericParameterTypes[i], parameterTypes[i], visitorContext), 0);
             parameterElements[i] = new LoadedParameterElement(
                 type,
                 genericType,
@@ -682,8 +751,11 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         TypeVariable<?> typeVariable,
         Class<?> erasedType,
         ScalaVisitorContext visitorContext) {
+        // A bound that is itself a type variable is kept as one. `<S extends E> S save(S)`
+        // declares S in terms of the class's E, so erasing the bound -- E erases to Object --
+        // throws away the only link between the method's variable and what the class bound.
         List<ScalaTypeData> bounds = Arrays.stream(typeVariable.getBounds())
-            .map(bound -> plainTypeData(erasedClass(bound, Object.class)))
+            .map(ScalaLoadedClassElement::boundTypeData)
             .toList();
         // A type variable erases to its bound, and the bound is normally parameterized by the
         // variable itself -- `E extends Enum<E>`. Modelling that literally does not terminate,
@@ -713,17 +785,51 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
     }
 
     /**
+     * A bound, as a variable when it is one and as its erasure otherwise.
+     *
+     * @param bound The declared bound
+     * @return The type data
+     */
+    private static ScalaTypeData boundTypeData(Type bound) {
+        return bound instanceof TypeVariable<?> variable
+            ? variableTypeData(variable)
+            : plainTypeData(erasedClass(bound, Object.class));
+    }
+
+    /**
+     * A type variable named as a variable rather than reduced to its erasure, for use as the
+     * bound of another variable. The name is what matters, since that is what a parameterized
+     * supertype binds, but it keeps its erasure as its own bound: the generics writer reads the
+     * first bound of every placeholder it is given, and a placeholder with none fails there
+     * rather than anywhere near here.
+     *
+     * @param typeVariable The variable
+     * @return The type data
+     */
+    private static ScalaTypeData variableTypeData(TypeVariable<?> typeVariable) {
+        Class<?> erasure = erasedClass(typeVariable, Object.class);
+        return new ScalaTypeData(
+            erasure.getName(), false, 0, erasure.isInterface(), Map.of(), null, List.of(), List.of(),
+            false, typeVariable.getName(), true, typeVariable.getName(),
+            List.of(plainTypeData(erasure)), false, List.of(), List.of()
+        );
+    }
+
+    /**
      * A wildcard of a classpath type, as this repository's own wildcard element.
      */
     private static ClassElement wildcardElement(
         WildcardType wildcardType,
         Class<?> erasedType,
         ScalaVisitorContext visitorContext) {
+        // Kept as variables for the same reason a type variable's bound is: `? extends E` is
+        // how `deleteAll(Iterable<? extends E>)` is declared, and erasing E to Object leaves
+        // nothing to bind, so Micronaut Data read the parameter as a property name instead.
         List<ScalaTypeData> upperBounds = Arrays.stream(wildcardType.getUpperBounds())
-            .map(bound -> plainTypeData(erasedClass(bound, Object.class)))
+            .map(ScalaLoadedClassElement::boundTypeData)
             .toList();
         List<ScalaTypeData> lowerBounds = Arrays.stream(wildcardType.getLowerBounds())
-            .map(bound -> plainTypeData(erasedClass(bound, Object.class)))
+            .map(ScalaLoadedClassElement::boundTypeData)
             .toList();
         return visitorContext.getElementFactory().newClassElement(new ScalaTypeData(
             erasedType.getName(),
@@ -988,7 +1094,14 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         @Override
         public ClassElement getGenericReturnType() {
             ClassElement returnType = classElement(method.getGenericReturnType(), method.getReturnType(), visitorContext);
-            return owningType instanceof ScalaLoadedClassElement loaded ? loaded.substitute(returnType) : returnType;
+            // Either end of the method can know what the variables are bound to. A method
+            // collected into the class that inherits it is re-parented to that class, which
+            // binds nothing, while the declaring type remains the parameterized classpath
+            // element it was read from.
+            ScalaLoadedClassElement source = owningType instanceof ScalaLoadedClassElement owner
+                ? owner
+                : declaringType instanceof ScalaLoadedClassElement declaring ? declaring : null;
+            return source == null ? returnType : source.substituteDeep(returnType, 0);
         }
 
         @Override

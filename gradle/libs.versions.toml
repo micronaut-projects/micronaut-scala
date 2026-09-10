@@ -16,6 +16,9 @@ micronaut-validation = "5.1.0"
 micronaut-serde = "3.1.1"
 micronaut-openapi = "7.1.3"
 micronaut-json-schema = "2.2.0"
+micronaut-data = "5.1.3"
+micronaut-sql = "7.1.0"
+h2 = "2.4.240"
 jackson = "3.1.6"
 native-gradle-plugin = "0.11.4"
 slf4j = "2.0.17"
@@ -85,6 +88,13 @@ micronaut-openapi = { module = "io.micronaut.openapi:micronaut-openapi", version
 micronaut-openapi-annotations = { module = "io.micronaut.openapi:micronaut-openapi-annotations", version.ref = "micronaut-openapi" }
 micronaut-json-schema-annotations = { module = "io.micronaut.jsonschema:micronaut-json-schema-annotations", version.ref = "micronaut-json-schema" }
 micronaut-json-schema-processor = { module = "io.micronaut.jsonschema:micronaut-json-schema-processor", version.ref = "micronaut-json-schema" }
+test-boms-micronaut-data = { module = "io.micronaut.data:micronaut-data-bom", version.ref = "micronaut-data" }
+micronaut-data-processor = { module = "io.micronaut.data:micronaut-data-processor", version.ref = "micronaut-data" }
+micronaut-data-model = { module = "io.micronaut.data:micronaut-data-model", version.ref = "micronaut-data" }
+micronaut-data-jdbc = { module = "io.micronaut.data:micronaut-data-jdbc", version.ref = "micronaut-data" }
+micronaut-data-runtime = { module = "io.micronaut.data:micronaut-data-runtime", version.ref = "micronaut-data" }
+micronaut-jdbc-hikari = { module = "io.micronaut.sql:micronaut-jdbc-hikari", version.ref = "micronaut-sql" }
+h2 = { module = "com.h2database:h2", version.ref = "h2" }
 jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
 micronaut-validation-processor = { module = "io.micronaut.validation:micronaut-validation-processor" }
 
