@@ -98,6 +98,34 @@ class Inaccessible:
         e.message.contains('cannot be used as an introspected property')
     }
 
+    void "accepts the annotation on a var, whose field is private and whose accessors are generated"() {
+        when: '''the Scala shape the unreachable case has to be told apart from: `var name` is one
+                 declaration the compiler expands into a private field and a pair of accessors, so
+                 the field is no more accessible than the rejected one -- what makes it a property
+                 is the accessors that come with it'''
+        def introspection = buildBeanIntrospection('introspectedproperty.Reachable', '''
+package introspectedproperty
+
+import io.micronaut.core.annotation.Introspected
+
+@Introspected
+class Reachable:
+  @Introspected.Property(accessKind = Array(Introspected.Property.Access.READ, Introspected.Property.Access.WRITE))
+  var name: String = null
+''')
+        def instance = introspection.instantiate()
+
+        then:
+        introspection.propertyNames.toList() == ['name']
+
+        when:
+        def property = introspection.getRequiredProperty('name', String)
+        property.set(instance, 'set')
+
+        then:
+        property.get(instance) == 'set'
+    }
+
     void "accepts an accessor pair that agrees on access"() {
         when: 'the same shape as the conflicting case, with the halves in agreement'
         def introspection = buildBeanIntrospection('introspectedproperty.Agreeing', '''

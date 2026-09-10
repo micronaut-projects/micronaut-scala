@@ -49,12 +49,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Scala class element backed by compiler plugin model data.
@@ -371,7 +373,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             () -> getEnclosedElements(ElementQuery.ALL_METHODS),
             this::beanPropertyFields,
             false,
-            Collections.emptySet(),
+            nativePropertyNames(),
             methodElement -> Optional.empty(),
             methodElement -> Optional.empty(),
             this::mapBeanPropertyElement
@@ -450,6 +452,29 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             property.modifiers(),
             property.nativeType()
         );
+    }
+
+    /**
+     * The names of the fields that are Scala properties in their own right.
+     *
+     * <p>A {@code val} or {@code var} is one declaration that the compiler expands into a private
+     * field and a pair of accessors, so the field is never reachable and the accessors are not in
+     * the extracted method list -- they are re-attached as {@link ScalaPropertyData} instead. To
+     * core, reading only what we hand it, such a field looks like a private field nothing can get
+     * at, which is what {@code @Introspected.Property} on a plain {@code var} was rejected for.
+     * Naming them is how the Groovy implementation says the same thing about its own property
+     * nodes: the field carries generated accessors, so it can be read and written after all.</p>
+     *
+     * @return The declared property names
+     */
+    private Set<String> nativePropertyNames() {
+        ScalaClassData data = classData;
+        if (data == null || data.properties().isEmpty()) {
+            return Collections.emptySet();
+        }
+        return data.properties().stream()
+            .map(ScalaPropertyData::name)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     /**
