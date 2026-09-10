@@ -26,7 +26,6 @@ import io.micronaut.context.exceptions.NonUniqueBeanException
 import io.micronaut.context.exceptions.NoSuchBeanException
 import io.micronaut.inject.qualifiers.Qualifiers
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
-import spock.lang.PendingFeature
 
 class ScalaBeanDefinitionSpec extends AbstractScalaTypeElementSpec {
 
