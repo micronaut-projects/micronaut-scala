@@ -369,7 +369,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             propertyElementQuery,
             this,
             () -> getEnclosedElements(ElementQuery.ALL_METHODS),
-            () -> beanPropertyFields(accessKinds),
+            this::beanPropertyFields,
             false,
             Collections.emptySet(),
             methodElement -> Optional.empty(),
@@ -452,11 +452,19 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         );
     }
 
-    private List<FieldElement> beanPropertyFields(Set<BeanProperties.AccessKind> accessKinds) {
-        if (accessKinds.contains(BeanProperties.AccessKind.FIELD)) {
-            return getEnclosedElements(ElementQuery.ALL_FIELDS);
-        }
-        return List.of();
+    /**
+     * The fields handed to {@link AstBeanPropertiesUtils}, which is every field.
+     *
+     * <p>Withholding them unless the query asked for field access looked like an optimisation and
+     * was a behaviour change: core decides for itself whether a field can back a property, and it
+     * also validates the ones carrying {@code @Introspected.Property} on the way past. A field the
+     * introspection cannot reach was therefore dropped in silence rather than reported, where Java
+     * -- which passes every field and lets core filter -- says the field is not accessible.</p>
+     *
+     * @return every declared and inherited field
+     */
+    private List<FieldElement> beanPropertyFields() {
+        return getEnclosedElements(ElementQuery.ALL_FIELDS);
     }
 
     private static boolean matches(PropertyElementQuery propertyElementQuery, PropertyElement propertyElement) {

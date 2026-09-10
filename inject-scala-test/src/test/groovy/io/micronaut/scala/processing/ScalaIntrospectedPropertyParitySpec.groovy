@@ -16,7 +16,6 @@
 package io.micronaut.scala.processing
 
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
-import spock.lang.PendingFeature
 
 /**
  * P1 parity, ported from {@code inject-java}'s {@code PropertyElementSpec}.
@@ -78,9 +77,6 @@ class Mismatched:
         e.message.contains('The @Introspected.Property value and name members must match when both are declared')
     }
 
-    @PendingFeature(reason = 'The field element carries the annotation and ALL_FIELDS reports '
-        + 'it, but the field does not reach the supplier AstBeanPropertiesUtils iterates, which '
-        + 'is where validateIntrospectedPropertyField is called from')
     void "rejects a member the introspection cannot reach"() {
         when: '''a Scala field is always private, so a field-access property is unreachable by
                  construction rather than by choice -- Java has to write `private` to get here'''
@@ -95,10 +91,9 @@ class Inaccessible:
   private val name: String = null
 ''')
 
-        then: '''Java raises "the field is not accessible for visibility [DEFAULT]". Here the
-                 declaration is dropped without a property and without a diagnostic, which is a
-                 missing diagnostic rather than a wrong result -- the annotation asks for
-                 something impossible either way'''
+        then: '''the declaration asks for something impossible and is refused, rather than
+                 being dropped in silence -- which is what happened while the fields were only
+                 handed to core when the query asked for field access'''
         def e = thrown(RuntimeException)
         e.message.contains('cannot be used as an introspected property')
     }
