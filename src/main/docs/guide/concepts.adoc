@@ -202,7 +202,47 @@ interceptor's answer. A trait or an abstract class both work; an abstract class
 may also have concrete methods, which run normally, and dependencies of its own,
 which are injected.
 
-NOTE: These examples live in `test-suite-scala`, are compiled by this
-repository's build with the plugin, and are executed by its tests. Every
-behaviour described above is asserted there, so prose that stops matching the
-code fails the build.
+== Data access, which is all of the above at once
+
+Micronaut Data is worth meeting last, because a repository is introduction
+advice — the abstract type whose implementation you never write — applied to
+something you would otherwise write by hand.
+
+An entity is a case class. Its parameters are its columns, and `@Id` marks the
+one the database generates:
+
+snippet::io.micronaut.docs.data.Book[project=test-suite-scala-data,source=main,language=scala,tags=clazz]
+
+A repository is a trait. Extending `CrudRepository` supplies the usual
+operations, and any further method is a query derived from its own name — read
+`findByTitle` as `where title = ?`:
+
+snippet::io.micronaut.docs.data.BookRepository[project=test-suite-scala-data,source=main,language=scala,tags=clazz]
+
+There is no implementation of either anywhere, and none to write. At compile
+time the plugin generates the entity's introspection, Data reads it to work out
+the table and columns, derives the SQL for every method, and generates the class
+that runs it. Injecting `BookRepository` gives you that class.
+
+Three things from earlier chapters are load-bearing here, which is why this
+example is worth reading closely:
+
+* The entity's annotations are on *class parameters*. A Scala class parameter is
+  where the property is declared, so that is where `@Id` goes — the same rule as
+  <<idiomatic, Idiomatic Scala>> gives for configuration.
+* The repository is a *trait*, so it can be introduced. A class with a body
+  could not be.
+* `CrudRepository[Book, java.lang.Long]` is a parameterized type from a library,
+  and what its inherited methods return is what Data generates against. Note
+  `java.lang.Long` rather than `Long`: the identifier is a boxed type, and
+  Scala's `Long` is the primitive.
+
+The dependencies are the ordinary Micronaut Data ones — `micronaut-data-jdbc`
+and a driver at runtime, `micronaut-data-processor` on the compile classpath so
+its compile-time work runs.
+
+NOTE: These examples live in `test-suite-scala` and `test-suite-scala-data`, are
+compiled by this repository's build with the plugin, and are executed by its
+tests — the repository above against an in-memory database, saving and querying
+real rows. Every behaviour described above is asserted there, so prose that stops
+matching the code fails the build.
