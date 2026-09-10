@@ -63,12 +63,14 @@ class BookRepositorySpec extends Specification {
     }
 
     void "saves a case class entity and reads back the generated identifier"() {
-        when: 'the identifier is null on the way in, because the database assigns it'
-        def saved = repository.save(new Book(null, 'Dune', 412))
+        when: '''the identifier is zero on the way in, because the database assigns it. A Scala
+                 Long is the primitive, so zero rather than null is what "not yet saved" looks
+                 like -- the same convention a Java entity with a `long` identifier uses'''
+        def saved = repository.save(new Book(0L, 'Dune', 412))
 
         then: '''save returns the entity type rather than something unresolved, which is what
                  the generic signature of CrudRepository promises'''
-        saved.id() != null
+        saved.id() != 0L
         saved.title() == 'Dune'
         saved.pages() == 412
 
@@ -78,21 +80,26 @@ class BookRepositorySpec extends Specification {
         found.get().title() == 'Dune'
     }
 
-    void "derives a query from a method name"() {
+    void "derives a query from a method name, returning a Scala collection"() {
         given:
-        repository.saveAll([new Book(null, 'Dune', 412), new Book(null, 'Dune', 500), new Book(null, 'Emma', 474)])
+        repository.saveAll([new Book(0L, 'Dune', 412), new Book(0L, 'Dune', 500), new Book(0L, 'Emma', 474)])
 
         when:
         def found = repository.findByTitle('Dune')
 
-        then: 'the derived query filtered on the mapped property'
+        then: '''the return type is Scala's own List, not java.util.List. Micronaut Data asks
+                 whether the declared type stands in for an Iterable, and the answer for a Scala
+                 collection is what micronaut-runtime-scala's converters make true'''
+        found.getClass().name.startsWith('scala.collection.')
+
+        and: 'the derived query filtered on the mapped property'
         found.size() == 2
-        found.every { it.title() == 'Dune' }
+        scala.jdk.javaapi.CollectionConverters.asJavaCollection(found).every { it.title() == 'Dune' }
     }
 
     void "derives a projection from a method name"() {
         given:
-        repository.saveAll([new Book(null, 'Dune', 412), new Book(null, 'Emma', 474), new Book(null, 'Ulysses', 730)])
+        repository.saveAll([new Book(0L, 'Dune', 412), new Book(0L, 'Emma', 474), new Book(0L, 'Ulysses', 730)])
 
         expect: 'the comparison is applied in SQL, not in memory'
         repository.countByPagesGreaterThan(450) == 2
@@ -102,12 +109,12 @@ class BookRepositorySpec extends Specification {
     void "inherits the whole CrudRepository contract"() {
         given: '''every one of these is declared on the parameterized classpath supertype, so
                   each needed its type variables resolved before Data would generate it'''
-        repository.saveAll([new Book(null, 'Dune', 412), new Book(null, 'Emma', 474)])
+        repository.saveAll([new Book(0L, 'Dune', 412), new Book(0L, 'Emma', 474)])
 
         expect:
         repository.count() == 2
         repository.findAll().size() == 2
-        repository.findAll().every { it.id() != null }
+        repository.findAll().every { it.id() != 0L }
 
         when: 'deleteAll takes an Iterable of a wildcard bounded by the entity type'
         repository.deleteAll(repository.findAll())

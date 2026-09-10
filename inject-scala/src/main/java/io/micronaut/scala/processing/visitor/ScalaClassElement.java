@@ -183,6 +183,9 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
                 || Cloneable.class.getName().equals(type)
                 || Serializable.class.getName().equals(type);
         }
+        if (ScalaContainerTypes.isAssignableToIterable(this, type)) {
+            return true;
+        }
         return isNameAssignable(type);
     }
 

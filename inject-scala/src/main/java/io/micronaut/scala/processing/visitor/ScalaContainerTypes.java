@@ -58,6 +58,31 @@ final class ScalaContainerTypes {
     }
 
     /**
+     * Whether a Scala collection stands in for the given type, which is only ever
+     * {@link Iterable}.
+     *
+     * <p>Scala's collections do not implement {@code java.lang.Iterable}, so by the letter of the
+     * type system the answer is no, and every framework that asks this question of a return type
+     * or an injection point refuses the Scala form: Micronaut Data rejects
+     * {@code def findByTitle(title: String): List[Book]} with "method returns an incompatible
+     * type", leaving {@code java.util.List} as the only way to write a repository in Scala.</p>
+     *
+     * <p>Saying yes is what {@code micronaut-runtime-scala} makes true. Nothing casts the value:
+     * the framework converts it, and the converters for the Scala collections are registered
+     * exactly so it can. This is the same position already taken by reporting them as container
+     * types, and it is what lets an application be written in Scala's own vocabulary rather than
+     * in Java's.</p>
+     *
+     * @param element The element
+     * @param type The name of the type being assigned to
+     * @return Whether to treat the assignment as possible
+     */
+    static boolean isAssignableToIterable(ClassElement element, String type) {
+        return Iterable.class.getName().equals(type)
+            && element.getName().startsWith(SCALA_COLLECTION_PREFIX);
+    }
+
+    /**
      * States a Scala collection's element type as the type argument of {@link Iterable}, which is
      * where the container element is looked for.
      *

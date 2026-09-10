@@ -114,6 +114,9 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
      */
     @Override
     public boolean isAssignable(String type) {
+        if (ScalaContainerTypes.isAssignableToIterable(this, type)) {
+            return true;
+        }
         if (Object.class.getName().equals(type)) {
             return true;
         }

@@ -22,13 +22,13 @@ import io.micronaut.data.annotation.MappedEntity
 // tag::clazz[]
 /** A book on the shelf.
   *
-  * @param id the generated primary key
+  * @param id the generated primary key, zero until the database assigns one
   * @param title the book's title
   * @param pages how many pages it has
   */
 @MappedEntity
 case class Book(
-    @Id @GeneratedValue id: java.lang.Long,
+    @Id @GeneratedValue id: Long,
     title: String,
     pages: Int
 )
