@@ -18,7 +18,6 @@ package io.micronaut.scala.processing.visitor;
 import io.micronaut.context.annotation.BeanProperties;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationValue;
-import io.micronaut.core.type.DefaultArgument;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.ast.ArrayableClassElement;
 import io.micronaut.inject.ast.ClassElement;
@@ -202,8 +201,13 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
 
     @Override
     public boolean isContainerType() {
-        return DefaultArgument.CONTAINER_TYPES.contains(getName())
-            || getName().startsWith("scala.collection.");
+        return ScalaContainerTypes.isContainerType(this);
+    }
+
+    @Override
+    public Map<String, Map<String, ClassElement>> getAllTypeArguments() {
+        return ScalaContainerTypes.withIterableTypeArguments(
+            this, ArrayableClassElement.super.getAllTypeArguments());
     }
 
     @Override

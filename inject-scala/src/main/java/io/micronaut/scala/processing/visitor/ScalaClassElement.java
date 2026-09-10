@@ -20,7 +20,6 @@ import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationUtil;
 import io.micronaut.core.annotation.Creator;
 import io.micronaut.core.naming.NameUtils;
-import io.micronaut.core.type.DefaultArgument;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.ast.ArrayableClassElement;
 import io.micronaut.inject.ast.ClassElement;
@@ -1252,8 +1251,13 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
 
     @Override
     public boolean isContainerType() {
-        return DefaultArgument.CONTAINER_TYPES.contains(getName())
-            || getName().startsWith("scala.collection.");
+        return ScalaContainerTypes.isContainerType(this);
+    }
+
+    @Override
+    public Map<String, Map<String, ClassElement>> getAllTypeArguments() {
+        return ScalaContainerTypes.withIterableTypeArguments(
+            this, ArrayableClassElement.super.getAllTypeArguments());
     }
 
     @Override
