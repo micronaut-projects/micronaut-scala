@@ -62,6 +62,22 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
     }
 
     /**
+     * The raw documentation comment on a native element.
+     *
+     * <p>Reached through the builder because that is what every element is handed; the
+     * documentation itself has nothing to do with annotation metadata.</p>
+     *
+     * @param nativeType The native compiler object
+     * @return The raw comment, if the compiler kept one for it
+     */
+    java.util.Optional<String> documentation(Object nativeType) {
+        if (visitorContext instanceof ScalaVisitorContext scalaVisitorContext) {
+            return scalaVisitorContext.documentation(nativeType);
+        }
+        return java.util.Optional.empty();
+    }
+
+    /**
      * Build metadata for a Scala model element.
      *
      * @param element The element

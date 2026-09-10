@@ -81,6 +81,7 @@ public final class ScalaProcessingEngine {
     private final BiConsumer<String, Object> warningReporter;
     private final BiConsumer<String, Object> errorReporter;
     private final Map<String, ScalaClassData> sourceClasses = new LinkedHashMap<>();
+    private final Map<Object, String> documentation = new IdentityHashMap<>();
     private final Set<String> generatedBeanDefinitions = new HashSet<>();
     private final Set<String> visitedTypes = new HashSet<>();
     private boolean typeVisitorsProcessed;
@@ -125,6 +126,19 @@ public final class ScalaProcessingEngine {
             // means the model was re-extracted; keeping the first copy would pin the stale one.
             sourceClasses.put(sourceClass.name(), sourceClass);
         }
+    }
+
+    /**
+     * Adds the documentation comments found on a compilation unit's declarations.
+     *
+     * <p>Separate from {@link #addClasses} because a comment is not part of the tree it
+     * documents: the compiler keeps them in a side table keyed by symbol, so they are
+     * collected alongside the model rather than inside it.</p>
+     *
+     * @param comments The raw comments, keyed by the native compiler object they document
+     */
+    public void addDocumentation(Map<Object, String> comments) {
+        documentation.putAll(comments);
     }
 
     /**
@@ -375,6 +389,7 @@ public final class ScalaProcessingEngine {
                 classpath,
                 options,
                 annotationTypeResolver,
+                documentation,
                 infoReporter,
                 warningReporter,
                 errorReporter

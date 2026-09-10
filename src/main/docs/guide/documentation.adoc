@@ -1,0 +1,97 @@
+Several Micronaut features put your own prose into the files they generate. The
+descriptions in configuration metadata, the `description` of a schema in an
+OpenAPI definition or a JSON schema, the summary of an operation — none of that
+is written in an annotation. It is read from the doc comment above the
+declaration.
+
+The compiler plugin reads Scaladoc for this, the way the Java integration reads
+Javadoc and the Kotlin one reads KDoc.
+
+== What you have to configure
+
+Nothing, in the compiler. Doc comments are kept by the Scala compiler without
+being asked, and the plugin reads them from there, so no flag, plugin option or
+build change is involved. What matters is how the comment is written.
+
+**Use a doc comment, not a line comment.** Only `/** … */` is a doc comment. A
+`//` comment above a declaration is invisible to the compiler by the time the
+plugin runs, however much it reads like documentation.
+
+**Document a property where its author can write it.** This is the one rule that
+is specific to Scala, and it follows from how Scala declares properties. A class
+parameter — the usual way to write a `@ConfigurationProperties` class — has no
+field and no accessor of its own to attach a comment to, so its description goes
+on the class as a `@param` tag:
+
+snippet::io.micronaut.docs.documentation.MailerConfig[source=main,language=scala,tags=clazz]
+
+That is the same rule Java applies to a record, and it produces:
+
+[source,json]
+----
+{
+  "groups": [
+    { "name": "mailer",
+      "type": "io.micronaut.docs.documentation.MailerConfig",
+      "description": "Configures the outbound mailer." }
+  ],
+  "properties": [
+    { "name": "mailer.host", "type": "java.lang.String",
+      "description": "the SMTP host to connect to" },
+    { "name": "mailer.port", "type": "int",
+      "description": "the port the SMTP host listens on" }
+  ]
+}
+----
+
+A member declared in the class body is documented where it is declared, as you
+would expect:
+
+[source,scala]
+----
+@ConfigurationProperties("mailer")
+class MailerConfig:
+  /** How many messages to send at once. */
+  var batchSize: Int = 10
+----
+
+**The first paragraphs are the description.** Everything before the first block
+tag is used; from the first `@param`, `@return`, `@throws` or any other tag
+onward is not. So the sentence that should appear in generated documentation
+belongs at the top of the comment, not after a tag.
+
+== What each feature needs
+
+The plugin's part is the same for all of them: it makes the documentation
+available to compile-time processing. What consumes it differs, and each brings
+its own dependency.
+
+Configuration metadata:: Built in. Compiling a `@ConfigurationProperties` class
+writes `META-INF/spring-configuration-metadata.json`, and every `description` in
+it comes from the doc comments. This is what an IDE shows when completing a
+configuration key, and what the configuration reference in generated
+documentation is built from.
+
+OpenAPI:: Add `micronaut-openapi`. Schema and property descriptions are taken
+from the doc comments of the types a controller exposes, so a documented
+`@Serdeable` type produces a documented schema without a single
+`@Schema(description = …)`.
+
+JSON schema:: Add the JSON schema generator. It reads the same descriptions
+through the same mechanism.
+
+In each case the annotation still wins where you write one: an explicit
+`@Schema(description = …)` overrides what the comment says. Documentation is the
+default, not an override.
+
+== What is not covered
+
+Only what the compiler is compiling. A doc comment is in a source file, and a
+dependency arrives as a class file with its comments long gone — so a type from
+another module or a library contributes no descriptions, in Scala exactly as in
+Java and Kotlin. Where that type's description matters, write it on the member
+that exposes it, in the module being compiled.
+
+NOTE: The `MailerConfig` example above is compiled by this repository's build,
+and its generated metadata file is asserted by the tests, so the JSON shown here
+is what the plugin actually writes.

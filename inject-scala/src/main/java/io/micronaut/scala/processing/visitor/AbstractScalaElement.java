@@ -25,6 +25,7 @@ import io.micronaut.inject.ast.ElementModifier;
 
 import java.lang.annotation.Annotation;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -36,6 +37,7 @@ abstract class AbstractScalaElement implements Element {
     private final Set<ElementModifier> modifiers;
     private final MutableAnnotationMetadata annotationMetadata;
     private final SimpleElementAnnotationMetadata elementAnnotationMetadata;
+    private final ScalaAnnotationMetadataBuilder annotationMetadataBuilder;
 
     AbstractScalaElement(
         String name,
@@ -48,6 +50,26 @@ abstract class AbstractScalaElement implements Element {
         this.modifiers = modifiers == null ? Set.of() : Set.copyOf(modifiers);
         this.annotationMetadata = annotationMetadata == null ? new MutableAnnotationMetadata() : annotationMetadata;
         this.elementAnnotationMetadata = new SimpleElementAnnotationMetadata(this.annotationMetadata, false, annotationMetadataBuilder);
+        this.annotationMetadataBuilder = annotationMetadataBuilder;
+    }
+
+    /**
+     * @return The raw Scaladoc comment written on this element, if any
+     */
+    protected Optional<String> rawDocumentation() {
+        if (annotationMetadataBuilder == null) {
+            return Optional.empty();
+        }
+        return annotationMetadataBuilder.documentation(getNativeType());
+    }
+
+    @Override
+    public Optional<String> getDocumentation(boolean parse) {
+        Optional<String> raw = rawDocumentation();
+        if (raw.isEmpty() || !parse) {
+            return raw;
+        }
+        return ScalaDocParser.description(raw.get());
     }
 
     @Override

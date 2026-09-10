@@ -22,6 +22,7 @@ import dotty.tools.dotc.core.Constants
 import dotty.tools.dotc.core.Contexts.Context
 import dotty.tools.dotc.core.Flags
 import dotty.tools.dotc.core.NameKinds
+import dotty.tools.dotc.core.Comments
 import dotty.tools.dotc.core.Symbols
 import dotty.tools.dotc.core.Symbols.Symbol
 import dotty.tools.dotc.core.Types.AnnotatedType
@@ -63,6 +64,7 @@ import java.net.URL
 import java.net.URLClassLoader
 import java.util.LinkedHashMap
 import java.util.LinkedHashSet
+import java.util.IdentityHashMap as JIdentityHashMap
 import java.util.Map as JMap
 import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters.*
@@ -216,6 +218,14 @@ private final class ProcessingState(options: JMap[String, String]):
       case exception: ProcessingException =>
         reportProcessingException(exception)
 
+  def addDocumentation(comments: JMap[Object, String])(using ctx: Context): Unit =
+    if !comments.isEmpty then
+      try
+        engineInstance.addDocumentation(comments)
+      catch
+        case exception: ProcessingException =>
+          reportProcessingException(exception)
+
   def processTypeVisitors()(using ctx: Context): Unit =
     if !usableOutput then
       return
@@ -353,6 +363,7 @@ private final class TypeVisitorPhase(state: ProcessingState) extends PluginPhase
   override def run(using Context): Unit =
     val classes = ScalaModelExtractor.collect(summon[Context].compilationUnit, annotationDefaults)
     state.addClasses(classes)
+    state.addDocumentation(ScalaModelExtractor.documentation(classes))
 
   // `Phase.runOn` invokes `run` only for units that pass `ctx.run.enterUnit(unit)`, and a
   // unit that suspends on a macro is dropped from the list entirely, so counting `run`
@@ -485,6 +496,49 @@ private object ScalaModelExtractor:
     units.foldLeft(Map.empty[String, Map[String, Object]]) { (collected, unit) =>
       collected ++ annotationDefaultValues(unit.tpdTree)
     }
+
+  /**
+   * The documentation comments written on the declarations of the collected classes.
+   *
+   * A comment is not part of the tree it documents. The parser puts it in a side table keyed
+   * by symbol -- `Comments.docCtx`, which dotty populates without any compiler flag -- so
+   * unlike an annotation it cannot be carried inside the extracted model, and is paired here
+   * with the native object each element reports as its own identity.
+   *
+   * Parameters are absent on purpose: no language documents a parameter where the parameter
+   * is. A `@param` tag on the method, or on the class for a case class's properties, is what
+   * documents one, and reading it is the parameter element's job.
+   *
+   * @param classes The classes just collected from this unit
+   * @return The raw comments, keyed by native compiler object
+   */
+  def documentation(classes: List[ScalaClassData])(using Context): JMap[Object, String] =
+    val comments = JIdentityHashMap[Object, String]()
+    Comments.docCtx(summon[Context]).foreach { docstrings =>
+      def record(nativeType: Object): Unit =
+        symbolOf(nativeType).foreach { symbol =>
+          if symbol.exists then
+            docstrings.docstring(symbol).foreach(comment => comments.put(nativeType, comment.raw))
+        }
+      classes.foreach { classData =>
+        record(classData.nativeType())
+        classData.methods().asScala.foreach(method => record(method.nativeType()))
+        classData.constructors().asScala.foreach(constructor => record(constructor.nativeType()))
+        classData.fields().asScala.foreach(field => record(field.nativeType()))
+        classData.properties().asScala.foreach(property => record(property.nativeType()))
+      }
+    }
+    comments
+
+  /**
+   * The symbol behind whatever an element reports as its native type, which is a tree for some
+   * kinds of declaration and the symbol itself for others.
+   */
+  private def symbolOf(nativeType: Object)(using Context): Option[Symbol] =
+    nativeType match
+      case symbol: Symbol => Some(symbol)
+      case tree: tpd.Tree @unchecked => Some(tree.symbol)
+      case _ => None
 
   def collect(unit: CompilationUnit, defaults: Map[String, Map[String, Object]])(using Context): List[ScalaClassData] =
     given AnnotationDefaults = AnnotationDefaults(defaults)

@@ -18,11 +18,14 @@ package io.micronaut.scala.processing.visitor;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.ast.ClassElement;
+import io.micronaut.inject.ast.ConstructorElement;
+import io.micronaut.inject.ast.Element;
 import io.micronaut.inject.ast.ElementModifier;
 import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
 import org.jspecify.annotations.Nullable;
 
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -92,6 +95,46 @@ public final class ScalaParameterElement extends AbstractScalaElement implements
      */
     MethodElement declaringMethod() {
         return methodElement;
+    }
+
+    /**
+     * The documentation of this parameter, which is a tag on whatever declares it.
+     *
+     * <p>A parameter carries no comment of its own in any language Micronaut supports; it is
+     * documented by a {@code @param} tag on its method. Scala adds a second place to look, and
+     * it is the one that matters most here: the parameters of a case class are its properties,
+     * so a {@code @ConfigurationProperties} case class documents each property as a
+     * {@code @param} tag on the class. That is where the description in the generated
+     * configuration metadata comes from, and it is the same rule Java applies to records.</p>
+     *
+     * <p>Absent when {@code parse} is false, because a tag's text is only reachable by parsing
+     * the comment that contains it -- the same answer the Java implementation gives.</p>
+     *
+     * @param parse Whether the comment may be parsed
+     * @return The documentation for this parameter, if its declaration gives any
+     */
+    @Override
+    public Optional<String> getDocumentation(boolean parse) {
+        if (!parse) {
+            return Optional.empty();
+        }
+        Optional<String> fromMethod = documentationOf(methodElement)
+            .flatMap(raw -> ScalaDocParser.parameter(raw, getName()));
+        if (fromMethod.isPresent()) {
+            return fromMethod;
+        }
+        if (methodElement instanceof ConstructorElement) {
+            return documentationOf(methodElement.getDeclaringType())
+                .flatMap(raw -> ScalaDocParser.parameter(raw, getName()));
+        }
+        return Optional.empty();
+    }
+
+    private Optional<String> documentationOf(@Nullable Element element) {
+        if (element instanceof AbstractScalaElement scalaElement) {
+            return scalaElement.rawDocumentation();
+        }
+        return Optional.empty();
     }
 
     @Override

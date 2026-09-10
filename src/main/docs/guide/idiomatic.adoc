@@ -52,6 +52,12 @@ property. `Seq`, `Set` and `Map` work the same way.
 tests: a configuration object can be compared against an expected value, and
 printed usefully when it does not match.
 
+One consequence of writing configuration this way is worth knowing: a class
+parameter has no field or accessor of its own to document, so its description
+goes on the class as a `@param` tag. That is where the generated configuration
+metadata takes it from — see <<documentation, Documentation in Generated
+Files>>.
+
 NOTE: `Option` and the Scala collections are bound by `micronaut-runtime-scala`,
 which must be on the runtime classpath. See <<quickStart, Quick Start>>.
 

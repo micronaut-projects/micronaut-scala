@@ -12,6 +12,8 @@ configuration:
   title: Configuration Options
 annotations:
   title: Annotations
+documentation:
+  title: Documentation in Generated Files
 dependencies:
   title: Artifacts and Dependencies
 testing:

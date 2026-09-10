@@ -83,6 +83,11 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
     private final BiConsumer<String, Object> warningReporter;
     private final BiConsumer<String, Object> errorReporter;
     private final ClassLoader classLoader;
+    // Keyed by the native compiler object each element carries, because that is the only
+    // identity shared between the extracted model and the elements built from it. Doc
+    // comments live in the compiler's own side table rather than on the trees, so they
+    // cannot ride along inside the extracted data the way annotations do.
+    private final Map<Object, String> documentation;
     private TypeElementVisitor.VisitorKind visitorKind = TypeElementVisitor.VisitorKind.ISOLATING;
 
     public ScalaVisitorContext(
@@ -91,9 +96,11 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         Collection<File> classpath,
         Map<String, String> options,
         Function<String, ScalaAnnotationTypeData> annotationTypeResolver,
+        Map<Object, String> documentation,
         BiConsumer<String, Object> infoReporter,
         BiConsumer<String, Object> warningReporter,
         BiConsumer<String, Object> errorReporter) {
+        this.documentation = documentation == null ? Map.of() : documentation;
         this.outputDirectory = outputDirectory;
         this.outputVisitor = new DirectoryClassWriterOutputVisitor(outputDirectory);
         this.options = options == null ? Collections.emptyMap() : Map.copyOf(options);
@@ -127,6 +134,16 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         } catch (RuntimeException e) {
             return getClass().getClassLoader();
         }
+    }
+
+    /**
+     * The raw documentation comment written on the given native element, if it has one.
+     *
+     * @param nativeType The native compiler object, as an element reports it
+     * @return The raw comment, delimiters included
+     */
+    Optional<String> documentation(@Nullable Object nativeType) {
+        return nativeType == null ? Optional.empty() : Optional.ofNullable(documentation.get(nativeType));
     }
 
     Optional<ScalaClassElement> sourceClassElement(String name) {

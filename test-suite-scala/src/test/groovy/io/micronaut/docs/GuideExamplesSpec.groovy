@@ -245,4 +245,22 @@ class GuideExamplesSpec extends Specification {
         cleanup:
         context.close()
     }
+
+    void "documentation written in Scaladoc reaches the generated configuration metadata"() {
+        given: '''the metadata file the IDE and the generated reference documentation read.
+                  Nothing configures this: the plugin reads doc comments from the compiler, which
+                  keeps them without being asked'''
+        def generated = getClass().classLoader.getResources('META-INF/spring-configuration-metadata.json')
+            .toList().find { it.text.contains('io.micronaut.docs.documentation.MailerConfig') }
+
+        expect:
+        generated != null
+
+        and: 'the group description comes from the class comment'
+        generated.text.contains('"description":"Configures the outbound mailer."')
+
+        and: 'and each property description from the @param tag naming it'
+        generated.text.contains('"description":"the SMTP host to connect to"')
+        generated.text.contains('"description":"the port the SMTP host listens on"')
+    }
 }
