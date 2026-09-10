@@ -85,6 +85,11 @@ tomlj = { module = "org.tomlj:tomlj", version.ref="tomlj"}
 micronaut-validation = { module = "io.micronaut.validation:micronaut-validation" }
 test-boms-micronaut-serde = { module = "io.micronaut.serde:micronaut-serde-bom", version.ref = "micronaut-serde" }
 micronaut-serde-jackson = { module = "io.micronaut.serde:micronaut-serde-jackson" }
+micronaut-serde-api = { module = "io.micronaut.serde:micronaut-serde-api" }
+micronaut-serde-processor = { module = "io.micronaut.serde:micronaut-serde-processor" }
+micronaut-sourcegen-annotations = { module = "io.micronaut.sourcegen:micronaut-sourcegen-annotations", version = "2.0.0" }
+micronaut-sourcegen-generator = { module = "io.micronaut.sourcegen:micronaut-sourcegen-generator", version = "2.0.0" }
+micronaut-sourcegen-generator-java = { module = "io.micronaut.sourcegen:micronaut-sourcegen-generator-java", version = "2.0.0" }
 micronaut-openapi = { module = "io.micronaut.openapi:micronaut-openapi", version.ref = "micronaut-openapi" }
 micronaut-openapi-annotations = { module = "io.micronaut.openapi:micronaut-openapi-annotations", version.ref = "micronaut-openapi" }
 micronaut-json-schema-annotations = { module = "io.micronaut.jsonschema:micronaut-json-schema-annotations", version.ref = "micronaut-json-schema" }

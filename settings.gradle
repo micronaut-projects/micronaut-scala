@@ -48,6 +48,7 @@ include 'runtime-scala'
 include 'test-suite-scala'
 include 'test-suite-scala-openapi'
 include 'test-suite-scala-data'
+include 'test-suite-scala-serde'
 include 'micronaut-scala-bom'
 
 // The compiler plugin API is not binary compatible across compiler releases, so

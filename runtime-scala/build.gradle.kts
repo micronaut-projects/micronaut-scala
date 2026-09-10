@@ -23,4 +23,11 @@ micronautBuild {
 dependencies {
     api(libs.micronaut.core)
     api(libs.scala3.library)
+
+    // Serialization support is compiled against but not required at runtime: the beans declare
+    // `@Requires(classes = ...)`, so an application that does not serialize never loads them and
+    // never needs the dependency.
+    compileOnly(platform(libs.test.boms.micronaut.serde))
+    compileOnly(libs.micronaut.serde.api)
+    annotationProcessor(libs.micronaut.inject.java)
 }
