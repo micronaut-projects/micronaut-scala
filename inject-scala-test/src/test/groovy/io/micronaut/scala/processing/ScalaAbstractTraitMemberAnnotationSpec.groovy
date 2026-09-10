@@ -17,7 +17,6 @@ package io.micronaut.scala.processing
 
 import io.micronaut.aop.Intercepted
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
-import spock.lang.PendingFeature
 
 /**
  * An annotation written on an <em>abstract</em> trait member, reaching the class that implements
@@ -29,10 +28,7 @@ import spock.lang.PendingFeature
  * Each of them fails by doing nothing -- advice that never proxies, a constraint that never
  * validates, a qualifier that never qualifies -- so none would be noticed without an assertion.</p>
  *
- * <p>Each is written as what Java does and marked {@code @PendingFeature}, so the assertions say
- * what should happen rather than what does. Spock fails a pending feature that passes, so
- * whichever of these is fixed reports itself instead of quietly starting to agree.</p>
- *
+
  * <p>What decides whether a non-declared annotation crosses is {@code @Inherited}: core carries a
  * hierarchy annotation only when it is inherited or is a stereotype
  * ({@code AbstractAnnotationMetadataBuilder}). {@code @Executable} and {@code @Blocking} are
@@ -40,9 +36,9 @@ import spock.lang.PendingFeature
  * cross in Java either. Two drafts of this spec expected annotations that are not
  * {@code @Inherited} to be inherited, which is why the advice case read as broken and is not.</p>
  *
- * <p>Both the method and its parameters now carry what the trait declared. What remains is a
- * factory's producing member declared abstract on a trait, which produces no bean -- and that is
- * not about annotation inheritance at all.</p>
+ * <p>Both the method and its parameters now carry what the trait declared. The third case is the
+ * rule seen from the other side: {@code @Bean} is not {@code @Inherited}, so a producing member
+ * declared only on the trait yields nothing, and that is the same answer Java gives.</p>
  *
  * <p>A concrete trait method cannot stand in for any of them. The trait's own method is inherited
  * whole and carries its annotations along, so this path is never taken.</p>
@@ -133,11 +129,8 @@ class DefaultChecker extends Checker:
         method.arguments[0].annotationMetadata.hasAnnotation('abstracttrait.Tagged')
     }
 
-    @PendingFeature(reason = 'A third cause again: nothing here is about annotation inheritance. '
-        + 'A factory collects producing members from the class being processed, and an abstract '
-        + 'member has no body to produce anything from, so no definition is written for it')
-    void "produces a qualified bean from an abstract trait factory member"() {
-        when: 'the trait names the qualifier, and the factory implements the member'
+    void "does not produce a bean from a factory member declared only on a trait"() {
+        when: '''@Bean is on the trait's abstract declaration and the factory overrides it'''
         def context = buildContext('''
 package abstracttrait
 
@@ -160,9 +153,11 @@ class DefaultWidgetSource extends WidgetSource:
 ''', [:], true)
         def widgetType = context.classLoader.loadClass('abstracttrait.Widget')
 
-        then: 'the produced bean carries the qualifier the trait declared'
-        !context.getBeanDefinitions(widgetType).isEmpty()
-        context.getBean(widgetType, io.micronaut.inject.qualifiers.Qualifiers.byName('special')).name() == 'made'
+        then: '''no bean, and that is correct rather than a gap: `@Bean` is not `@Inherited`, so
+                 it does not cross to the overriding member, in this language or in Java. Declaring
+                 the producer concretely on the trait is the shape that works, and
+                 `ScalaFactoryInheritanceParitySpec` covers it'''
+        context.getBeanDefinitions(widgetType).isEmpty()
 
         cleanup:
         context?.close()
