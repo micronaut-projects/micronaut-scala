@@ -36,6 +36,7 @@ import io.micronaut.inject.ast.PropertyElement;
 import io.micronaut.inject.ast.PropertyElementQuery;
 import io.micronaut.inject.ast.TypedElement;
 import io.micronaut.inject.ast.annotation.ElementAnnotationMetadata;
+import io.micronaut.inject.ast.annotation.MethodElementAnnotationMetadata;
 import io.micronaut.inject.ast.annotation.MutableAnnotationMetadataDelegate;
 import io.micronaut.inject.ast.annotation.PropertyElementAnnotationMetadata;
 import io.micronaut.inject.ast.utils.AstBeanPropertiesUtils;
@@ -1064,6 +1065,7 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
         private final Method method;
         private final ParameterElement[] parameters;
         private final ScalaVisitorContext visitorContext;
+        private @Nullable MethodElementAnnotationMetadata composedAnnotationMetadata;
 
         private LoadedMethodElement(
             ClassElement owningType,
@@ -1072,11 +1074,32 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
             ParameterElement[] parameters,
             ScalaVisitorContext visitorContext,
             AnnotationMetadata annotationMetadata) {
+            this(owningType, declaringType, method, parameters, visitorContext, annotationMetadata, true);
+        }
+
+        /**
+         * @param sharedMetadata Whether this element reports the one mutable metadata instance
+         *     kept for the native method. True for every element that stands for the method
+         *     itself, so a visitor's annotation is still there the next time the declaring type
+         *     is asked for its members. False when a caller is deliberately supplying different
+         *     metadata -- a bean builder generating several beans from one method gives each its
+         *     own qualifier, and sharing would make them one bean declared twice.
+         */
+        private LoadedMethodElement(
+            ClassElement owningType,
+            ClassElement declaringType,
+            Method method,
+            ParameterElement[] parameters,
+            ScalaVisitorContext visitorContext,
+            AnnotationMetadata annotationMetadata,
+            boolean sharedMetadata) {
             super(
                 method.getName(),
                 method,
                 javaModifiers(method.getModifiers()),
-                MutableAnnotationMetadata.of(annotationMetadata),
+                sharedMetadata
+                    ? visitorContext.loadedAnnotationMetadata(method, () -> annotationMetadata)
+                    : MutableAnnotationMetadata.of(annotationMetadata),
                 visitorContext.getScalaAnnotationMetadataBuilder()
             );
             this.owningType = owningType;
@@ -1116,7 +1139,13 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
 
         @Override
         public MethodElement withNewOwningType(ClassElement owningType) {
-            return new LoadedMethodElement(owningType, declaringType, method, parameters, visitorContext, getAnnotationMetadata());
+            // The method's own annotations, not the composed view. Re-parenting changes which
+            // type sits above the method, and passing the composed metadata would fold the old
+            // owner's annotations into the new element's own -- which is the surface an override
+            // supplies and a visitor writes to.
+            return new LoadedMethodElement(
+                owningType, declaringType, method, parameters, visitorContext,
+                getMethodAnnotationMetadata().getAnnotationMetadata());
         }
 
         @Override
@@ -1162,9 +1191,35 @@ final class ScalaLoadedClassElement extends AbstractScalaElement implements Arra
             return getElementAnnotationMetadata();
         }
 
+        /**
+         * The method's own annotations beneath those of the type that owns it, which is what
+         * {@link MethodElementAnnotationMetadata} defines a method element to report and what
+         * the source method element already did.
+         *
+         * <p>A method read from the classpath reported only what it declared. That is the same
+         * answer for a method used where it was declared and the wrong one for a method
+         * inherited into a class that annotates it: a repository's `@Repository` sits on the
+         * Scala type, and the executable methods generated for what it inherits from
+         * {@code CrudRepository} carried no interceptor binding, so the introduction proxy had
+         * an interceptor for the methods the repository declared and none for the rest.</p>
+         *
+         * <p>Only the read view composes. Writing still goes to the method's own metadata, and
+         * {@code getMethodAnnotationMetadata()} still answers with it alone -- the proxy writer
+         * asks that question to decide whether a method itself declares advice, and answering it
+         * with the type's annotations makes every method of an advised type look individually
+         * advised.</p>
+         */
+        @Override
+        public AnnotationMetadata getAnnotationMetadata() {
+            if (composedAnnotationMetadata == null) {
+                composedAnnotationMetadata = new MethodElementAnnotationMetadata(this);
+            }
+            return composedAnnotationMetadata.getAnnotationMetadata();
+        }
+
         @Override
         public MethodElement withAnnotationMetadata(AnnotationMetadata annotationMetadata) {
-            return new LoadedMethodElement(owningType, declaringType, method, parameters, visitorContext, annotationMetadata);
+            return new LoadedMethodElement(owningType, declaringType, method, parameters, visitorContext, annotationMetadata, false);
         }
     }
 

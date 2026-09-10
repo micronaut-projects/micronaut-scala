@@ -23,6 +23,11 @@ dependencies {
     runtimeOnly(libs.micronaut.jdbc.hikari)
     runtimeOnly(libs.h2)
 
+    // A Java repository of the same shape, compiled by Micronaut Data's annotation processor,
+    // so the artifacts the reference implementation generates can be compared with ours.
+    annotationProcessor(libs.micronaut.inject.java)
+    annotationProcessor(libs.micronaut.data.processor)
+
     testImplementation(libs.spock) { exclude(module = "groovy-all") }
     testImplementation(libs.managed.groovy)
 }

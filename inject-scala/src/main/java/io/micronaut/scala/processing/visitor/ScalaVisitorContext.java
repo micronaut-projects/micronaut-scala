@@ -16,6 +16,7 @@
 package io.micronaut.scala.processing.visitor;
 
 import io.micronaut.core.convert.ArgumentConversionContext;
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.convert.value.MutableConvertibleValues;
 import io.micronaut.core.convert.value.MutableConvertibleValuesMap;
 import io.micronaut.expressions.context.DefaultExpressionCompilationContextFactory;
@@ -53,6 +54,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Visitor context for Scala compiler plugin processing.
@@ -370,6 +372,28 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         return elementAnnotationMetadata.computeIfAbsent(
             annotationMetadataKey(element),
             ignored -> annotationMetadataBuilder.buildMetadata(element)
+        );
+    }
+
+    /**
+     * The one mutable metadata instance for a classpath element, keyed by the native member.
+     *
+     * <p>An element read from the classpath is rebuilt every time its declaring type is asked
+     * for its members, and each copy used to get its own metadata. A visitor that annotates such
+     * an element -- which is how Micronaut Data records the query it derived for a repository
+     * method -- wrote into a copy that was discarded, so the writer saw the method as it had
+     * been before the visitor ran and Data failed at runtime for want of the query information
+     * it had already computed. Elements extracted from source have always shared one instance
+     * per native symbol; this is the same guarantee for the ones read through reflection.</p>
+     *
+     * @param nativeType The native member the element was built from
+     * @param initial Supplies the metadata the first time the member is seen
+     * @return The shared mutable metadata
+     */
+    MutableAnnotationMetadata loadedAnnotationMetadata(Object nativeType, Supplier<AnnotationMetadata> initial) {
+        return elementAnnotationMetadata.computeIfAbsent(
+            nativeType,
+            ignored -> MutableAnnotationMetadata.of(initial.get())
         );
     }
 
