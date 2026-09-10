@@ -1,0 +1,208 @@
+This chapter is for Scala developers meeting Micronaut for the first time. It
+explains what the framework does, in the order the pieces build on each other,
+and shows each in Scala. No prior Micronaut knowledge is assumed.
+
+Everything here is ordinary Micronaut. What the Scala compiler plugin adds is
+that a Scala source file is a first-class input to it: the plugin runs inside
+`scalac` and produces the same generated classes the Java annotation processor
+does, from Scala declarations.
+
+== What Micronaut does, and when
+
+Most dependency injection frameworks decide at startup what to inject, by
+loading classes and reading their annotations with reflection. Micronaut decides
+at *compile time*. While your code is being compiled, the plugin reads your
+declarations and writes a `BeanDefinition` class beside each bean — a plain
+class holding the answers: what this bean's dependencies are, how to construct
+it, what qualifies it.
+
+Three things follow from that, and they are the reason the rest of this chapter
+looks the way it does:
+
+* Startup does no classpath scanning and no reflection, so it is fast and its
+  cost does not grow with the size of the application.
+* Anything the framework needs to know must be visible in the source. A type it
+  cannot see at compile time is a type it cannot inject.
+* Mistakes are compile errors. A missing dependency or an unresolvable
+  qualifier fails the build rather than the first request.
+
+Micronaut's annotations are Java annotations, and Scala applies a Java
+annotation by rules of its own — a single value is not an array, and a
+positional argument does not go to `value`. Each difference is a compile error
+rather than a silent change in meaning, but the message names a type mismatch
+rather than the rule. <<annotations, Annotations>> lists them; it is worth
+reading before transcribing an example from Micronaut's Java documentation.
+
+== Dependency injection
+
+A *bean* is an object Micronaut creates and supplies to whatever needs it. You
+declare one by annotating a class; you never write code that constructs it.
+
+Start with something to inject. A trait describes what is needed, without
+saying which implementation provides it:
+
+snippet::io.micronaut.docs.di.Vehicle[source=main,language=scala,tags=interface]
+
+`@Singleton` on a class makes it a bean. Here two classes implement the same
+trait, so each is labelled with `@Named` to tell them apart:
+
+snippet::io.micronaut.docs.di.Vehicle[source=main,language=scala,tags=implementations]
+
+A bean's constructor parameters are its dependencies. Nothing marks them as
+injected — being a bean's constructor is enough. Where more than one bean could
+satisfy a parameter, a *qualifier* says which, and `@Named` is the simplest one:
+
+snippet::io.micronaut.docs.di.Vehicle[source=main,language=scala,tags=injection]
+
+`ApplicationContext.run().getBean(classOf[Vehicle])` returns a `Vehicle` with
+`V8Engine` supplied. Asking for a `Vehicle` without having declared `V8Engine` a
+bean is a compile error, not a startup failure.
+
+TIP: Constructor injection is the form to prefer, and it is the one that fits
+Scala best: the dependency arrives as a constructor parameter, so it can be a
+`val` and the class has no uninitialised state. Micronaut also supports
+injecting a field or a setter with `@Inject`, which is worth knowing when
+reading Java examples.
+
+=== Scopes
+
+A *scope* decides how long a bean lives and how many exist. `@Singleton` means
+one instance for the whole application. `@Prototype` means a new instance for
+every injection point that asks for one:
+
+snippet::io.micronaut.docs.di.Vehicle[source=main,language=scala,tags=prototype]
+
+`@Singleton` is the common case. The others — `@Prototype`, `@Context`,
+`@Refreshable`, request scope in a server application — are all applied the same
+way.
+
+== Configuration properties
+
+Applications are configured from outside: a YAML file, environment variables,
+system properties. `@ConfigurationProperties` binds a class to a section of that
+configuration, and the bound object is itself a bean, so it can be injected
+anywhere:
+
+snippet::io.micronaut.docs.config.EngineConfiguration[source=main,language=scala,tags=clazz]
+
+With `engine.manufacturer` set to `Ford` and `engine.cylinders` to a list, this
+bean is created with those values. The Scala types are the point of the example:
+
+`Option[String]`:: An absent property binds to `None`. Without the `Option` an
+absent property is a missing value and the bean fails to be created, which is
+the right answer for something genuinely required and the wrong one for
+something optional.
+`List[Int]`:: A Scala collection binds from a list-valued property, converted
+element by element. `Seq`, `Set` and `Map` work the same way.
+
+Both come from `micronaut-runtime-scala`, which must be on the runtime
+classpath — see <<quickStart, Quick Start>>. Remember that `List` and `Map` in
+Scala are not `java.util.List` and `java.util.Map`; both are supported, but a
+declaration means whichever one it names.
+
+== Bean introspection
+
+An *introspection* is compile-time reflection: for a type annotated
+`@Introspected`, the plugin generates a class that can read and write that
+type's properties and call its constructor, without `java.lang.reflect`. It is
+what validation, data binding and serialization read.
+
+snippet::io.micronaut.docs.introspection.Book[source=main,language=scala,tags=clazz]
+
+`BeanIntrospection.getIntrospection(classOf[Book])` then reports `title` and
+`pages` as properties and can instantiate the type from values. A case class
+needs nothing else: its constructor parameters are its properties, and the
+compiler-generated accessors are what the introspection reads.
+
+An ordinary class works too. What becomes a property is a `val` or `var`, or a
+getter and setter pair — the same rules as anywhere else in Scala, since a `val`
+is a private field with a generated accessor.
+
+NOTE: An introspection is generated only where you ask for one. This is
+deliberate: it is the difference between a framework that can see every class on
+the classpath and one that can see the classes you named.
+
+== Serialization
+
+Serialization is not part of the compiler plugin. It is
+https://micronaut-projects.github.io/micronaut-serde/latest/guide/[Micronaut
+Serialization] reading the introspection described above — which is why it works
+for Scala without anything Scala-specific. `@Serdeable` is `@Introspected` plus
+the instruction that the type may cross a serialization boundary:
+
+snippet::io.micronaut.docs.serialization.Order[source=main,language=scala,tags=clazz]
+
+An injected `ObjectMapper` then writes that as `{"id":"A-1","quantity":3}` and
+reads it back through the constructor the introspection describes. Because the
+introspection is generated at compile time, no reflective access to the type is
+needed at runtime, and the type works under GraalVM native image without
+configuration.
+
+The dependency is `io.micronaut.serde:micronaut-serde-jackson`, added the same
+way as in any other language.
+
+== Around advice
+
+*Aspect-oriented programming* (AOP) is how behaviour that is not specific to one
+method — timing, retry, caching, transactions, logging — is applied without
+writing it into every method. In Micronaut it is also compile-time: rather than
+generating a proxy at runtime, the plugin generates a subclass of your bean that
+overrides the advised methods, and the framework injects that subclass wherever
+the bean is asked for.
+
+*Around advice* wraps a method call. It takes two declarations. First an
+annotation, marked `@Around`, that says "methods marked with this are advised":
+
+snippet::io.micronaut.docs.aop.OrderService[source=main,language=scala,tags=annotation]
+
+Then an interceptor — itself a bean — bound to that annotation. It receives the
+call, does whatever it does, and calls `proceed()` to run the original method:
+
+snippet::io.micronaut.docs.aop.OrderService[source=main,language=scala,tags=interceptor]
+
+Applying it is just the annotation. It can go on a single method or on the
+class, in which case every method is advised:
+
+snippet::io.micronaut.docs.aop.OrderService[source=main,language=scala,tags=bean]
+
+Calling `place` runs the interceptor and returns `ordered a book`; calling
+`quote` does not run the interceptor at all.
+
+Two Scala notes. The annotation extends `java.lang.annotation.Annotation` and
+overrides `annotationType()` because `@InterceptorBean` takes it as a
+`classOf[...]` argument — see <<annotations, Annotations>>. And the advised class
+must be extensible, because the generated subclass extends it: a `final class`,
+or a `final def` on an advised method, is a compile error rather than a bean
+that quietly loses its advice.
+
+== Introduction advice
+
+*Introduction advice* is the other half of AOP, and the more surprising one. An
+around interceptor wraps a method that exists; an introduction interceptor
+*provides* methods that do not. You declare an abstract type with no
+implementation anywhere, and the interceptor supplies the behaviour — which is
+how Micronaut's declarative HTTP clients and repository interfaces work.
+
+The interceptor answers calls for the whole type, using the invocation context
+to decide what a given method should do:
+
+snippet::io.micronaut.docs.introduction.GreeterClient[source=main,language=scala,tags=interceptor]
+
+The annotation is marked `@Introduction` and names the interceptor with `@Type`:
+
+snippet::io.micronaut.docs.introduction.GreeterClient[source=main,language=scala,tags=annotation]
+
+Then an abstract type carrying that annotation becomes a bean, despite having no
+implementation:
+
+snippet::io.micronaut.docs.introduction.GreeterClient[source=main,language=scala,tags=abstract]
+
+`getBean(classOf[Greeter]).greet("Scala")` returns `greet(Scala)` — the
+interceptor's answer. A trait or an abstract class both work; an abstract class
+may also have concrete methods, which run normally, and dependencies of its own,
+which are injected.
+
+NOTE: These examples live in `test-suite-scala`, are compiled by this
+repository's build with the plugin, and are executed by its tests. Every
+behaviour described above is asserted there, so prose that stops matching the
+code fails the build.

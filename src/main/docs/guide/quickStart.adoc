@@ -68,7 +68,9 @@ version independently from the Scala compiler version.
 == Writing beans
 
 Nothing about a bean is Scala-specific: `@Singleton` on a class makes it a bean, and
-its constructor parameters are injected.
+its constructor parameters are injected. What follows is the shortest path to a
+running bean; <<concepts, Micronaut for Scala Developers>> explains what each
+piece is for.
 
 snippet::io.micronaut.docs.helloworld.Translator[source=main,language=scala,tags=clazz]
 

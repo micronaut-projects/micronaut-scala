@@ -35,6 +35,7 @@ collections, `Option`, `BeanRegistration`, and Scala 3 enum lookup.
 Scala 2 is not currently supported. GraalPy is not required by the Scala
 compiler plugin or its test harness.
 
-For the user-facing Micronaut Framework usage guide and tested application
-examples, see the Scala language-support documentation in the Micronaut Core
-repository.
+If you are new to Micronaut, <<concepts, Micronaut for Scala Developers>>
+explains dependency injection, configuration, introspections, serialization and
+AOP from the beginning, in Scala. For the wider framework documentation, see the
+Micronaut Framework user guide.

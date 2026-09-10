@@ -83,6 +83,20 @@ final class Sealed:
         thrown(Throwable)
     }
 
+    void "refuses to advise a final method"() {
+        when: 'the generated subclass would have to override it, and cannot'
+        buildContext(source('''
+@Singleton
+class Ledger:
+  @Counted
+  final def record(): String = "recorded"
+'''), [:], true)
+
+        then: '''the compilation fails rather than producing a bean whose advised method
+                 silently runs unadvised'''
+        thrown(Throwable)
+    }
+
     void "advises a property accessor like any other method"() {
         when: 'the advised member is a var, so the accessors are generated'
         def context = buildContext(source('''

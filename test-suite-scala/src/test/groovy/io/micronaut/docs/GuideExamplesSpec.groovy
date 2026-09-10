@@ -17,9 +17,17 @@ package io.micronaut.docs
 
 import io.micronaut.context.ApplicationContext
 import io.micronaut.core.beans.BeanIntrospection
+import io.micronaut.docs.aop.AuditInterceptor
+import io.micronaut.docs.aop.OrderService
 import io.micronaut.docs.config.EngineConfiguration
+import io.micronaut.docs.di.Journey
+import io.micronaut.docs.di.Vehicle
 import io.micronaut.docs.helloworld.GreetingService
+import io.micronaut.docs.introduction.Greeter
 import io.micronaut.docs.introspection.Book
+import io.micronaut.docs.serialization.Order
+import io.micronaut.serde.ObjectMapper
+import scala.jdk.javaapi.CollectionConverters
 import spock.lang.Specification
 
 /**
@@ -77,5 +85,69 @@ class GuideExamplesSpec extends Specification {
         expect:
         introspection.propertyNames as Set == ['title', 'pages'] as Set
         introspection.instantiate('Dune', 412).title() == 'Dune'
+    }
+
+    void "a qualifier picks between two implementations of the same trait"() {
+        given:
+        def context = ApplicationContext.run()
+
+        expect:
+        context.getBean(Vehicle).start() == 'V8 starting'
+
+        and: 'a singleton is the same instance every time, a prototype is not'
+        context.getBean(Vehicle).is(context.getBean(Vehicle))
+        context.getBean(Journey).id() != context.getBean(Journey).id()
+
+        cleanup:
+        context.close()
+    }
+
+    void "around advice runs only for the methods it annotates"() {
+        given:
+        def context = ApplicationContext.run()
+        def orders = context.getBean(OrderService)
+
+        when:
+        def placed = orders.place('a book')
+        def quoted = orders.quote('a book')
+
+        then: 'the advised method still returns what it returns'
+        placed == 'ordered a book'
+        quoted == 'quote for a book'
+
+        and: 'and the interceptor saw the annotated method and not the other'
+        CollectionConverters.asJavaCollection(context.getBean(AuditInterceptor).audited()).toList() == ['place']
+
+        cleanup:
+        context.close()
+    }
+
+    void "introduction advice implements an abstract member"() {
+        given: 'Greeter is a trait with no implementation anywhere'
+        def context = ApplicationContext.run()
+
+        expect:
+        context.getBean(Greeter).greet('Scala') == 'greet(Scala)'
+
+        cleanup:
+        context.close()
+    }
+
+    void "a Serdeable case class round-trips through JSON"() {
+        given:
+        def context = ApplicationContext.run()
+        def mapper = context.getBean(ObjectMapper)
+
+        when:
+        def json = mapper.writeValueAsString(new Order('A-1', 3))
+
+        then:
+        json == '{"id":"A-1","quantity":3}'
+
+        and: 'and reading it back reaches the constructor the introspection describes'
+        mapper.readValue(json, Order) == new Order('A-1', 3)
+
+        cleanup:
+        context.close()
     }
 }

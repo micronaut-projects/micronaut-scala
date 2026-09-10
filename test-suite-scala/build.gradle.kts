@@ -16,6 +16,18 @@ dependencies {
     implementation(libs.micronaut.context)
     implementation(projects.micronautRuntimeScala)
 
+    // Serialization is not part of the plugin: it is micronaut-serde reading the
+    // introspection the plugin generates. The published serde release resolves the
+    // Micronaut modules it needs at its own line, so the io.micronaut ones are excluded
+    // and taken from this build's version instead.
+    implementation(platform(libs.test.boms.micronaut.serde))
+    implementation(libs.micronaut.serde.jackson) {
+        exclude(group = "io.micronaut")
+    }
+    implementation(libs.micronaut.json.core)
+    implementation(libs.micronaut.jackson.core)
+    implementation(libs.jackson.databind)
+
     testImplementation(libs.spock) {
         exclude(module = "groovy-all")
     }

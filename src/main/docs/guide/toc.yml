@@ -2,6 +2,8 @@ introduction:
   title: Introduction
 quickStart:
   title: Quick Start
+concepts:
+  title: Micronaut for Scala Developers
 buildTools:
   title: Build Tools
 configuration:
