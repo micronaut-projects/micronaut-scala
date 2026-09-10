@@ -33,6 +33,7 @@ import java.util.Set;
  * @param modifiers The modifiers
  * @param constructor Whether this represents a constructor
  * @param nativeType The native Scala compiler object
+ * @param overriddenMethods The declarations this method overrides, least specific first
  */
 public record ScalaMethodData(
     String name,

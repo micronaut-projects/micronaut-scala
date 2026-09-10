@@ -1161,7 +1161,62 @@ private object ScalaModelExtractor:
       (parameterAnnotations ++ defaultAnnotations).asJava,
       accessor.map(_._1).orNull,
       accessor.exists(_._2),
-      parameter
+      parameter,
+      overriddenParameters(parameter.symbol).asJava
+    )
+
+  /**
+   * The same-index parameters of the declarations this parameter's method overrides.
+   *
+   * Core takes the parameter at each index from every overridden method
+   * (`JavaAnnotationMetadataBuilder`, the `VariableElement` branch), so an `@Inherited`
+   * annotation written once on a trait member's parameter applies to every implementation --
+   * which is what `InheritedNullableAnnotationSpec` asserts of a `@Nullable(inherited = true)`
+   * header parameter.
+   *
+   * Attached here, where a parameter is first built from its tree, rather than alongside the
+   * method's overridden list: annotation metadata is cached under the native symbol, so whichever
+   * instance is built first decides what every later one reports, and attaching it on the method
+   * paths left the cached instance without it.
+   */
+  private def overriddenParameters(parameterSymbol: Symbol)(using Context, AnnotationDefaults): List[ScalaParameterData] =
+    val owner = parameterSymbol.owner
+    if owner == Symbols.NoSymbol || !owner.isTerm then
+      Nil
+    else
+      val declared = owner.paramSymss.flatten.filter(_.isTerm)
+      val index = declared.indexWhere(_ == parameterSymbol)
+      if index < 0 then
+        Nil
+      else
+        owner.allOverriddenSymbols
+          .filter(overridden =>
+            overridden != Symbols.NoSymbol &&
+              overridden.isTerm &&
+              // Same scope as the method walk: only declarations being compiled here, since
+              // modelling a classpath one means reading annotation values the model cannot
+              // represent.
+              overridden.owner.denot.symbol.source.exists &&
+              overridden.owner.denot.symbol.source == owner.owner.denot.symbol.source)
+          .flatMap { overridden =>
+            val overriddenParams = overridden.paramSymss.flatten.filter(_.isTerm)
+            if overriddenParams.size > index then Some(overriddenParameterData(overriddenParams(index)))
+            else None
+          }
+          .toList
+          .reverse
+
+  /**
+   * An overridden parameter, without the parameters it in turn overrides: `allOverriddenSymbols`
+   * is already transitive, and recursing would rebuild the same declarations once per level.
+   */
+  private def overriddenParameterData(parameterSymbol: Symbol)(using Context, AnnotationDefaults): ScalaParameterData =
+    val parameterType = byNameTypeData(parameterSymbol.info).getOrElse(typeData(parameterSymbol.info))
+    ScalaParameterData(
+      parameterSymbol.name.toString,
+      parameterType,
+      (annotations(parameterSymbol) ++ typeUseNullabilityAnnotations(parameterType)).asJava,
+      parameterSymbol
     )
 
   /**

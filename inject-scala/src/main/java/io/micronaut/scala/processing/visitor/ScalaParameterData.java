@@ -32,6 +32,8 @@ import java.util.List;
  * @param defaultAccessorStatic Whether that accessor is a static method of the declaring
  *     class rather than an instance method
  * @param nativeType The native Scala compiler object
+ * @param overriddenParameters The same-index parameters of the methods this one's method
+ *                             overrides, least specific first
  */
 public record ScalaParameterData(
     String name,
@@ -39,14 +41,37 @@ public record ScalaParameterData(
     List<ScalaAnnotationData> annotations,
     @Nullable String defaultAccessor,
     boolean defaultAccessorStatic,
-    Object nativeType
+    Object nativeType,
+    List<ScalaParameterData> overriddenParameters
 ) implements ScalaAnnotatedElementData {
 
+    /**
+     * A parameter without the ones it overrides, for the overridden parameters themselves.
+     *
+     * @param name The name
+     * @param type The type
+     * @param annotations The annotations
+     * @param defaultAccessor The default-value accessor, if any
+     * @param defaultAccessorStatic Whether that accessor is static
+     * @param nativeType The native Scala compiler object
+     */
+    public ScalaParameterData(
+        String name,
+        ScalaTypeData type,
+        List<ScalaAnnotationData> annotations,
+        @Nullable String defaultAccessor,
+        boolean defaultAccessorStatic,
+        Object nativeType) {
+        this(name, type, annotations, defaultAccessor, defaultAccessorStatic, nativeType, List.of());
+    }
+
     public ScalaParameterData(String name, ScalaTypeData type, List<ScalaAnnotationData> annotations, Object nativeType) {
-        this(name, type, annotations, null, false, nativeType);
+        this(name, type, annotations, null, false, nativeType, List.of());
     }
 
     public ScalaParameterData {
         annotations = annotations == null ? Collections.emptyList() : List.copyOf(annotations);
+        overriddenParameters = overriddenParameters == null
+            ? Collections.emptyList() : List.copyOf(overriddenParameters);
     }
 }

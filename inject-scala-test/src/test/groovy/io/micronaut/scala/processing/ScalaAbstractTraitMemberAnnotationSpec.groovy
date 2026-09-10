@@ -40,9 +40,9 @@ import spock.lang.PendingFeature
  * cross in Java either. Two drafts of this spec expected annotations that are not
  * {@code @Inherited} to be inherited, which is why the advice case read as broken and is not.</p>
  *
- * <p>What remains: an {@code @Inherited} annotation reaches the implementing <em>method</em> but
- * not its <em>parameter</em>, and a factory's producing member declared abstract on a trait
- * produces no bean. Neither is about annotation inheritance in general.</p>
+ * <p>Both the method and its parameters now carry what the trait declared. What remains is a
+ * factory's producing member declared abstract on a trait, which produces no bean -- and that is
+ * not about annotation inheritance at all.</p>
  *
  * <p>A concrete trait method cannot stand in for any of them. The trait's own method is inherited
  * whole and carries its annotations along, so this path is never taken.</p>
@@ -98,12 +98,6 @@ class DefaultGreeter extends Greeter:
         context?.close()
     }
 
-    @PendingFeature(reason = 'An @Inherited annotation on an abstract trait method reaches the '
-        + 'implementing method, but not the implementing method\'s parameter. Core takes the '
-        + 'parameter at each index from every overridden method '
-        + '(JavaAnnotationMetadataBuilder, VariableElement branch); mirroring that did not move '
-        + 'this, and parameter metadata being cached under the native symbol is the likeliest '
-        + 'reason')
     void "keeps an inherited annotation declared on an abstract trait method's parameter"() {
         when: '''the annotation is @Inherited, which is what decides whether a non-declared
                  annotation crosses at all -- a constraint like @NotBlank is not, so neither

@@ -148,6 +148,14 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
             populateClassHierarchy(classData, hierarchy, new HashSet<>());
             return hierarchy;
         }
+        if (element instanceof ScalaParameterData parameterData && !parameterData.overriddenParameters().isEmpty()) {
+            // The same rule as a method, by position: core takes the parameter at each index from
+            // every overridden method. An `@Inherited` annotation written once on a trait member's
+            // parameter then applies to every implementation of it.
+            List<Object> hierarchy = new ArrayList<>(parameterData.overriddenParameters());
+            hierarchy.add(element);
+            return hierarchy;
+        }
         if (element instanceof ScalaMethodData methodData && !methodData.overriddenMethods().isEmpty()) {
             // The declarations this method overrides come first, so their annotations arrive as
             // inherited rather than declared -- the order core's Java module builds for an
