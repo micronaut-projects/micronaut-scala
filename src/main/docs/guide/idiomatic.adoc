@@ -1,0 +1,160 @@
+Micronaut's annotations came from Java, and its documentation is written in
+Java, so a Scala developer's first application tends to read like transcribed
+Java: mutable fields, classes where a case class would do, `null` where there is
+an `Option`.
+
+None of that is necessary. The framework's preferences and Scala's happen to
+agree almost everywhere — Micronaut wants immutable, constructor-shaped beans,
+which is what Scala wants to write anyway. This chapter is what the Scala form
+of each idea looks like, and the few places where the two disagree.
+
+== Prefer constructor injection
+
+Micronaut can inject a constructor parameter, a field or a setter. Use the
+constructor.
+
+The reason is stronger in Scala than in Java. A constructor parameter is in
+scope for the whole class body, so anything derived from a dependency can be a
+`val` computed once, and the class has no state that is briefly `null`:
+
+snippet::io.micronaut.docs.idiomatic.ReportService[source=main,language=scala,tags=constructor]
+
+Field injection cannot do this. `@Inject var clock: Clock = null` gives a
+mutable field that is null between construction and injection, so any `val`
+derived from it has to become a `lazy val` or a `def`, and the type says
+`Clock` while admitting `null`. There is no upside to recover: constructor
+parameters are injected without any annotation at all.
+
+The other reason is testing. A bean whose dependencies are constructor
+parameters can be built directly with `new` in a unit test, with no container
+and no reflection.
+
+== Case classes for configuration
+
+`@ConfigurationProperties` binds a class to a section of configuration. Use a
+case class:
+
+snippet::io.micronaut.docs.idiomatic.ServerConfig[source=main,language=scala,tags=caseClassConfig]
+
+Four Scala things are doing work there, and each replaces something that would
+otherwise be an annotation or a convention:
+
+Default parameter values:: A parameter's default *is* the configuration default.
+`host` is `localhost` unless `server.host` says otherwise. This is Scala's own
+mechanism, not a framework one — there is no `@Value("${server.host:localhost}")`
+to write and no default duplicated in a string.
+`Option[String]`:: An absent property binds to `None`. Without it, an absent
+property means the bean cannot be created — which is the right answer for
+something genuinely required, and the wrong one for something optional.
+`List[String]`:: A Scala collection binds element by element from a list-valued
+property. `Seq`, `Set` and `Map` work the same way.
+`case`:: Equality, `copy` and `toString` come for free, which matters most in
+tests: a configuration object can be compared against an expected value, and
+printed usefully when it does not match.
+
+NOTE: `Option` and the Scala collections are bound by `micronaut-runtime-scala`,
+which must be on the runtime classpath. See <<quickStart, Quick Start>>.
+
+=== Repeated configuration
+
+Where the same shape of configuration repeats under different names — data
+sources, clients, connection pools — `@EachProperty` creates one bean per entry,
+and `@Parameter` receives the name it was configured under:
+
+snippet::io.micronaut.docs.idiomatic.ServerConfig[source=main,language=scala,tags=eachProperty]
+
+Configuring `datasources.one.url` and `datasources.two.url` produces two
+`DataSourceConfig` beans. Each can be injected by name with `@Named`, and all of
+them together as a collection.
+
+=== Enums in configuration
+
+This is the one place where the plain Scala form does not work. A value bound
+from configuration arrives as a string and has to be converted, and the
+conversion to an enum is defined for `java.lang.Enum`. A Scala 3 `enum` is not
+one unless it says so:
+
+snippet::io.micronaut.docs.idiomatic.Mode[source=main,language=scala,tags=enum]
+
+With `extends java.lang.Enum[Mode]` the binding works and the constructor
+default still applies when the property is absent. Without it the value cannot
+be converted, and the failure is reported as though the property were missing —
+which is a confusing message to debug, so it is worth writing the `extends`
+clause on any enum that a configuration class refers to.
+
+== Traits at the boundary between beans
+
+Inject a trait, not a class. The bean asking for a dependency should name what
+it needs, and the container decides which implementation it gets:
+
+snippet::io.micronaut.docs.idiomatic.Notifier[source=main,language=scala,tags=trait]
+
+snippet::io.micronaut.docs.idiomatic.Notifier[source=main,language=scala,tags=implementations]
+
+This is ordinary good design, but it also unlocks things in Micronaut that a
+concrete class cannot do. Where several beans implement the trait, a collection
+parameter receives all of them — useful for anything plugin-shaped, where the
+set of implementations is meant to grow:
+
+snippet::io.micronaut.docs.idiomatic.Notifier[source=main,language=scala,tags=collection]
+
+Where the dependency may not be there at all, an `Option` parameter is `None`
+rather than a failure, so a bean can adapt to an implementation being present
+without a `null` check:
+
+snippet::io.micronaut.docs.idiomatic.Notifier[source=main,language=scala,tags=optional]
+
+And a trait is what introduction advice needs: an abstract type with no
+implementation is the input to `@Introduction`, which is how declarative clients
+work. See <<concepts, Micronaut for Scala Developers>>.
+
+Where exactly one implementation could serve but you want to choose between
+several, qualify with `@Named` at the injection point. Prefer that over injecting
+the concrete class, which removes the choice permanently.
+
+== Factories for types you do not own
+
+A bean has to be a class the plugin compiled, which leaves out the JDK, Java
+libraries and the Scala standard library. `@Factory` closes that gap: a method
+annotated with a scope produces a bean of whatever it returns.
+
+snippet::io.micronaut.docs.idiomatic.ReportService[source=main,language=scala,tags=factory]
+
+`java.time.Clock` is now injectable anywhere, including into the
+`ReportService` above. This is also the right place for the construction logic
+of a type that needs assembling, so the beans that use it are not the ones
+building it.
+
+== A Scala `object` is a bean, but it is rarely the right one
+
+`@Singleton` on an `object` works:
+
+snippet::io.micronaut.docs.idiomatic.Notifier[source=main,language=scala,tags=objectBean]
+
+The instinct is understandable — Micronaut's `@Singleton` and Scala's `object`
+both mean "one of these" — but they are not the same thing, and the injection
+point shows it: the parameter's type is `HouseStyle.type`, the singleton type of
+that one object, which nothing else can inhabit. There is no substituting a test
+double, no alternative implementation, and no qualifier to choose between.
+Worse, the object can also be reached by name from anywhere, so the dependency
+stops being visible in the constructor.
+
+Prefer a `class` for anything with behaviour worth replacing, and keep `object`
+for what it is good at: constants and pure functions that nothing would ever
+want to inject differently.
+
+== Things that are compile errors rather than surprises
+
+Two Scala habits collide with how Micronaut applies AOP, and both are caught by
+the compiler rather than at runtime:
+
+* A `final class`, or a `final def` on an advised method, cannot be advised. The
+  plugin generates a subclass that overrides advised methods, so this fails the
+  build rather than producing a bean that silently loses its advice.
+* An annotation is applied by Scala's rules, not Java's — a single value is not
+  an array, and a positional argument does not go to `value`. See
+  <<annotations, Annotations>>.
+
+NOTE: Every example in this chapter is a compiled file in `test-suite-scala`,
+executed by this repository's tests — including the enum that must extend
+`java.lang.Enum` and the defaults that come from the constructor.

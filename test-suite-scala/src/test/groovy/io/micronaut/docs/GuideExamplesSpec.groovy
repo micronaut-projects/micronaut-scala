@@ -23,6 +23,14 @@ import io.micronaut.docs.config.EngineConfiguration
 import io.micronaut.docs.di.Journey
 import io.micronaut.docs.di.Vehicle
 import io.micronaut.docs.helloworld.GreetingService
+import io.micronaut.docs.idiomatic.AuditLog
+import io.micronaut.docs.idiomatic.Banner
+import io.micronaut.docs.idiomatic.Broadcaster
+import io.micronaut.docs.idiomatic.DataSourceConfig
+import io.micronaut.docs.idiomatic.Mode
+import io.micronaut.docs.idiomatic.ReportService
+import io.micronaut.docs.idiomatic.RunConfig
+import io.micronaut.docs.idiomatic.ServerConfig
 import io.micronaut.docs.introduction.Greeter
 import io.micronaut.docs.introspection.Book
 import io.micronaut.docs.serialization.Order
@@ -146,6 +154,93 @@ class GuideExamplesSpec extends Specification {
 
         and: 'and reading it back reaches the constructor the introspection describes'
         mapper.readValue(json, Order) == new Order('A-1', 3)
+
+        cleanup:
+        context.close()
+    }
+
+    void "a case class configuration takes its defaults from the constructor"() {
+        given: 'only the port is configured'
+        def context = ApplicationContext.run(['server.port': 9090])
+        def config = context.getBean(ServerConfig)
+
+        expect: "Scala's own default parameter values are the configuration defaults"
+        config.host() == 'localhost'
+        config.port() == 9090
+        config.tags().isEmpty()
+        config.banner().isEmpty()
+
+        and: 'and being a case class, it is comparable and printable for free'
+        config == new ServerConfig('localhost', 9090, config.tags(), config.banner())
+        config.toString().startsWith('ServerConfig(localhost,9090')
+
+        cleanup:
+        context.close()
+    }
+
+    void "EachProperty produces one case class per configured entry"() {
+        given:
+        def context = ApplicationContext.run([
+            'datasources.one.url': 'jdbc:one',
+            'datasources.two.url': 'jdbc:two'
+        ])
+
+        expect:
+        context.getBeansOfType(DataSourceConfig)
+            .collect { "${it.name()}=${it.url()}" }.sort() == ['one=jdbc:one', 'two=jdbc:two']
+
+        cleanup:
+        context.close()
+    }
+
+    void "an enum bound from configuration must extend java.lang.Enum"() {
+        given:
+        def context = ApplicationContext.run(['run.mode': 'Fast'])
+
+        expect:
+        context.getBean(RunConfig).mode() == Mode.Fast
+
+        and: 'and the constructor default applies when the property is absent'
+        def unset = ApplicationContext.run()
+        unset.getBean(RunConfig).mode() == Mode.Slow
+
+        cleanup:
+        context.close()
+        unset?.close()
+    }
+
+    void "a trait is the injection point and every implementation of it can be collected"() {
+        given:
+        def context = ApplicationContext.run()
+
+        expect: 'a Scala collection parameter receives every bean implementing the trait'
+        CollectionConverters.asJavaCollection(context.getBean(Broadcaster).broadcast('hi')).toList() ==
+            ['email: hi', 'sms: hi']
+
+        and: 'and an Option parameter is None when nothing implements the trait'
+        context.getBean(AuditLog).describe() == 'not archived'
+
+        cleanup:
+        context.close()
+    }
+
+    void "a factory supplies a type the application does not own"() {
+        given:
+        def context = ApplicationContext.run(['server.host': 'example.com'])
+
+        expect: 'the Clock came from the factory and the config from its own bean'
+        context.getBean(ReportService).report() == 'example.com@Z'
+
+        cleanup:
+        context.close()
+    }
+
+    void "a Scala object can be a bean, at the cost of the seam a class would give"() {
+        given:
+        def context = ApplicationContext.run()
+
+        expect: 'it injects, but only under the singleton type of that one object'
+        context.getBean(Banner).render('ready') == '[app] ready'
 
         cleanup:
         context.close()

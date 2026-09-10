@@ -4,6 +4,8 @@ quickStart:
   title: Quick Start
 concepts:
   title: Micronaut for Scala Developers
+idiomatic:
+  title: Idiomatic Scala
 buildTools:
   title: Build Tools
 configuration:
