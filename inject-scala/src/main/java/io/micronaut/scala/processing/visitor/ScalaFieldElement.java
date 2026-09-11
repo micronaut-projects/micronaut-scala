@@ -30,6 +30,7 @@ public final class ScalaFieldElement extends AbstractScalaMemberElement implemen
     private final ScalaVisitorContext visitorContext;
     private final ScalaFieldData fieldData;
     private @Nullable ClassElement type;
+    private @Nullable ClassElement genericType;
 
     ScalaFieldElement(ScalaClassElement declaringType, ScalaFieldData fieldData, ScalaVisitorContext visitorContext) {
         this(declaringType, fieldData, visitorContext, visitorContext.annotationMetadata(fieldData));
@@ -59,6 +60,21 @@ public final class ScalaFieldElement extends AbstractScalaMemberElement implemen
             type = visitorContext.getElementFactory().newClassElement(fieldData.type());
         }
         return type;
+    }
+
+    /**
+     * The type with the declaring type's variables bound as they were where the field was
+     * reached; {@link #getType()} stays the declared type, the JVM signature.
+     */
+    @Override
+    public ClassElement getGenericType() {
+        if (fieldData.genericType() == null) {
+            return getType();
+        }
+        if (genericType == null) {
+            genericType = visitorContext.getElementFactory().newClassElement(fieldData.resolvedType());
+        }
+        return genericType;
     }
 
     @Override

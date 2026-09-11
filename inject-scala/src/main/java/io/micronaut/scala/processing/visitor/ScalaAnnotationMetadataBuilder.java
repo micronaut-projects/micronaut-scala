@@ -771,14 +771,7 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
         if (annotationType == null) {
             return;
         }
-        // An annotation type extracted from a symbol carries only the defaults harvested from
-        // this compilation's trees, so a classpath annotation arrives here with none. Complete
-        // them at the point of registration, which is the one path both the extracted and the
-        // on-demand-resolved types go through.
-        if (visitorContext instanceof ScalaVisitorContext scalaVisitorContext) {
-            annotationType = scalaVisitorContext.completeAnnotationDefaults(annotationType);
-        }
-        if (annotationType == null || nativeAnnotationTypes.putIfAbsent(annotationType.name(), annotationType) != null) {
+        if (nativeAnnotationTypes.putIfAbsent(annotationType.name(), annotationType) != null) {
             return;
         }
         // The one place every annotation type passes exactly once, which is where it becomes

@@ -275,6 +275,80 @@ class Uses:
         method(reference, 'all').genericReturnType.firstTypeArgument.get().name == 'library.Book'
     }
 
+    void "a Java class is modelled from the compiler's symbols, with the parameter annotations the compiler skips"() {
+        given: '''dotty's reading of a Java class file drops every annotation on a parameter -- a TODO
+                  in its ClassfileParser -- and never reads type annotations, which is where
+                  jspecify puts nullability. TextPlainCodec's constructor has both kinds:
+                  `@Value("...") Optional<Charset>`, `@Named("text") @Nullable CodecConfiguration`'''
+        ClassElement uses = buildClassElement('shelf.Uses', '''
+package shelf
+
+class Uses:
+  def codec: io.micronaut.runtime.http.codec.TextPlainCodec = null
+  def request: io.micronaut.http.MutableHttpRequest[String] = null
+''')
+        ClassElement codec = method(uses, 'codec').returnType
+        def constructor = codec.primaryConstructor.get()
+        def body = method(method(uses, 'request').returnType, 'body')
+
+        expect: 'the constructor and the annotation the compiler does read'
+        constructor.parameters*.name == ['defaultCharset', 'codecConfiguration', 'conversionService']
+        constructor.hasAnnotation('jakarta.inject.Inject')
+
+        and: 'the parameter annotations, with their values'
+        constructor.parameters[0].stringValue('io.micronaut.context.annotation.Value').get() == '${micronaut.application.default-charset}'
+        constructor.parameters[1].stringValue('jakarta.inject.Named').get() == 'text'
+        constructor.parameters[2].annotationNames.isEmpty()
+
+        and: 'and the type-use nullability, which is what Argument.isNullable reads'
+        constructor.parameters[1].isNullable()
+        !constructor.parameters[0].isNullable()
+
+        and: '''the same on an interface method whose only annotation is a type annotation:
+                 `<T> MutableHttpRequest<T> body(@Nullable T body)`'''
+        body.parameters[0].isNullable()
+        body.parameters[0].genericType.isTypeVariable()
+        body.genericReturnType.name == 'io.micronaut.http.MutableHttpRequest'
+    }
+
+    void "a Java class's static members, enum constants and varargs are what the class file says"() {
+        given:
+        ClassElement uses = buildClassElement('shelf.Uses', '''
+package shelf
+
+class Uses:
+  def duration: java.time.Duration = null
+  def day: java.time.DayOfWeek = null
+  def text: String = null
+  def locale: java.util.Locale = null
+''')
+        ClassElement duration = method(uses, 'duration').returnType
+        ClassElement day = method(uses, 'day').returnType
+        ClassElement text = method(uses, 'text').returnType
+        ClassElement locale = method(uses, 'locale').returnType
+
+        expect: 'a static factory is a static method of the class, as it is in the class file'
+        def ofSeconds = duration.getEnclosedElements(ElementQuery.ALL_METHODS.named('ofSeconds'))
+        ofSeconds.size() == 2
+        ofSeconds.every { it.static }
+        ofSeconds.find { it.parameters.size() == 1 }.parameters[0].type.name == 'long'
+
+        and: 'a Java enum is an enum, with its constants'
+        day.isEnum()
+        day.getEnclosedElements(ElementQuery.ALL_FIELDS.includeEnumConstants().named('MONDAY')).size() == 1
+        day.getEnclosedElements(ElementQuery.ALL_METHODS.named('valueOf')).size() == 1
+        day.getEnclosedElements(ElementQuery.ALL_METHODS.named('values')).size() == 1
+
+        and: 'a varargs parameter is the array it compiles to'
+        def format = text.getEnclosedElements(ElementQuery.ALL_METHODS.named('format')).find { it.parameters.size() == 2 }
+        format.static
+        format.parameters[1].type.name == 'java.lang.Object'
+        format.parameters[1].type.isArray()
+
+        and: 'bean properties follow Java conventions, since the class has no Scala ones'
+        locale.beanProperties*.name.containsAll(['language', 'country'])
+    }
+
     private static def method(ClassElement element, String name) {
         element.getEnclosedElements(ElementQuery.ALL_METHODS.named(name))[0]
     }

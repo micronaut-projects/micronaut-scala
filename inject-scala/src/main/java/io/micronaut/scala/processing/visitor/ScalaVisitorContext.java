@@ -16,7 +16,6 @@
 package io.micronaut.scala.processing.visitor;
 
 import io.micronaut.core.convert.ArgumentConversionContext;
-import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.convert.value.MutableConvertibleValues;
 import io.micronaut.core.convert.value.MutableConvertibleValuesMap;
 import io.micronaut.expressions.context.DefaultExpressionCompilationContextFactory;
@@ -55,7 +54,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Visitor context for Scala compiler plugin processing.
@@ -85,7 +83,6 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
      */
     private final Map<String, ScalaPackageElement> packageElements = new LinkedHashMap<>();
     private final IdentityHashMap<Object, MutableAnnotationMetadata> elementAnnotationMetadata = new IdentityHashMap<>();
-    private final Map<Object, MutableAnnotationMetadata> loadedElementAnnotationMetadata = new HashMap<>();
     private final List<AbstractBeanDefinitionBuilder> beanDefinitionBuilders = new ArrayList<>();
     private final Map<String, String> options;
     private final Function<String, ScalaAnnotationTypeData> annotationTypeResolver;
@@ -202,66 +199,7 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
      * @return The annotation type, or {@code null} if it is not an annotation on this classpath
      */
     @Nullable ScalaAnnotationTypeData resolveAnnotationType(String annotationName) {
-        return completeAnnotationDefaults(annotationTypeResolver.apply(annotationName));
-    }
-
-    /**
-     * Fills in member defaults that the compiler cannot supply.
-     *
-     * <p>Defaults for annotations declared in this compilation are harvested from its trees,
-     * but dotty's classfile parser records only a marker for the {@code AnnotationDefault}
-     * attribute and discards the value, so for an annotation read from a class file the
-     * declared default is recoverable only from the class file itself.
-     */
-    @Nullable ScalaAnnotationTypeData completeAnnotationDefaults(@Nullable ScalaAnnotationTypeData annotationType) {
-        if (annotationType == null || annotationType.members().isEmpty()) {
-            return annotationType;
-        }
-        boolean anyMissing = annotationType.members().values().stream()
-            .anyMatch(member -> member.defaultValue() == null);
-        if (!anyMissing) {
-            return annotationType;
-        }
-        Map<String, Object> defaults = classpathAnnotationDefaults(annotationType.name());
-        if (defaults.isEmpty()) {
-            return annotationType;
-        }
-        Map<String, ScalaAnnotationMemberData> members = new LinkedHashMap<>();
-        annotationType.members().forEach((name, member) -> {
-            Object defaultValue = member.defaultValue() == null ? defaults.get(name) : member.defaultValue();
-            members.put(name, defaultValue == member.defaultValue() ? member : new ScalaAnnotationMemberData(
-                member.name(),
-                member.annotations(),
-                defaultValue,
-                member.typeName(),
-                member.array(),
-                member.classType(),
-                member.enumType(),
-                member.annotationType(),
-                member.nativeType()
-            ));
-        });
-        return new ScalaAnnotationTypeData(
-            annotationType.name(),
-            annotationType.annotations(),
-            members,
-            annotationType.retentionPolicyName(),
-            annotationType.repeatableContainerName(),
-            annotationType.javaDefined(),
-            annotationType.nativeType()
-        );
-    }
-
-    private Map<String, Object> classpathAnnotationDefaults(String annotationName) {
-        try {
-            return ClasspathAnnotationMetadataReader.annotationMemberDefaults(
-                Class.forName(annotationName, false, classLoader)
-            );
-        } catch (ClassNotFoundException | LinkageError e) {
-            // Declared in this compilation, or simply not on the classpath: either way there is
-            // no class file to read a default from.
-            return Map.of();
-        }
+        return annotationTypeResolver.apply(annotationName);
     }
 
     Optional<ScalaClassData> sourceClassData(String name) {
@@ -386,31 +324,6 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         );
     }
 
-    /**
-     * The one mutable metadata instance for a classpath element, keyed by the native member.
-     *
-     * <p>An element read from the classpath is rebuilt every time its declaring type is asked
-     * for its members, and each copy used to get its own metadata. A visitor that annotates such
-     * an element -- which is how Micronaut Data records the query it derived for a repository
-     * method -- wrote into a copy that was discarded, so the writer saw the method as it had
-     * been before the visitor ran and Data failed at runtime for want of the query information
-     * it had already computed. Elements extracted from source have always shared one instance
-     * per native symbol; this is the same guarantee for the ones read through reflection.</p>
-     *
-     * @param nativeType The native member the element was built from
-     * @param initial Supplies the metadata the first time the member is seen
-     * @return The shared mutable metadata
-     */
-    MutableAnnotationMetadata loadedAnnotationMetadata(Object nativeType, Supplier<AnnotationMetadata> initial) {
-        // Keyed by equality, not identity. Reflection hands back a fresh `Method` for every call
-        // to `getMethods()` -- they are copies -- so the identity map the extracted elements use
-        // never matched twice and each rebuilt element still got its own metadata.
-        return loadedElementAnnotationMetadata.computeIfAbsent(
-            nativeType,
-            ignored -> MutableAnnotationMetadata.of(initial.get())
-        );
-    }
-
     private Object annotationMetadataKey(ScalaAnnotatedElementData element) {
         if (element instanceof ScalaTypeData typeData && typeData.annotatedTypeUse()) {
             return typeData;
@@ -472,15 +385,11 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         if (sourceElement.isPresent()) {
             return Optional.of(sourceElement.get());
         }
-        Optional<ScalaClassElement> classpathElement = classpathClassElement(name);
-        if (classpathElement.isPresent()) {
-            return Optional.of(classpathElement.get());
-        }
-        try {
-            return Optional.of(new ScalaLoadedClassElement(Class.forName(name, false, classLoader), this));
-        } catch (ClassNotFoundException e) {
-            return Optional.empty();
-        }
+        // A class the compiler does not know is not a class this compilation can see, which is
+        // the answer javac's model gives as well. Loading it through a classloader instead
+        // described it by Java's conventions, which a Scala class does not follow, and could
+        // find a stale class file in the output directory from an earlier build.
+        return classpathClassElement(name).map(ClassElement.class::cast);
     }
 
     /**

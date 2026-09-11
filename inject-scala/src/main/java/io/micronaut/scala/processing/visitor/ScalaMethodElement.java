@@ -56,6 +56,8 @@ public class ScalaMethodElement extends AbstractScalaMemberElement implements Me
     private AnnotationMetadata annotationMetadata;
     @Nullable
     private ClassElement returnType;
+    @Nullable
+    private ClassElement genericReturnType;
     private ParameterElement[] parameters;
 
     ScalaMethodElement(ScalaClassElement declaringType, ScalaMethodData methodData, ScalaVisitorContext visitorContext) {
@@ -78,6 +80,18 @@ public class ScalaMethodElement extends AbstractScalaMemberElement implements Me
         ScalaVisitorContext visitorContext,
         @Nullable
         AnnotationMetadata presetAnnotationMetadata) {
+        this(declaringType, owningType, methodData, visitorContext, presetAnnotationMetadata, null);
+    }
+
+    private ScalaMethodElement(
+        ScalaClassElement declaringType,
+        ClassElement owningType,
+        ScalaMethodData methodData,
+        ScalaVisitorContext visitorContext,
+        @Nullable
+        AnnotationMetadata presetAnnotationMetadata,
+        @Nullable
+        ElementAnnotationMetadata sharedMethodAnnotationMetadata) {
         super(
             declaringType,
             methodData.name(),
@@ -91,6 +105,7 @@ public class ScalaMethodElement extends AbstractScalaMemberElement implements Me
         this.visitorContext = visitorContext;
         this.methodData = methodData;
         this.presetAnnotationMetadata = presetAnnotationMetadata;
+        this.methodAnnotationMetadata = sharedMethodAnnotationMetadata;
         this.parameters = methodData.parameters().stream()
             .map(parameter -> new ScalaParameterElement(this, parameter, visitorContext))
             .toArray(ParameterElement[]::new);
@@ -176,6 +191,21 @@ public class ScalaMethodElement extends AbstractScalaMemberElement implements Me
         return returnType;
     }
 
+    /**
+     * The return type with the declaring type's variables bound as they were where the method
+     * was reached; {@link #getReturnType()} stays the declared type, the JVM signature.
+     */
+    @Override
+    public ClassElement getGenericReturnType() {
+        if (methodData.genericReturnType() == null) {
+            return getReturnType();
+        }
+        if (genericReturnType == null) {
+            genericReturnType = visitorContext.getElementFactory().newClassElement(methodData.resolvedReturnType());
+        }
+        return genericReturnType;
+    }
+
     @Override
     public List<? extends GenericPlaceholderElement> getDeclaredTypeVariables() {
         return methodData.typeParameters().stream()
@@ -220,7 +250,17 @@ public class ScalaMethodElement extends AbstractScalaMemberElement implements Me
 
     @Override
     public MethodElement withNewOwningType(ClassElement owningType) {
-        ScalaMethodElement methodElement = new ScalaMethodElement(declaringType, owningType, methodData, visitorContext, getAnnotationMetadata());
+        // The copy shares this method's own mutable metadata rather than a snapshot of it. An
+        // inherited method is reached through a fresh copy every time its owner is asked for
+        // its members, and Micronaut Data records the query it derived by annotating whichever
+        // copy the visitor was handed; a snapshot per copy left the definition writer reading a
+        // later copy that knew nothing of it, and the repository failed at runtime for want of
+        // the query it had already computed. Sharing the delegate is also what keeps the class's
+        // annotations out of the method's own surface -- the composed view is built afresh on
+        // the copy, from its declaring type and the shared method metadata.
+        getMethodAnnotationMetadata();
+        ScalaMethodElement methodElement = new ScalaMethodElement(
+            declaringType, owningType, methodData, visitorContext, presetAnnotationMetadata, methodAnnotationMetadata);
         methodElement.replaceParameters(parameters);
         return methodElement;
     }

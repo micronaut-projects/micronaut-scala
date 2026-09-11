@@ -129,11 +129,12 @@ class Holder {
         and: 'BaseStream<T, S extends BaseStream<T, S>> erases each on its own bound'
         found.streamArgs == [T: 'java.lang.Object', S: 'java.util.stream.BaseStream']
 
-        and: '''and the bound's own arguments collapse to Object rather than to nothing. The
+        and: '''and the bound's own arguments are modelled one level further, as the source
+                path models `Direct[T <: Comparable[T]]` in ScalaRecursiveGenericsSpec. The
                 bound is parameterized by the variable itself, so modelling it literally does not
-                terminate; core's Java module resolves every parameter of a type it is already
-                inside to Object, and reporting none at all left a caller unable to tell a
-                parameterized bound from a raw one'''
-        found.enumNested == [E: 'java.lang.Object']
+                terminate; reporting no arguments at all left a caller unable to tell a
+                parameterized bound from a raw one, and a classpath type and a source type have
+                to stop at the same depth, since they are now built by the same code'''
+        found.enumNested == [E: 'java.lang.Enum']
     }
 }

@@ -119,7 +119,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
      * members. Copying through the {@code typeData}-only constructor drops
      * {@code classData}, and with it every method, field and property.
      */
-    private ScalaClassElement(
+    ScalaClassElement(
         ScalaClassData classData,
         ScalaTypeData typeData,
         ScalaVisitorContext visitorContext,
@@ -738,20 +738,38 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         } else if (elementType == FieldElement.class) {
             addFieldElements(result, elements);
         } else if (elementType == PropertyElement.class) {
-            requiredData().properties().forEach(property -> elements.add(propertyElement(property)));
+            elements.addAll(propertyElements());
         } else if (elementType == ClassElement.class) {
             elements.addAll(visitorContext.sourceClassElementsEnclosedBy(getName()));
+            for (String nested : requiredData().nestedTypeNames()) {
+                visitorContext.getClassElement(nested).ifPresent(elements::add);
+            }
         } else if (elementType == MemberElement.class) {
             addFieldElements(result, elements);
             addMethodElements(result, elements);
             if (!result.isExcludePropertyElements()) {
-                requiredData().properties().forEach(property -> elements.add(propertyElement(property)));
+                elements.addAll(propertyElements());
             }
         }
         return elements.stream()
             .filter(element -> matches(result, element))
             .map(elementType::cast)
             .toList();
+    }
+
+    /**
+     * The properties a query for {@code PropertyElement} answers with.
+     *
+     * <p>A Scala class declares its properties, and those are the answer. A Java class has
+     * none in that sense -- what it has are getters and setters -- and for it the answer is
+     * what Java's conventions make of its members, which is what core's own model answers.</p>
+     */
+    private List<PropertyElement> propertyElements() {
+        List<ScalaPropertyData> declared = requiredData().properties();
+        if (declared.isEmpty()) {
+            return getBeanProperties();
+        }
+        return declared.stream().map(this::propertyElement).map(PropertyElement.class::cast).toList();
     }
 
     private <T extends Element> void addMethodElements(ElementQuery.Result<T> result, List<Element> elements) {
@@ -927,13 +945,19 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         return UNIVERSAL_SUPERTYPES.contains(name);
     }
 
+    /**
+     * The signature by which an override hides what it overrides, in the parameterisation the
+     * class sees. {@code save(entity: T)} inherited through {@code Repo[String]} and the class's
+     * own {@code save(entity: String)} are one method to the class, whatever the two compile
+     * to -- so the resolved parameter types are compared, not the declared ones.
+     */
     private MethodSignature signature(MethodElement method) {
         return new MethodSignature(
             method.getName(),
             Arrays.stream(method.getParameters())
                 .map(parameter -> new TypeSignature(
-                    parameter.getType().getName(),
-                    parameter.getType().getArrayDimensions()))
+                    parameter.getGenericType().getName(),
+                    parameter.getGenericType().getArrayDimensions()))
                 .toList()
         );
     }
@@ -968,18 +992,29 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         return new MethodSignature(
             method.name(),
             method.parameters().stream()
-                .map(parameter -> new TypeSignature(parameter.type().name(), parameter.type().arrayDimensions()))
+                .map(parameter -> new TypeSignature(parameter.resolvedType().name(), parameter.resolvedType().arrayDimensions()))
                 .toList()
         );
     }
 
+    /**
+     * A method with a parameterisation applied.
+     *
+     * <p>The declared types stay what they are, and the bindings go into the generic types.
+     * {@code getType()} is the JVM signature -- what a proxy or adapter that overrides the
+     * method has to declare -- and {@code getGenericType()} is what the caller means by it.
+     * Substituting the declared type made an {@code @Adapter} for
+     * {@code ApplicationEventListener[StartupEvent]} implement
+     * {@code onApplicationEvent(StartupEvent)} and leave the interface's own
+     * {@code onApplicationEvent(Object)} abstract.</p>
+     */
     private ScalaMethodData substitute(ScalaMethodData method, Map<String, ScalaTypeData> substitutions) {
         if (substitutions.isEmpty()) {
             return method;
         }
         return new ScalaMethodData(
             method.name(),
-            Objects.requireNonNull(substitute(method.returnType(), substitutions)),
+            method.returnType(),
             method.parameters().stream()
                 .map(parameter -> substitute(parameter, substitutions))
                 .toList(),
@@ -993,19 +1028,21 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             method.modifiers(),
             method.constructor(),
             method.nativeType(),
-            method.overriddenMethods()
+            method.overriddenMethods(),
+            substitute(method.resolvedReturnType(), substitutions)
         );
     }
 
     private ScalaParameterData substitute(ScalaParameterData parameter, Map<String, ScalaTypeData> substitutions) {
         return new ScalaParameterData(
             parameter.name(),
-            Objects.requireNonNull(substitute(parameter.type(), substitutions)),
+            parameter.type(),
             parameter.annotations(),
             parameter.defaultAccessor(),
             parameter.defaultAccessorStatic(),
             parameter.nativeType(),
-            parameter.overriddenParameters()
+            parameter.overriddenParameters(),
+            substitute(parameter.resolvedType(), substitutions)
         );
     }
 
@@ -1019,6 +1056,29 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
                 return type.arrayDimensions() == replacement.arrayDimensions()
                     ? replacement
                     : replacement.withArrayDimensions(type.arrayDimensions());
+            }
+            // A variable bound by another -- `<S extends E> S save(S)` -- is not itself in the
+            // substitutions, but once E is Book there is nothing S can be but a Book. Only when
+            // following the bound reaches something that was actually bound: a variable of a type
+            // used raw is genuinely unbound, and collapsing it to its bound would rewrite the
+            // signature an adapter is generated against.
+            if (!type.bounds().isEmpty()) {
+                ScalaTypeData bound = type.bounds().get(0);
+                ScalaTypeData resolved = substitute(bound, substitutions);
+                if (resolved != null && !resolved.equals(bound)) {
+                    return type.arrayDimensions() == resolved.arrayDimensions()
+                        ? resolved
+                        : resolved.withArrayDimensions(type.arrayDimensions());
+                }
+            }
+        }
+        if (type.wildcard() && !type.upperBounds().isEmpty()) {
+            // `? extends E` is an E once E is known. The bound is what every caller reads --
+            // what the collection holds -- so the resolved bound stands in for the wildcard.
+            ScalaTypeData bound = type.upperBounds().get(0);
+            ScalaTypeData resolved = substitute(bound, substitutions);
+            if (resolved != null && !resolved.equals(bound)) {
+                return resolved;
             }
         }
         Map<String, ScalaTypeData> typeArguments = substitute(type.typeArguments(), substitutions);
@@ -1181,12 +1241,13 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
     private ScalaFieldData substitute(ScalaFieldData field, Map<String, ScalaTypeData> substitutions) {
         return new ScalaFieldData(
             field.name(),
-            Objects.requireNonNull(substitute(field.type(), substitutions)),
+            field.type(),
             field.annotations(),
             field.modifiers(),
             field.enumConstant(),
             field.constantValue(),
-            field.nativeType()
+            field.nativeType(),
+            substitute(field.resolvedType(), substitutions)
         );
     }
 
@@ -1347,7 +1408,12 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         return copy(typeData.withTypeArguments(resolved), getAnnotationMetadata());
     }
 
-    private ClassElement copy(ScalaTypeData newTypeData, AnnotationMetadata annotationMetadata) {
+    /**
+     * This element with other type data or other metadata, and otherwise the same: the same
+     * declaration, and the same kind -- an enum's copy is an enum, so that its constants are
+     * still produced. Every {@code with...} goes through here.
+     */
+    ClassElement copy(ScalaTypeData newTypeData, AnnotationMetadata annotationMetadata) {
         if (classData == null) {
             return new ScalaClassElement(newTypeData, visitorContext, annotationMetadata);
         }
@@ -1378,12 +1444,30 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         );
     }
 
+    /**
+     * This declaration as referred to from one place, with metadata of its own.
+     *
+     * <p>The element for a classpath class is cached, so that the same type reached twice is
+     * one element. A reference to it from a parameter, a return type or a type argument is
+     * not the declaration, though: a visitor that annotates the parameter's type means that
+     * parameter, and writing into the shared element made every use of {@code String} in the
+     * compilation carry the last such annotation. The reference starts from the declaration's
+     * metadata -- so {@code @MappedEntity} on the class is visible on the reference -- and is
+     * mutated on its own from there, which is also how javac's model behaves.</p>
+     *
+     * @return A reference element for this declaration
+     */
+    ScalaClassElement useSiteReference() {
+        return (ScalaClassElement) copy(typeData, MutableAnnotationMetadata.of(getAnnotationMetadata()));
+    }
+
     @Override
     public ClassElement withAnnotationMetadata(AnnotationMetadata annotationMetadata) {
-        if (classData == null) {
-            return new ScalaClassElement(typeData, visitorContext, annotationMetadata);
-        }
-        return new ScalaClassElement(classData, visitorContext, annotationMetadata);
+        // Both forms keep the type data. Rebuilding a declaration from its class data alone
+        // dropped the array dimensions and the type arguments the element had been given, and
+        // the introspection visitor calls this on every property type: `Array[Inner]` was
+        // written as `Inner`, and a bound `Repo[Book, Long]` went back to `Repo[E, ID]`.
+        return copy(typeData, annotationMetadata);
     }
 
     @Override
@@ -1400,7 +1484,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
      * The identity of a class element: the type it names, not the compiler structure it was
      * read from.
      *
-     * <p>Shared with {@link ScalaLoadedClassElement} so that a type read from source and the
+     * <p>Shared by every element kind so that a type read from source and the
      * same type read from the classpath are one element as far as Micronaut's element caches
      * are concerned. Placeholders and wildcards deliberately do not use it -- their identity
      * is the variable or the bounds, not the erasure.</p>

@@ -17,6 +17,7 @@ package io.micronaut.scala.processing
 
 import dotty.tools.dotc.CompilationUnit
 import dotty.tools.dotc.ast.tpd
+import dotty.tools.dotc.core.Annotations
 import dotty.tools.dotc.core.Annotations.Annotation
 import dotty.tools.dotc.core.Constants
 import dotty.tools.dotc.core.Contexts.Context
@@ -33,10 +34,12 @@ import dotty.tools.dotc.core.Types.AndType
 import dotty.tools.dotc.core.Types.AppliedType
 import dotty.tools.dotc.core.Types.ConstantType
 import dotty.tools.dotc.core.Types.ExprType
+import dotty.tools.dotc.core.Types.JavaArrayType
 import dotty.tools.dotc.core.Types.MethodType
 import dotty.tools.dotc.core.Types.OrType
 import dotty.tools.dotc.core.Types.Type
 import dotty.tools.dotc.core.Types.TypeBounds
+import dotty.tools.dotc.core.Types.TypeRef
 import dotty.tools.dotc.plugins.PluginPhase
 import dotty.tools.dotc.plugins.StandardPlugin
 import dotty.tools.dotc.report
@@ -49,6 +52,7 @@ import io.micronaut.inject.processing.ProcessingException
 import io.micronaut.scala.processing.visitor.ScalaAnnotationData
 import io.micronaut.scala.processing.visitor.ScalaAnnotationMemberData
 import io.micronaut.scala.processing.visitor.ScalaAnnotationTypeData
+import io.micronaut.scala.processing.visitor.ClassFileParameterAnnotations
 import io.micronaut.scala.processing.visitor.ScalaClassValueData
 import io.micronaut.scala.processing.visitor.ScalaClassData
 import io.micronaut.scala.processing.visitor.ScalaFieldData
@@ -69,6 +73,7 @@ import java.util.IdentityHashMap as JIdentityHashMap
 import java.util.Map as JMap
 import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters.*
+import scala.jdk.OptionConverters.*
 
 /**
  * Scala 3 compiler plugin that adapts typed Scala symbols to Micronaut's Element API.
@@ -717,9 +722,7 @@ private object ScalaModelExtractor:
             constructorProps ++ bodyProperties(declarations, methodByName, allFields, constructorProps.map(_.name).toSet),
             parameterAnnotations
           )
-          val parents = template.parents
-            .filterNot(parent => typeName(parent.tpe) == classOf[Object].getName)
-            .map(typeData)
+          val parents = withoutObject(template.parents.map(typeData))
           val superType = parents.find(parent => !parent.interfaceType()).orNull
           val interfaces = parents.filter(_.interfaceType())
           val classData = ScalaClassData(
@@ -742,6 +745,18 @@ private object ScalaModelExtractor:
           Some(if hasFlag(symbol, Flags.ModuleClass) then moduleClassData(classData, symbol) else classData)
         case _ =>
           None
+
+  /**
+   * A class's parents as the model reports them, without `Object`.
+   *
+   * `Object` is never a supertype worth reporting, and filtering it by the parent's own name
+   * was not enough: the compiler gives `java.lang.Object` itself the parent `scala.Any`, and
+   * `Any` is modelled as `Object` because that is what it erases to -- so `Object` reported
+   * `Object` as its superclass, and every walk up a hierarchy that reached it never returned.
+   * The filter has to apply to the name the model reports.
+   */
+  private def withoutObject(parents: List[ScalaTypeData]): List[ScalaTypeData] =
+    parents.filterNot(parent => parent.name() == classOf[Object].getName)
 
   /**
    * The members that may back a property, by name: accessor-shaped methods and the `val`/`var`
@@ -789,57 +804,70 @@ private object ScalaModelExtractor:
    * rules the source path applies. The two paths differ only where a class file has nothing to
    * read: constant expressions and doc comments.
    *
-   * A Java class answers `null`. Its symbol is the compiler's reading of the class file, which
-   * skips what Micronaut needs most from Java -- the annotations on parameters -- so those are
-   * still read the way they were.
+   * A Java class is read the same way. Its symbol is the compiler's reading of the class file
+   * -- generics from the `Signature` attribute, names from `MethodParameters`, annotations of
+   * both retentions on the class and its members -- with one omission: dotty's parser does not
+   * read the annotations on parameters, and those are where Micronaut looks most. They are
+   * read from the class file's bytes with the JDK's class-file API and added to the model;
+   * see [[ClassFileParameterAnnotations]]. Nothing is loaded for any of it.
    */
   def resolveClasspathClass(name: String)(using Context): ScalaClassData | Null =
     given AnnotationDefaults = AnnotationDefaults(Map.empty)
     val symbol = classSymbolForName(name)
-    if symbol == Symbols.NoSymbol || !symbol.isClass || hasFlag(symbol, Flags.JavaDefined) || hasFlag(symbol, Flags.PackageClass) then
+    if symbol == Symbols.NoSymbol || !symbol.isClass || hasFlag(symbol, Flags.PackageClass) then
       null
     else
       classpathClassData(symbol.asClass)
 
   private def classpathClassData(symbol: ClassSymbol)(using Context, AnnotationDefaults): ScalaClassData =
-    val enclosingTypeName =
-      if symbol.owner.isClass && !hasFlag(symbol.owner, Flags.PackageClass) then className(symbol.owner) else null
-    val declarations = symbol.info.decls.toList
+    val java = hasFlag(symbol, Flags.JavaDefined)
+    val enclosingTypeName = enclosingClassName(symbol)
+    // The compiler keeps a Java class's static members on its companion module class, which
+    // is where a Scala object's members live too; for a Java class they are simply the rest
+    // of the class.
+    val declarations = symbol.info.decls.toList ++ (if java then javaStaticDeclarations(symbol) else Nil)
+    val classFile = if java then classFileParameterAnnotations(symbol) else None
     val primaryConstructor = symbol.primaryConstructor
     val parameters = constructorParameters(primaryConstructor)
     val parameterAnnotations = constructorParameterAnnotations(parameters)
     val extractedMethods = declarations
       .filter(member => member.isTerm && hasFlag(member, Flags.Method) && !member.denot.isConstructor)
-      .map(method => method -> withParameterAnnotations(methodData(method, constructor = false, owner = symbol), parameterAnnotations))
+      .map(method => method -> withParameterAnnotations(
+        methodData(method, constructor = false, owner = symbol, classFileAnnotations(classFile, method)), parameterAnnotations))
     val methodByName = accessorCandidates(extractedMethods, declarations, parameterAnnotations)
     val methods = extractedMethods
       .filterNot((method, _) => skipMethod(method))
-      .map((_, data) => data)
+      .map((_, data) => data) ++ classFile.toList.flatMap(reader => javaPrivateMethods(symbol, reader))
+    // A Java enum has real `values` and `valueOf` statics, and a Java class's statics are
+    // already its own; the two companion-object devices are Scala's.
     val enumMethods =
-      if hasFlag(symbol, Flags.Enum) then List(enumValueOfMethodData(symbol))
+      if hasFlag(symbol, Flags.Enum) && !java then List(enumValueOfMethodData(symbol))
       else Nil
-    val companionCreators = companionStaticCreators(symbol)
+    val companionCreators = if java then Nil else companionStaticCreators(symbol)
     val fields = declarations
       .filter(member => member.isTerm && !hasFlag(member, Flags.Method) && !member.denot.isConstructor && !skipField(member))
-      .map(fieldData)
+      .map(field => fieldData(field, classFileFieldAnnotations(classFile, field)))
+      ++ classFile.toList.flatMap(reader => javaPrivateFields(symbol, reader))
     val enumConstants = enumConstantSymbols(symbol)
       .map(enumConstantFieldData(_, symbol))
     val allFields = (fields ++ enumConstants).distinctBy(_.name())
     val secondaryConstructors = declarations
       .filter(member => member != primaryConstructor && member.denot.isConstructor)
       .filterNot(member => hasFlag(member, Flags.Synthetic) || hasFlag(member, Flags.Artifact))
-      .map(constructor => methodData(constructor, constructor = true, owner = symbol))
+      .map(constructor => methodData(constructor, constructor = true, owner = symbol, classFileAnnotations(classFile, constructor)))
     val constructors =
       if primaryConstructor == Symbols.NoSymbol then secondaryConstructors
-      else methodData(primaryConstructor, constructor = true, owner = symbol) +: secondaryConstructors
-    val constructorProps = constructorProperties(parameters, methodByName, allFields)
-    val properties = withPropertyAnnotations(
-      constructorProps ++ bodyProperties(declarations, methodByName, allFields, constructorProps.map(_.name).toSet),
-      parameterAnnotations
-    )
-    val parents = symbol.classInfo.declaredParents
-      .filterNot(parent => typeName(parent) == classOf[Object].getName)
-      .map(typeData)
+      else methodData(primaryConstructor, constructor = true, owner = symbol, classFileAnnotations(classFile, primaryConstructor)) +: secondaryConstructors
+    // A Java class has no Scala properties. What it has are getters and setters, which core
+    // derives from the methods by Java's own conventions when the element is asked.
+    val constructorProps = if java then Nil else constructorProperties(parameters, methodByName, allFields)
+    val properties =
+      if java then Nil
+      else withPropertyAnnotations(
+        constructorProps ++ bodyProperties(declarations, methodByName, allFields, constructorProps.map(_.name).toSet),
+        parameterAnnotations
+      )
+    val parents = withoutObject(symbol.classInfo.declaredParents.map(typeData))
     val superType = parents.find(parent => !parent.interfaceType()).orNull
     val interfaces = parents.filter(_.interfaceType())
     val classData = ScalaClassData(
@@ -857,26 +885,51 @@ private object ScalaModelExtractor:
       allFields.asJava,
       properties.asJava,
       enclosingTypeName,
-      symbol
+      symbol,
+      nestedClassNames(symbol, java).asJava
     )
     if hasFlag(symbol, Flags.ModuleClass) then moduleClassData(classData, symbol) else classData
+
+  /**
+   * The classes declared inside a class. A Java class's static nested classes live on its
+   * module class, and each of them has a module class of its own for *its* statics; those are
+   * the compiler's device, not types the class file declares, and are left out.
+   */
+  private def nestedClassNames(symbol: ClassSymbol, java: Boolean)(using Context): List[String] =
+    def declaredClasses(owner: Symbol): List[Symbol] =
+      owner.info.decls.toList.filter { member =>
+        member.isClass && !hasFlag(member, Flags.Synthetic) && !(java && hasFlag(member, Flags.ModuleClass))
+      }
+    val statics =
+      if java && symbol.companionModule != Symbols.NoSymbol then declaredClasses(symbol.companionModule.moduleClass)
+      else Nil
+    (declaredClasses(symbol) ++ statics).map(className).distinct
 
   /**
    * A method or constructor read from its symbol, for a class the compiler read from the
    * classpath. The tree form reads the same things from the definition; a classpath class has
    * no definition to read, and everything needed is on the symbol.
    */
-  private def methodData(symbol: Symbol, constructor: Boolean, owner: Symbol)(using Context, AnnotationDefaults): ScalaMethodData =
+  private def methodData(
+      symbol: Symbol,
+      constructor: Boolean,
+      owner: Symbol,
+      classFile: ClassFileAnnotations = ClassFileAnnotations.None
+  )(using Context, AnnotationDefaults): ScalaMethodData =
     val returnType =
       if constructor then
         ScalaTypeData(className(owner), primitive = false, arrayDimensions = 0, interfaceType = false, java.util.Map.of())
       else
         methodReturnType(symbol.name.toString, symbol.info.finalResultType)
-    val methodAnnotations = annotations(symbol) ++ typeUseNullabilityAnnotations(returnType)
+    val declared = annotations(symbol) ++ typeUseNullabilityAnnotations(returnType)
+    val methodAnnotations = declared ++ newAnnotations(declared, classFile.returnType)
+    val parameters = symbol.paramSymss.flatten.filter(_.isTerm).map(parameterData)
+      .zipAll(classFile.parameters, null, Nil)
+      .collect { case (parameter, fromClassFile) if parameter != null => withAnnotations(parameter, fromClassFile) }
     ScalaMethodData(
       if constructor then "<init>" else methodName(symbol.name.toString),
       returnType,
-      symbol.paramSymss.flatten.filter(_.isTerm).map(parameterData).asJava,
+      parameters.asJava,
       (if constructor then Nil else typeParameters(symbol)).asJava,
       thrownTypes(symbol).asJava,
       methodAnnotations.asJava,
@@ -887,14 +940,18 @@ private object ScalaModelExtractor:
     )
 
   /** A field read from its symbol; see [[methodData(Symbol, Boolean, Symbol)]]. */
-  private def fieldData(symbol: Symbol)(using Context, AnnotationDefaults): ScalaFieldData =
+  private def fieldData(symbol: Symbol, fromClassFile: List[ScalaAnnotationData] = Nil)(using Context, AnnotationDefaults): ScalaFieldData =
     val fieldType = typeData(symbol.info)
-    val fieldAnnotations = annotations(symbol) ++ typeUseNullabilityAnnotations(fieldType)
+    val declared = annotations(symbol) ++ typeUseNullabilityAnnotations(fieldType)
+    val fieldAnnotations = declared ++ newAnnotations(declared, fromClassFile)
+    // A Scala `val` is a private field behind a public accessor, whatever it was declared as; a
+    // Java field is the member itself, and its modifiers are what the class file says.
+    val fieldModifiers = if hasFlag(symbol, Flags.JavaDefined) then modifiers(symbol) else backingFieldModifiers(symbol)
     ScalaFieldData(
       symbol.name.toString,
       fieldType,
       fieldAnnotations.asJava,
-      backingFieldModifiers(symbol).asJava,
+      fieldModifiers.asJava,
       isEnumConstant(symbol),
       // A `final val` keeps its literal as a constant type, which is all a class file keeps of
       // a constant expression either.
@@ -1285,13 +1342,28 @@ private object ScalaModelExtractor:
     else
       typeData(tpt)
 
+  /**
+   * The exceptions a method declares, from its `@throws` annotations.
+   *
+   * The compiler spells the annotation three ways -- `@throws[E]`, the older
+   * `@throws(classOf[E])`, and the form it builds itself for a Java method's `throws` clause,
+   * whose one argument is a type reference rather than a value. Its own extractor knows all
+   * three; reading the arguments as annotation values did not, and a Java classpath method
+   * with a `throws` clause failed the whole class with "Unsupported Scala annotation value".
+   */
   private def thrownTypes(symbol: Symbol)(using Context, AnnotationDefaults): List[ScalaTypeData] =
     if symbol == Symbols.NoSymbol then
       Nil
     else
       declaredAnnotations(symbol)
-        .filter(annotation => className(annotation.symbol) == "scala.throws")
-        .flatMap(annotation => annotation.arguments.flatMap(thrownType))
+        .filter(isThrowsAnnotation)
+        .flatMap {
+          case Annotations.ThrownException(thrown) => Some(typeData(thrown))
+          case annotation => annotation.arguments.flatMap(thrownType).headOption
+        }
+
+  private def isThrowsAnnotation(annotation: Annotation)(using Context): Boolean =
+    annotation.symbol == Symbols.defn.ThrowsAnnot
 
   private def thrownType(tree: tpd.Tree)(using Context, AnnotationDefaults): Option[ScalaTypeData] =
     thrownTypeArgument(tree).orElse(annotationClassValueTypeData(tree))
@@ -1442,6 +1514,288 @@ private object ScalaModelExtractor:
   private def fieldConstantValue(field: tpd.ValDef)(using Context): Object | Null =
     if hasFlag(field.symbol, Flags.Mutable) then null else constantValue(field.rhs)
 
+  private def withAnnotations(parameter: ScalaParameterData, added: List[ScalaAnnotationData]): ScalaParameterData =
+    val fresh = newAnnotations(parameter.annotations().asScala.toList, added)
+    if fresh.isEmpty then parameter
+    else ScalaParameterData(
+      parameter.name(),
+      parameter.`type`(),
+      (parameter.annotations().asScala.toList ++ fresh).asJava,
+      parameter.defaultAccessor(),
+      parameter.defaultAccessorStatic(),
+      parameter.nativeType(),
+      parameter.overriddenParameters()
+    )
+
+  /** A Java class's static members, which the compiler keeps on the companion module class. */
+  private def javaStaticDeclarations(symbol: ClassSymbol)(using Context): List[Symbol] =
+    val companion = symbol.companionModule
+    if companion == Symbols.NoSymbol then Nil
+    else companion.moduleClass.info.decls.toList.filter(member => member.isTerm && !member.isType)
+
+  /**
+   * The class file a Java class was read from, opened for its parameter annotations, or `None`
+   * when the symbol did not come from a class file -- a Java source compiled jointly is parsed
+   * by the compiler's own Java parser, which reads parameter annotations itself.
+   */
+  private def classFileParameterAnnotations(symbol: ClassSymbol)(using Context): Option[ClassFileParameterAnnotations] =
+    val file = symbol.associatedFile
+    if file == null || !file.hasExtension("class") then None
+    else
+      try Some(ClassFileParameterAnnotations.parse(file.toByteArray))
+      catch case _: Exception => None
+
+  /** A method's annotations read from its class file, in the model's terms. */
+  private final case class ClassFileAnnotations(returnType: List[ScalaAnnotationData], parameters: List[List[ScalaAnnotationData]])
+
+  private object ClassFileAnnotations:
+    val None: ClassFileAnnotations = ClassFileAnnotations(Nil, Nil)
+
+  private def classFileAnnotations(
+      classFile: Option[ClassFileParameterAnnotations],
+      method: Symbol
+  )(using Context, AnnotationDefaults): ClassFileAnnotations =
+    classFile match
+      case None => ClassFileAnnotations.None
+      case Some(reader) =>
+        val parameters = method.paramSymss.flatten.filter(_.isTerm)
+        val name = if method.denot.isConstructor then "<init>" else method.name.toString
+        val read = reader.forMethod(name, parameters.map(parameter => erasedBinaryName(parameter.info)).asJava)
+        ClassFileAnnotations(
+          read.returnType.asScala.toList.flatMap(annotation => Option(classFileAnnotationData(annotation))),
+          read.parameters.asScala.toList.map(_.asScala.toList.flatMap(annotation => Option(classFileAnnotationData(annotation))))
+        )
+
+  private def classFileFieldAnnotations(
+      classFile: Option[ClassFileParameterAnnotations],
+      field: Symbol
+  )(using Context, AnnotationDefaults): List[ScalaAnnotationData] =
+    classFile match
+      case None => Nil
+      case Some(reader) =>
+        reader.forField(field.name.toString).asScala.toList.flatMap(annotation => Option(classFileAnnotationData(annotation)))
+
+  /**
+   * The binary name of the class a nested class is declared in, or `null` at the top level.
+   * The compiler keeps a Java class's static members -- its static nested classes among them --
+   * on the companion module class; the enclosing class the language knows is the class itself.
+   */
+  private def enclosingClassName(symbol: Symbol)(using Context): String | Null =
+    val owner = symbol.owner
+    if owner == Symbols.NoSymbol || !owner.isClass || hasFlag(owner, Flags.PackageClass) then null
+    else if hasFlag(owner, Flags.JavaDefined) && hasFlag(owner, Flags.ModuleClass) && owner.linkedClass != Symbols.NoSymbol then
+      className(owner.linkedClass)
+    else className(owner)
+
+  private def classFileAnnotationDefaults(symbol: Symbol)(using Context, AnnotationDefaults): Map[String, Object] =
+    if !symbol.isClass then Map.empty
+    else
+      classFileParameterAnnotations(symbol.asClass) match
+        case None => Map.empty
+        case Some(reader) =>
+          reader.annotationDefaults.asScala.toList
+            .flatMap((member, value) => Option(classFileAnnotationValue(value)).map(member -> _))
+            .toMap
+
+  /**
+   * A member the compiler did not enter, as the identity an element built from it is keyed on.
+   * Annotation metadata is cached by native type, so the same member has to be the same object
+   * every time; the class data is built once per class and holds these, which makes it so.
+   */
+  private final case class ClassFileMember(owner: String, name: String, descriptor: String)
+
+  /**
+   * The private fields of a Java class, which the compiler does not enter; see
+   * [[ClassFileParameterAnnotations.privateFields]].
+   *
+   * Their types are built by turning the class file's signature into the compiler's own type
+   * and handing it to the same `typeData` every other member goes through, so a private
+   * `List<Foo>` is modelled as one and not as a second reading of what the descriptor meant.
+   */
+  private def javaPrivateFields(symbol: ClassSymbol, reader: ClassFileParameterAnnotations)(using Context, AnnotationDefaults): List[ScalaFieldData] =
+    reader.privateFields.asScala.toList.map { field =>
+      val fieldType = typeData(signatureType(field.signature, symbol, Map.empty))
+      val declared = (field.annotations.asScala.toList ++ field.typeAnnotations.asScala.toList)
+        .flatMap(annotation => Option(classFileAnnotationData(annotation)))
+      val modifiers = LinkedHashSet[ElementModifier]()
+      modifiers.add(ElementModifier.PRIVATE)
+      if field.isStatic then modifiers.add(ElementModifier.STATIC)
+      if field.isFinal then modifiers.add(ElementModifier.FINAL)
+      ScalaFieldData(
+        field.name,
+        fieldType,
+        (declared ++ newAnnotations(declared, typeUseNullabilityAnnotations(fieldType))).asJava,
+        modifiers,
+        false,
+        classFileConstant(field.constantValue, field.signature),
+        ClassFileMember(className(symbol), field.name, field.signature.signatureString)
+      )
+    }
+
+  /**
+   * The private methods of a Java class, which the compiler does not enter; see
+   * [[ClassFileParameterAnnotations.privateMethods]]. A type variable the method declares
+   * itself is read as its bound: nothing outside the method can name it, and its erasure is
+   * what the method compiles to.
+   */
+  private def javaPrivateMethods(symbol: ClassSymbol, reader: ClassFileParameterAnnotations)(using Context, AnnotationDefaults): List[ScalaMethodData] =
+    reader.privateMethods.asScala.toList.map { method =>
+      val signature = method.signature
+      val methodTypeVariables = signature.typeParameters.asScala.toList.map { parameter =>
+        val bound = parameter.classBound.toScala
+          .orElse(parameter.interfaceBounds.asScala.headOption)
+          .map(bound => signatureType(bound, symbol, Map.empty))
+          .getOrElse(Symbols.defn.ObjectType)
+        parameter.identifier -> bound
+      }.toMap
+      val owner = className(symbol)
+      val parameters = signature.arguments.asScala.toList.zipWithIndex.map { (argument, index) =>
+        val parameterType = typeData(signatureType(argument, symbol, methodTypeVariables))
+        val name = method.parameterNames.asScala.lift(index).flatMap(Option(_)).getOrElse(s"arg$index")
+        val fromClassFile = method.parameterAnnotations.parameters.asScala.lift(index)
+          .map(_.asScala.toList.flatMap(annotation => Option(classFileAnnotationData(annotation))))
+          .getOrElse(Nil)
+        ScalaParameterData(
+          name,
+          parameterType,
+          (fromClassFile ++ newAnnotations(fromClassFile, typeUseNullabilityAnnotations(parameterType))).asJava,
+          ClassFileMember(owner, method.name, s"${signature.signatureString}#$index")
+        )
+      }
+      val returnType = typeData(signatureType(signature.result, symbol, methodTypeVariables))
+      val declared = method.annotations.asScala.toList.flatMap(annotation => Option(classFileAnnotationData(annotation)))
+        ++ method.parameterAnnotations.returnType.asScala.toList.flatMap(annotation => Option(classFileAnnotationData(annotation)))
+      val modifiers = LinkedHashSet[ElementModifier]()
+      modifiers.add(ElementModifier.PRIVATE)
+      if method.isStatic then modifiers.add(ElementModifier.STATIC)
+      ScalaMethodData(
+        method.name,
+        returnType,
+        parameters.asJava,
+        Nil.asJava,
+        signature.throwableSignatures.asScala.toList.map(thrown => typeData(signatureType(thrown, symbol, methodTypeVariables))).asJava,
+        (declared ++ newAnnotations(declared, typeUseNullabilityAnnotations(returnType))).asJava,
+        modifiers,
+        false,
+        ClassFileMember(owner, method.name, signature.signatureString)
+      )
+    }
+
+  /**
+   * A JVM signature as the compiler's type, so that the model built from it is the model
+   * built from everything else. A class the compiler cannot find is `Object`, which is what
+   * javac's model says of a missing type too.
+   */
+  private def signatureType(
+      signature: java.lang.classfile.Signature,
+      owner: ClassSymbol,
+      methodTypeVariables: Map[String, Type]
+  )(using Context): Type =
+    signature match
+      case base: java.lang.classfile.Signature.BaseTypeSig =>
+        base.baseType match
+          case 'B' => Symbols.defn.ByteType
+          case 'C' => Symbols.defn.CharType
+          case 'D' => Symbols.defn.DoubleType
+          case 'F' => Symbols.defn.FloatType
+          case 'I' => Symbols.defn.IntType
+          case 'J' => Symbols.defn.LongType
+          case 'S' => Symbols.defn.ShortType
+          case 'Z' => Symbols.defn.BooleanType
+          case _ => Symbols.defn.UnitType
+      case array: java.lang.classfile.Signature.ArrayTypeSig =>
+        Symbols.defn.ArrayOf(signatureType(array.componentSignature, owner, methodTypeVariables))
+      case variable: java.lang.classfile.Signature.TypeVarSig =>
+        methodTypeVariables.get(variable.identifier)
+          .orElse(owner.typeParams.find(_.name.toString == variable.identifier).map(_.typeRef))
+          .getOrElse(Symbols.defn.ObjectType)
+      case classType: java.lang.classfile.Signature.ClassTypeSig =>
+        val symbol = classSymbolForName(signatureClassName(classType))
+        if symbol == Symbols.NoSymbol then
+          Symbols.defn.ObjectType
+        else
+          val arguments = classType.typeArgs.asScala.toList.map(argument => signatureTypeArgument(argument, owner, methodTypeVariables))
+          if arguments.isEmpty then symbol.typeRef else AppliedType(symbol.typeRef, arguments)
+
+  private def signatureTypeArgument(
+      argument: java.lang.classfile.Signature.TypeArg,
+      owner: ClassSymbol,
+      methodTypeVariables: Map[String, Type]
+  )(using Context): Type =
+    argument match
+      case _: java.lang.classfile.Signature.TypeArg.Unbounded =>
+        TypeBounds.empty
+      case bounded: java.lang.classfile.Signature.TypeArg.Bounded =>
+        val bound = signatureType(bounded.boundType, owner, methodTypeVariables)
+        bounded.wildcardIndicator match
+          case java.lang.classfile.Signature.TypeArg.Bounded.WildcardIndicator.EXTENDS => TypeBounds.upper(bound)
+          case java.lang.classfile.Signature.TypeArg.Bounded.WildcardIndicator.SUPER => TypeBounds.lower(bound)
+          case _ => bound
+
+  private def signatureClassName(classType: java.lang.classfile.Signature.ClassTypeSig): String =
+    classType.outerType.toScala match
+      case Some(outer) => signatureClassName(outer) + "$" + classType.className.replace('/', '.')
+      case None => classType.className.replace('/', '.')
+
+  /** A field's `ConstantValue`, which the class file keeps as an int for the small types. */
+  private def classFileConstant(value: Object | Null, signature: java.lang.classfile.Signature): Object | Null =
+    (value, signature) match
+      case (null, _) => null
+      case (number: Integer, base: java.lang.classfile.Signature.BaseTypeSig) =>
+        base.baseType match
+          case 'Z' => java.lang.Boolean.valueOf(number.intValue != 0)
+          case 'C' => java.lang.Character.valueOf(number.intValue.toChar)
+          case 'S' => java.lang.Short.valueOf(number.shortValue)
+          case 'B' => java.lang.Byte.valueOf(number.byteValue)
+          case _ => number
+      case (other, _) => other
+
+  /**
+   * The binary name of a parameter type's erasure, as a JVM descriptor spells it -- what a
+   * class file's method has to be matched by. A Java varargs parameter is an array.
+   */
+  private def erasedBinaryName(tpe: Type)(using Context): String =
+    tpe match
+      case AppliedType(tycon, List(element)) if tycon.typeSymbol == Symbols.defn.RepeatedParamClass =>
+        erasedBinaryName(element) + "[]"
+      case _ =>
+        TypeErasure.erasure(tpe) match
+          case JavaArrayType(element) => erasedBinaryName(element) + "[]"
+          case erased =>
+            val symbol = erased.classSymbol
+            if symbol == Symbols.NoSymbol then classOf[Object].getName
+            else
+              val name = className(symbol)
+              ScalaPrimitiveNames.getOrElse(name, name)
+
+  /**
+   * An annotation read from a class file, in the model's terms. The type is resolved through
+   * the compiler like any other, so its meta-annotations and members are the same ones an
+   * annotation written in source would have.
+   */
+  private def classFileAnnotationData(annotation: ClassFileParameterAnnotations.Annotation)(using Context, AnnotationDefaults): ScalaAnnotationData | Null =
+    val symbol = classSymbolForName(annotation.typeName)
+    val annotationType = if isAnnotationSymbol(symbol) then annotationTypeData(symbol, Set.empty) else null
+    val values = LinkedHashMap[String, Object]()
+    annotation.values.forEach { (member, value) =>
+      val converted = classFileAnnotationValue(value)
+      if converted != null then values.put(member, converted)
+    }
+    ScalaAnnotationData(
+      if symbol == Symbols.NoSymbol then annotation.typeName else className(symbol),
+      normalizeAnnotationArgumentValues(values, annotationType).asInstanceOf[JMap[CharSequence, Object]],
+      annotationType
+    )
+
+  private def classFileAnnotationValue(value: Object)(using Context, AnnotationDefaults): Object | Null =
+    value match
+      case enumValue: ClassFileParameterAnnotations.EnumValue => enumValue.constantName
+      case classLiteral: ClassFileParameterAnnotations.ClassLiteral => classValueData(classLiteral.typeName)
+      case nested: ClassFileParameterAnnotations.Annotation => classFileAnnotationData(nested)
+      case values: java.util.List[?] =>
+        annotationArray(values.asScala.toList.map(element => classFileAnnotationValue(element.asInstanceOf[Object])).filter(_ != null))
+      case other => other
+
   private def constantValue(tree: tpd.Tree): Object | Null =
     tree match
       case literal: tpd.Literal => constantValue(literal.const)
@@ -1497,8 +1851,20 @@ private object ScalaModelExtractor:
    * nothing to read there in any model.
    */
   private def parameterData(symbol: Symbol)(using Context, AnnotationDefaults): ScalaParameterData =
-    val parameterType = byNameTypeData(symbol.info).getOrElse(typeData(symbol.info))
+    val parameterType = byNameTypeData(symbol.info)
+      .orElse(javaVarargsTypeData(symbol))
+      .getOrElse(typeData(symbol.info))
     parameterData(symbol, parameterType, symbol)
+
+  // A Java varargs parameter is typed `T*` by the compiler and compiled as `T[]`; the array is
+  // what a generated call binds against.
+  private def javaVarargsTypeData(symbol: Symbol)(using Context, AnnotationDefaults): Option[ScalaTypeData] =
+    symbol.info match
+      case AppliedType(tycon, List(element))
+        if tycon.typeSymbol == Symbols.defn.RepeatedParamClass && hasFlag(symbol.owner, Flags.JavaDefined) =>
+        Some(typeData(Symbols.defn.ArrayOf(element)))
+      case _ =>
+        None
 
   private def parameterData(
       symbol: Symbol,
@@ -2110,8 +2476,12 @@ private object ScalaModelExtractor:
       // `SourceFile` to every class it compiles, for instance. It is not part of the user's
       // model, and leaving it in wrote it into the annotation metadata of every generated
       // bean definition.
+      // `@throws` is a declaration of thrown types, which `thrownTypes` models, not an
+      // annotation on the member -- javac reports a `throws` clause the same way. Its argument
+      // is a type reference in one of its spellings, which no annotation value can hold.
       declaredAnnotations(symbol)
         .filterNot(annotation => className(annotation.symbol).startsWith(InternalAnnotationPrefix))
+        .filterNot(isThrowsAnnotation)
         .map(annotationData(_, Set.empty))
 
   /**
@@ -2178,7 +2548,12 @@ private object ScalaModelExtractor:
 
   private def annotationMembers(symbol: Symbol)(using Context, AnnotationDefaults): LinkedHashMap[String, ScalaAnnotationMemberData] =
     val members = LinkedHashMap[String, ScalaAnnotationMemberData]()
-    val defaults = summon[AnnotationDefaults].values.getOrElse(className(symbol), Map.empty)
+    // Defaults of an annotation declared in this compilation are harvested from its trees. For
+    // one read from a class file the compiler keeps only that a default exists, so the value is
+    // read from the class file itself -- no annotation class is loaded for it.
+    val defaults = summon[AnnotationDefaults].values.get(className(symbol)) match
+      case Some(harvested) if harvested.nonEmpty => harvested
+      case _ => classFileAnnotationDefaults(symbol)
     val constructorParameters =
       if symbol.primaryConstructor == Symbols.NoSymbol then Map.empty[String, Symbol]
       else
@@ -2663,12 +3038,21 @@ private object ScalaModelExtractor:
     symbol != Symbols.NoSymbol &&
       (hasFlag(symbol, Flags.Trait) || hasAllFlags(symbol, Flags.JavaInterface))
 
+  /**
+   * The class symbol for a binary name.
+   *
+   * A nested class is looked up as a member of its enclosing class first. The compiler also
+   * enters a Java class file named `Map$Entry` as a top-level class of that name when it lists
+   * the package, and that symbol knows nothing of `Map`: an element built from it reported no
+   * enclosing type and a canonical name with the dollar still in it. A name ending in `$` is a
+   * module class and is looked up as written.
+   */
   private def classSymbolForName(name: String)(using Context): Symbol =
-    val symbol = Symbols.getClassIfDefined(name)
-    if symbol != Symbols.NoSymbol then
-      symbol
-    else
-      Symbols.getClassIfDefined(name.replace('$', '.'))
+    val nested =
+      if name.contains('$') && !name.endsWith("$") then Symbols.getClassIfDefined(name.replace('$', '.'))
+      else Symbols.NoSymbol
+    if nested != Symbols.NoSymbol then nested
+    else Symbols.getClassIfDefined(name)
 
   private def skipClass(symbol: Symbol)(using Context, AnnotationDefaults): Boolean =
     symbol == Symbols.NoSymbol ||

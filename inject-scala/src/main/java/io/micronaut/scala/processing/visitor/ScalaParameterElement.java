@@ -38,6 +38,8 @@ public final class ScalaParameterElement extends AbstractScalaElement implements
     private final ScalaVisitorContext visitorContext;
     @Nullable
     private ClassElement type;
+    @Nullable
+    private ClassElement genericType;
 
     ScalaParameterElement(MethodElement methodElement, ScalaParameterData parameterData, ScalaVisitorContext visitorContext) {
         this(methodElement, parameterData, visitorContext, visitorContext.annotationMetadata(parameterData));
@@ -143,6 +145,23 @@ public final class ScalaParameterElement extends AbstractScalaElement implements
             type = visitorContext.getElementFactory().newClassElement(parameterData.type());
         }
         return type;
+    }
+
+    /**
+     * The type with the declaring type's variables bound as they were where the method was
+     * reached: {@code Book} for the {@code E} of a method inherited through
+     * {@code Repo[Book, Long]}. {@link #getType()} stays the declared type -- the JVM signature
+     * an override has to be declared with.
+     */
+    @Override
+    public ClassElement getGenericType() {
+        if (parameterData.genericType() == null) {
+            return getType();
+        }
+        if (genericType == null) {
+            genericType = visitorContext.getElementFactory().newClassElement(parameterData.resolvedType());
+        }
+        return genericType;
     }
 
     @Override

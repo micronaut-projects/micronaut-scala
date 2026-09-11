@@ -38,8 +38,8 @@ final class ScalaEnumElement extends ScalaClassElement implements EnumElement {
         this.visitorContext = visitorContext;
     }
 
-    private ScalaEnumElement(ScalaClassData classData, ScalaVisitorContext visitorContext, AnnotationMetadata annotationMetadata) {
-        super(classData, visitorContext, annotationMetadata);
+    private ScalaEnumElement(ScalaClassData classData, ScalaTypeData typeData, ScalaVisitorContext visitorContext, AnnotationMetadata annotationMetadata) {
+        super(classData, typeData, visitorContext, annotationMetadata);
         this.classData = classData;
         this.visitorContext = visitorContext;
     }
@@ -76,7 +76,7 @@ final class ScalaEnumElement extends ScalaClassElement implements EnumElement {
     }
 
     @Override
-    public ClassElement withAnnotationMetadata(AnnotationMetadata annotationMetadata) {
-        return new ScalaEnumElement(classData, visitorContext, annotationMetadata);
+    ClassElement copy(ScalaTypeData newTypeData, AnnotationMetadata annotationMetadata) {
+        return new ScalaEnumElement(classData, newTypeData, visitorContext, annotationMetadata);
     }
 }

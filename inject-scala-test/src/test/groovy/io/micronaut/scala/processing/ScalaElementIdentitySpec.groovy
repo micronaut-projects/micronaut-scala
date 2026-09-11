@@ -122,10 +122,14 @@ class Local extends ExternalBase
 ''')
         })
 
-        then: 'the routes produce different element kinds, which is not a difference in type'
+        then: '''both routes now produce the one element kind there is -- a classpath type is
+                 modelled from the compiler's symbols like a source type, where it used to be a
+                 reflective element of its own. They are not the same instance: a reference from
+                 a use site carries metadata of its own, so that annotating it annotates that
+                 use and not the class'''
         found.looked != null
         found.viaSupertype != null
-        found.looked.getClass() != found.viaSupertype.getClass()
+        found.looked.getClass() == found.viaSupertype.getClass()
 
         and: 'Micronaut caches by element identity, so these must not be two types'
         found.looked == found.viaSupertype

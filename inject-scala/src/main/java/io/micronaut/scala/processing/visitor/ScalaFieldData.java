@@ -32,6 +32,8 @@ import java.util.Set;
  * @param enumConstant Whether this field is an enum constant
  * @param constantValue The compile-time constant value, if any
  * @param nativeType The native Scala compiler object
+ * @param genericType The type with the declaring type's variables bound, or {@code null} when
+ *     it is the declared one
  */
 public record ScalaFieldData(
     String name,
@@ -40,11 +42,45 @@ public record ScalaFieldData(
     Set<ElementModifier> modifiers,
     boolean enumConstant,
     @Nullable Object constantValue,
-    Object nativeType
+    Object nativeType,
+    @Nullable ScalaTypeData genericType
 ) implements ScalaAnnotatedElementData {
+
+    /**
+     * A field as declared, whose generic type is its declared one.
+     *
+     * @param name The name
+     * @param type The type
+     * @param annotations The annotations
+     * @param modifiers The modifiers
+     * @param enumConstant Whether this is an enum constant
+     * @param constantValue The constant value, if any
+     * @param nativeType The native Scala compiler object
+     */
+    public ScalaFieldData(
+        String name,
+        ScalaTypeData type,
+        List<ScalaAnnotationData> annotations,
+        Set<ElementModifier> modifiers,
+        boolean enumConstant,
+        @Nullable Object constantValue,
+        Object nativeType) {
+        this(name, type, annotations, modifiers, enumConstant, constantValue, nativeType, null);
+    }
 
     public ScalaFieldData {
         annotations = annotations == null ? Collections.emptyList() : List.copyOf(annotations);
         modifiers = modifiers == null ? Collections.emptySet() : Set.copyOf(modifiers);
     }
+
+    /**
+     * The type with the declaring type's variables bound as they were at the point of use;
+     * {@link #type()} stays the declared one, which is what the field compiles to.
+     *
+     * @return The generic type
+     */
+    public ScalaTypeData resolvedType() {
+        return genericType == null ? type : genericType;
+    }
+
 }

@@ -94,8 +94,14 @@ class Concrete extends Holder[String]
         when:
         def held = element.getEnclosedElements(ElementQuery.ALL_FIELDS).find { it.name == 'held' }
 
-        then:
+        then: '''the generic type is what the field holds here; the type stays the declared
+                 one, which is what the field compiles to. This is the split javac's model
+                 makes -- JavaFieldElement.getType() resolves with no generics and
+                 getGenericType() with the declaring type's arguments -- and the one the
+                 writers rely on: the field's descriptor from the first, the injection
+                 point's Argument from the second'''
         held != null
-        held.type.name == 'java.lang.String'
+        held.genericType.name == 'java.lang.String'
+        held.type.name == 'java.lang.Object'
     }
 }
