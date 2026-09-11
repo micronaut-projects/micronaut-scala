@@ -73,6 +73,12 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
     private final Map<String, ScalaClassData> sourceClasses = new LinkedHashMap<>();
     private final Map<String, ScalaClassElement> sourceElements = new LinkedHashMap<>();
     /**
+     * Scala classes the compiler read from the classpath, once modelled. Keyed by name like the
+     * source elements, and for the same reason: an element is identity, and the same type
+     * reached twice has to be the same element.
+     */
+    private final Map<String, Optional<ScalaClassElement>> classpathElements = new HashMap<>();
+    /**
      * One element per package. Every class in a package has to answer {@code getPackage()}
      * with the same element, or an annotation added to one class's package is invisible from
      * the next class in it -- and from a second call on the same class.
@@ -83,6 +89,7 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
     private final List<AbstractBeanDefinitionBuilder> beanDefinitionBuilders = new ArrayList<>();
     private final Map<String, String> options;
     private final Function<String, ScalaAnnotationTypeData> annotationTypeResolver;
+    private final Function<String, ScalaClassData> classpathClassResolver;
     private final BiConsumer<String, Object> infoReporter;
     private final BiConsumer<String, Object> warningReporter;
     private final BiConsumer<String, Object> errorReporter;
@@ -103,6 +110,7 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         Collection<File> classpath,
         Map<String, String> options,
         Function<String, ScalaAnnotationTypeData> annotationTypeResolver,
+        Function<String, ScalaClassData> classpathClassResolver,
         Map<Object, String> documentation,
         BiConsumer<String, Object> infoReporter,
         BiConsumer<String, Object> warningReporter,
@@ -112,6 +120,7 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         this.outputVisitor = new DirectoryClassWriterOutputVisitor(outputDirectory);
         this.options = options == null ? Collections.emptyMap() : Map.copyOf(options);
         this.annotationTypeResolver = annotationTypeResolver;
+        this.classpathClassResolver = classpathClassResolver == null ? name -> null : classpathClassResolver;
         this.infoReporter = infoReporter;
         this.warningReporter = warningReporter;
         this.errorReporter = errorReporter;
@@ -463,11 +472,38 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         if (sourceElement.isPresent()) {
             return Optional.of(sourceElement.get());
         }
+        Optional<ScalaClassElement> classpathElement = classpathClassElement(name);
+        if (classpathElement.isPresent()) {
+            return Optional.of(classpathElement.get());
+        }
         try {
             return Optional.of(new ScalaLoadedClassElement(Class.forName(name, false, classLoader), this));
         } catch (ClassNotFoundException e) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * A Scala class the compiler read from the classpath, modelled from the compiler's own
+     * symbols rather than by loading it.
+     *
+     * <p>This is what an incremental build presents: the type was compiled in an earlier run
+     * and the compiler reads it from TASTy, into the same symbols a source type has. Loading the
+     * class instead described a case class by the tuple accessors it compiles to, because a
+     * Scala accessor follows no convention a classloader can recognise. Only a Scala class
+     * arrives this way; a Java one is still loaded, since the compiler's reading of a Java
+     * class file skips the annotations on its parameters.</p>
+     *
+     * @param name The class name
+     * @return The element, or empty when the compiler does not know the name as a Scala class
+     */
+    Optional<ScalaClassElement> classpathClassElement(String name) {
+        return classpathElements.computeIfAbsent(name, ignored -> {
+            ScalaClassData classData = classpathClassResolver.apply(name);
+            return classData == null
+                ? Optional.empty()
+                : Optional.of(elementFactory.newClassElementForData(classData));
+        });
     }
 
     @Override

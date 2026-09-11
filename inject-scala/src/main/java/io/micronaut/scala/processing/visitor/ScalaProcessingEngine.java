@@ -79,6 +79,7 @@ public final class ScalaProcessingEngine {
     private final Collection<File> classpath;
     private final Map<String, String> options;
     private final Function<String, ScalaAnnotationTypeData> annotationTypeResolver;
+    private final Function<String, ScalaClassData> classpathClassResolver;
     private final BiConsumer<String, Object> infoReporter;
     private final BiConsumer<String, Object> warningReporter;
     private final BiConsumer<String, Object> errorReporter;
@@ -96,6 +97,8 @@ public final class ScalaProcessingEngine {
      * @param options Micronaut processing options
      * @param annotationTypeResolver Resolves an annotation type by name, for annotations never
      *     seen on an extracted element
+     * @param classpathClassResolver Resolves a Scala class the compiler read from the classpath
+     *     by name, or {@code null} when the name is not one
      * @param infoReporter The info reporter
      * @param warningReporter The warning reporter
      * @param errorReporter The error reporter
@@ -105,6 +108,7 @@ public final class ScalaProcessingEngine {
         Collection<File> classpath,
         Map<String, String> options,
         Function<String, ScalaAnnotationTypeData> annotationTypeResolver,
+        Function<String, ScalaClassData> classpathClassResolver,
         BiConsumer<String, Object> infoReporter,
         BiConsumer<String, Object> warningReporter,
         BiConsumer<String, Object> errorReporter) {
@@ -112,6 +116,7 @@ public final class ScalaProcessingEngine {
         this.classpath = List.copyOf(classpath);
         this.options = Map.copyOf(options);
         this.annotationTypeResolver = annotationTypeResolver;
+        this.classpathClassResolver = classpathClassResolver;
         this.infoReporter = infoReporter;
         this.warningReporter = warningReporter;
         this.errorReporter = errorReporter;
@@ -392,6 +397,7 @@ public final class ScalaProcessingEngine {
                 classpath,
                 options,
                 annotationTypeResolver,
+                classpathClassResolver,
                 documentation,
                 infoReporter,
                 warningReporter,

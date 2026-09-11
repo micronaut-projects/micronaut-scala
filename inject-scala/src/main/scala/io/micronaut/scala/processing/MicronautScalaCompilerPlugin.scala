@@ -24,6 +24,7 @@ import dotty.tools.dotc.core.Flags
 import dotty.tools.dotc.core.NameKinds
 import dotty.tools.dotc.core.Comments
 import dotty.tools.dotc.core.Symbols
+import dotty.tools.dotc.core.Symbols.ClassSymbol
 import dotty.tools.dotc.core.Symbols.Symbol
 import dotty.tools.dotc.core.Types.AnnotatedType
 import dotty.tools.dotc.core.TypeErasure
@@ -280,6 +281,7 @@ private final class ProcessingState(options: JMap[String, String]):
         classpath.asJava,
         options,
         name => ScalaModelExtractor.resolveAnnotationType(name),
+        name => ScalaModelExtractor.resolveClasspathClass(name),
         (message, element) => report.inform(message, sourcePosition(element)),
         (message, element) => report.warning(message, sourcePosition(element)),
         (message, element) => report.error(message, sourcePosition(element))
@@ -686,24 +688,8 @@ private object ScalaModelExtractor:
           val extractedMethods = allMethods.map(method =>
             method -> withParameterAnnotations(
               methodData(method, constructor = false, owner = symbol), parameterAnnotations))
-          val methodByName = LinkedHashMap[String, ScalaMethodData]()
-          extractedMethods.foreach { (method, data) =>
-            // Only accessor-shaped methods are candidates. Keying every method by its bare
-            // name meant an overload displaced the accessor -- for `def value: String` plus
-            // `def value(i: Int): String` the last one written won, and the property took
-            // its type, modifiers and annotations from the overload.
-            if !skipAccessorCandidate(method.symbol) then
-              val name = method.name.toString
-              val isWriteAccessor = name.endsWith("_=")
-              val parameterCount = data.parameters().size
-              if (isWriteAccessor && parameterCount == 1) || (!isWriteAccessor && parameterCount == 0) then
-                methodByName.put(name, data)
-          }
-          declarations.foreach { declaration =>
-            val declarationName = declaration.name.toString
-            if isPropertyDeclaration(declaration, declarationName) || isPropertySetterDeclaration(declaration, declarationName) then
-              methodByName.put(declarationName, withParameterAnnotations(methodData(declaration), parameterAnnotations))
-          }
+          val methodByName = accessorCandidates(
+            extractedMethods.map((method, data) => method.symbol -> data), declarations, parameterAnnotations)
           val methods = extractedMethods
             .filterNot((method, _) => skipMethod(method.symbol))
             .map((_, data) => data)
@@ -726,7 +712,7 @@ private object ScalaModelExtractor:
             .filterNot(method => hasFlag(method.symbol, Flags.Synthetic) || hasFlag(method.symbol, Flags.Artifact))
             .map(method => methodData(method, constructor = true, owner = symbol))
           val constructors = methodData(template.constr, constructor = true, owner = symbol) +: secondaryConstructors
-          val constructorProps = constructorProperties(template.constr, methodByName, allFields)
+          val constructorProps = constructorProperties(constructorParameters(template.constr), methodByName, allFields)
           val properties = withPropertyAnnotations(
             constructorProps ++ bodyProperties(declarations, methodByName, allFields, constructorProps.map(_.name).toSet),
             parameterAnnotations
@@ -758,6 +744,165 @@ private object ScalaModelExtractor:
           None
 
   /**
+   * The members that may back a property, by name: accessor-shaped methods and the `val`/`var`
+   * declarations themselves.
+   *
+   * Only accessor-shaped methods are candidates. Keying every method by its bare name meant an
+   * overload displaced the accessor -- for `def value: String` plus `def value(i: Int): String`
+   * the last one written won, and the property took its type, modifiers and annotations from
+   * the overload.
+   */
+  private def accessorCandidates(
+      extractedMethods: List[(Symbol, ScalaMethodData)],
+      declarations: List[Symbol],
+      parameterAnnotations: Map[String, List[ScalaAnnotationData]]
+  )(using Context, AnnotationDefaults): LinkedHashMap[String, ScalaMethodData] =
+    val methodByName = LinkedHashMap[String, ScalaMethodData]()
+    extractedMethods.foreach { (method, data) =>
+      if !skipAccessorCandidate(method) then
+        val name = method.name.toString
+        val isWriteAccessor = name.endsWith("_=")
+        val parameterCount = data.parameters().size
+        if (isWriteAccessor && parameterCount == 1) || (!isWriteAccessor && parameterCount == 0) then
+          methodByName.put(name, data)
+    }
+    declarations.foreach { declaration =>
+      val declarationName = declaration.name.toString
+      if isPropertyDeclaration(declaration, declarationName) || isPropertySetterDeclaration(declaration, declarationName) then
+        methodByName.put(declarationName, withParameterAnnotations(methodData(declaration), parameterAnnotations))
+    }
+    methodByName
+
+  /**
+   * The model of a Scala class the compiler read from the classpath, or `null` when the name is
+   * not a Scala class it knows.
+   *
+   * This is the shape of every incremental build: the files that changed are compiled, and
+   * every type they refer to is read back from its class file and TASTy. Reading those with
+   * Java's conventions -- the only thing a classloader can do -- described a case class by the
+   * tuple accessors it compiles to, `_1, _2, _3`, because a Scala accessor is named for its
+   * property and follows no getter convention there is to recognise. Micronaut Data rejected
+   * every entity on the second compilation of a repository.
+   *
+   * The compiler already knows better. A classpath Scala type is unpickled into the same
+   * symbols a source type has, flags and all, so the model is built from those with the same
+   * rules the source path applies. The two paths differ only where a class file has nothing to
+   * read: constant expressions and doc comments.
+   *
+   * A Java class answers `null`. Its symbol is the compiler's reading of the class file, which
+   * skips what Micronaut needs most from Java -- the annotations on parameters -- so those are
+   * still read the way they were.
+   */
+  def resolveClasspathClass(name: String)(using Context): ScalaClassData | Null =
+    given AnnotationDefaults = AnnotationDefaults(Map.empty)
+    val symbol = classSymbolForName(name)
+    if symbol == Symbols.NoSymbol || !symbol.isClass || hasFlag(symbol, Flags.JavaDefined) || hasFlag(symbol, Flags.PackageClass) then
+      null
+    else
+      classpathClassData(symbol.asClass)
+
+  private def classpathClassData(symbol: ClassSymbol)(using Context, AnnotationDefaults): ScalaClassData =
+    val enclosingTypeName =
+      if symbol.owner.isClass && !hasFlag(symbol.owner, Flags.PackageClass) then className(symbol.owner) else null
+    val declarations = symbol.info.decls.toList
+    val primaryConstructor = symbol.primaryConstructor
+    val parameters = constructorParameters(primaryConstructor)
+    val parameterAnnotations = constructorParameterAnnotations(parameters)
+    val extractedMethods = declarations
+      .filter(member => member.isTerm && hasFlag(member, Flags.Method) && !member.denot.isConstructor)
+      .map(method => method -> withParameterAnnotations(methodData(method, constructor = false, owner = symbol), parameterAnnotations))
+    val methodByName = accessorCandidates(extractedMethods, declarations, parameterAnnotations)
+    val methods = extractedMethods
+      .filterNot((method, _) => skipMethod(method))
+      .map((_, data) => data)
+    val enumMethods =
+      if hasFlag(symbol, Flags.Enum) then List(enumValueOfMethodData(symbol))
+      else Nil
+    val companionCreators = companionStaticCreators(symbol)
+    val fields = declarations
+      .filter(member => member.isTerm && !hasFlag(member, Flags.Method) && !member.denot.isConstructor && !skipField(member))
+      .map(fieldData)
+    val enumConstants = enumConstantSymbols(symbol)
+      .map(enumConstantFieldData(_, symbol))
+    val allFields = (fields ++ enumConstants).distinctBy(_.name())
+    val secondaryConstructors = declarations
+      .filter(member => member != primaryConstructor && member.denot.isConstructor)
+      .filterNot(member => hasFlag(member, Flags.Synthetic) || hasFlag(member, Flags.Artifact))
+      .map(constructor => methodData(constructor, constructor = true, owner = symbol))
+    val constructors =
+      if primaryConstructor == Symbols.NoSymbol then secondaryConstructors
+      else methodData(primaryConstructor, constructor = true, owner = symbol) +: secondaryConstructors
+    val constructorProps = constructorProperties(parameters, methodByName, allFields)
+    val properties = withPropertyAnnotations(
+      constructorProps ++ bodyProperties(declarations, methodByName, allFields, constructorProps.map(_.name).toSet),
+      parameterAnnotations
+    )
+    val parents = symbol.classInfo.declaredParents
+      .filterNot(parent => typeName(parent) == classOf[Object].getName)
+      .map(typeData)
+    val superType = parents.find(parent => !parent.interfaceType()).orNull
+    val interfaces = parents.filter(_.interfaceType())
+    val classData = ScalaClassData(
+      className(symbol),
+      annotations(symbol).asJava,
+      modifiers(symbol).asJava,
+      isAnnotationSymbol(symbol),
+      isInterfaceSymbol(symbol),
+      hasFlag(symbol, Flags.Enum),
+      typeParameters(symbol).asJava,
+      superType,
+      interfaces.asJava,
+      constructors.asJava,
+      (methods ++ enumMethods ++ companionCreators).asJava,
+      allFields.asJava,
+      properties.asJava,
+      enclosingTypeName,
+      symbol
+    )
+    if hasFlag(symbol, Flags.ModuleClass) then moduleClassData(classData, symbol) else classData
+
+  /**
+   * A method or constructor read from its symbol, for a class the compiler read from the
+   * classpath. The tree form reads the same things from the definition; a classpath class has
+   * no definition to read, and everything needed is on the symbol.
+   */
+  private def methodData(symbol: Symbol, constructor: Boolean, owner: Symbol)(using Context, AnnotationDefaults): ScalaMethodData =
+    val returnType =
+      if constructor then
+        ScalaTypeData(className(owner), primitive = false, arrayDimensions = 0, interfaceType = false, java.util.Map.of())
+      else
+        methodReturnType(symbol.name.toString, symbol.info.finalResultType)
+    val methodAnnotations = annotations(symbol) ++ typeUseNullabilityAnnotations(returnType)
+    ScalaMethodData(
+      if constructor then "<init>" else methodName(symbol.name.toString),
+      returnType,
+      symbol.paramSymss.flatten.filter(_.isTerm).map(parameterData).asJava,
+      (if constructor then Nil else typeParameters(symbol)).asJava,
+      thrownTypes(symbol).asJava,
+      methodAnnotations.asJava,
+      modifiers(symbol).asJava,
+      constructor,
+      symbol,
+      (if constructor then Nil else overriddenMethods(symbol)).asJava
+    )
+
+  /** A field read from its symbol; see [[methodData(Symbol, Boolean, Symbol)]]. */
+  private def fieldData(symbol: Symbol)(using Context, AnnotationDefaults): ScalaFieldData =
+    val fieldType = typeData(symbol.info)
+    val fieldAnnotations = annotations(symbol) ++ typeUseNullabilityAnnotations(fieldType)
+    ScalaFieldData(
+      symbol.name.toString,
+      fieldType,
+      fieldAnnotations.asJava,
+      backingFieldModifiers(symbol).asJava,
+      isEnumConstant(symbol),
+      // A `final val` keeps its literal as a constant type, which is all a class file keeps of
+      // a constant expression either.
+      if hasFlag(symbol, Flags.Mutable) then null else constantValue(symbol.info),
+      symbol
+    )
+
+  /**
    * The annotations written on each primary-constructor parameter, by parameter name.
    *
    * A Scala class parameter is one declaration that becomes a private field, a pair of
@@ -777,8 +922,13 @@ private object ScalaModelExtractor:
   private def constructorParameterAnnotations(
       constructor: tpd.DefDef
   )(using Context, AnnotationDefaults): Map[String, List[ScalaAnnotationData]] =
-    constructor.termParamss.flatten
-      .map(parameter => parameter.name.toString -> annotations(parameter.symbol))
+    constructorParameterAnnotations(constructorParameters(constructor))
+
+  private def constructorParameterAnnotations(
+      parameters: List[ConstructorParameter]
+  )(using Context, AnnotationDefaults): Map[String, List[ScalaAnnotationData]] =
+    parameters
+      .map(parameter => parameter.symbol.name.toString -> annotations(parameter.symbol))
       .filter(_._2.nonEmpty)
       .toMap
 
@@ -864,14 +1014,32 @@ private object ScalaModelExtractor:
     val declared = existing.map(_.name()).toSet
     candidates.filterNot(annotation => declared.contains(annotation.name()))
 
+  /**
+   * A primary-constructor parameter, from whichever form of the class is at hand.
+   *
+   * @param symbol The parameter symbol
+   * @param tpe The declared type
+   * @param nativeType The object an element built from this parameter is keyed on: the tree for
+   *     a source class, the symbol for a classpath one. A property and the parameter declaring it
+   *     share it, so the annotation metadata cached for one is what the other reports.
+   */
+  private final case class ConstructorParameter(symbol: Symbol, tpe: Type, nativeType: Object)
+
+  private def constructorParameters(constructor: tpd.DefDef)(using Context): List[ConstructorParameter] =
+    constructor.termParamss.flatten.map(param => ConstructorParameter(param.symbol, param.tpt.tpe, param))
+
+  private def constructorParameters(constructor: Symbol)(using Context): List[ConstructorParameter] =
+    if constructor == Symbols.NoSymbol then Nil
+    else constructor.paramSymss.flatten.filter(_.isTerm).map(param => ConstructorParameter(param, param.info, param))
+
   private def constructorProperties(
-      constructor: tpd.DefDef,
+      parameters: List[ConstructorParameter],
       methods: LinkedHashMap[String, ScalaMethodData],
       fields: List[ScalaFieldData]
   )(using Context, AnnotationDefaults): List[ScalaPropertyData] =
-    constructor.termParamss.flatten
+    parameters
       .filter { param =>
-        val propertyName = param.name.toString
+        val propertyName = param.symbol.name.toString
         val readMethod = methods.get(propertyName)
         val field = fields.find(_.name == propertyName).orNull
         val propertyAccessor = hasFlag(param.symbol, Flags.ParamAccessor) ||
@@ -881,19 +1049,19 @@ private object ScalaModelExtractor:
             (field != null && !field.modifiers().contains(ElementModifier.PRIVATE)))
       }
       .map { param =>
-        val propertyName = param.name.toString
+        val propertyName = param.symbol.name.toString
         val readMethod = methods.get(propertyName)
         val writeMethod = methods.get(propertyName + "_=")
         val field = fields.find(_.name == propertyName).orNull
         ScalaPropertyData(
           propertyName,
-          typeData(param.tpt.tpe),
+          typeData(param.tpe),
           readMethod,
           writeMethod,
           field,
           annotations(param.symbol).asJava,
           modifiers(param.symbol).asJava,
-          param
+          param.nativeType
         )
       }
 
@@ -1276,20 +1444,30 @@ private object ScalaModelExtractor:
 
   private def constantValue(tree: tpd.Tree): Object | Null =
     tree match
-      case literal: tpd.Literal =>
-        literal.const.value match
-          case value: String => value
-          case value: java.lang.Boolean => value
-          case value: java.lang.Byte => value
-          case value: java.lang.Short => value
-          case value: java.lang.Integer => value
-          case value: java.lang.Long => value
-          case value: java.lang.Float => value
-          case value: java.lang.Double => value
-          case value: java.lang.Character => value
-          case _ => null
-      case _ =>
-        null
+      case literal: tpd.Literal => constantValue(literal.const)
+      case _ => null
+
+  /**
+   * A `final val`'s literal, read from its type. A constant type is all a class file keeps of
+   * a constant expression, and it is the same literal the source tree holds.
+   */
+  private def constantValue(tpe: Type)(using Context): Object | Null =
+    tpe.dealias match
+      case constantType: ConstantType => constantValue(constantType.value)
+      case _ => null
+
+  private def constantValue(constant: Constants.Constant): Object | Null =
+    constant.value match
+      case value: String => value
+      case value: java.lang.Boolean => value
+      case value: java.lang.Byte => value
+      case value: java.lang.Short => value
+      case value: java.lang.Integer => value
+      case value: java.lang.Long => value
+      case value: java.lang.Float => value
+      case value: java.lang.Double => value
+      case value: java.lang.Character => value
+      case _ => null
 
   private def enumConstantSymbols(symbol: Symbol)(using Context): List[Symbol] =
     val symbols = if hasFlag(symbol, Flags.Enum) then
@@ -1308,8 +1486,27 @@ private object ScalaModelExtractor:
 
   private def parameterData(parameter: tpd.ValDef)(using Context, AnnotationDefaults): ScalaParameterData =
     val parameterType = byNameTypeData(parameter.tpt.tpe).getOrElse(typeData(parameter.tpt))
-    val parameterAnnotations = annotations(parameter.symbol) ++ typeUseNullabilityAnnotations(parameterType)
-    val accessor = defaultAccessor(parameter.symbol)
+    parameterData(parameter.symbol, parameterType, parameter)
+
+  /**
+   * A parameter read from its symbol alone, for a method the compiler read from the classpath.
+   *
+   * Everything the tree form reads is on the symbol as well -- the type, the annotations, the
+   * `HasDefault` flag -- with one difference: a source parameter's type tree may carry type-use
+   * annotations, and the symbol's type does not. A classpath type has no trees, so there is
+   * nothing to read there in any model.
+   */
+  private def parameterData(symbol: Symbol)(using Context, AnnotationDefaults): ScalaParameterData =
+    val parameterType = byNameTypeData(symbol.info).getOrElse(typeData(symbol.info))
+    parameterData(symbol, parameterType, symbol)
+
+  private def parameterData(
+      symbol: Symbol,
+      parameterType: ScalaTypeData,
+      nativeType: Object
+  )(using Context, AnnotationDefaults): ScalaParameterData =
+    val parameterAnnotations = annotations(symbol) ++ typeUseNullabilityAnnotations(parameterType)
+    val accessor = defaultAccessor(symbol)
     // Carried as annotation metadata as well as on the record. Core hands the parameter to a
     // `ParameterDefaultValueProvider` loaded by *Core's* classloader, which in a test harness
     // is not the plugin's isolated one, so an `instanceof` check against this plugin's own
@@ -1323,13 +1520,13 @@ private object ScalaModelExtractor:
       )
     }
     ScalaParameterData(
-      parameter.name.toString,
+      symbol.name.toString,
       parameterType,
       (parameterAnnotations ++ defaultAnnotations).asJava,
       accessor.map(_._1).orNull,
       accessor.exists(_._2),
-      parameter,
-      overriddenParameters(parameter.symbol).asJava
+      nativeType,
+      overriddenParameters(symbol).asJava
     )
 
   /**

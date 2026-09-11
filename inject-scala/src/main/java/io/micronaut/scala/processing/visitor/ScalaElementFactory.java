@@ -81,7 +81,14 @@ public final class ScalaElementFactory implements ElementFactory<Object, ScalaCl
             };
         }
         if (!type.annotatedTypeUse() && type.typeArguments().isEmpty()) {
+            // A bare reference to a class the compiler has a model of is that class. This
+            // matters most for a type argument: `CrudRepository[Book, Long]` mentions `Book` in
+            // a nested position, whose type data carries no annotations by design, so a
+            // reference built from it alone would say the entity is annotated with nothing.
+            // A source class has always resolved here; a Scala class read from the classpath
+            // has the same model and resolves the same way.
             return visitorContext.sourceClassElement(type.name())
+                .or(() -> visitorContext.classpathClassElement(type.name()))
                 .map(classElement -> type.arrayDimensions() == 0 ? classElement : classElement.withArrayDimensions(type.arrayDimensions()))
                 .orElseGet(() -> new ScalaClassElement(type, visitorContext, visitorContext.annotationMetadata(type)));
         }

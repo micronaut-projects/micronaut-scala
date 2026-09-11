@@ -42,12 +42,14 @@ class ScalaPipelineOrderingSpec extends AbstractScalaTypeElementSpec {
                 .findAll { it }
                 .collect { new File(it) }
         def noop = { String message, Object element -> } as BiConsumer<String, Object>
-        // No compiler Context here, so no annotation type can be resolved on demand.
+        // No compiler Context here, so neither an annotation type nor a classpath class can be
+        // resolved on demand.
         def noAnnotationTypes = { String name -> null } as Function
+        def noClasspathClasses = { String name -> null } as Function
 
         when: 'bean definition generation is driven without processTypeVisitors() ever being called'
         def events = ScalaVisitorOrderRecorder.withRecording {
-            def engine = new ScalaProcessingEngine(outputDirectory, classpath, [:], noAnnotationTypes, noop, noop, noop)
+            def engine = new ScalaProcessingEngine(outputDirectory, classpath, [:], noAnnotationTypes, noClasspathClasses, noop, noop, noop)
             engine.processBeanDefinitions()
             ScalaVisitorOrderRecorder.events()
         }
@@ -68,12 +70,14 @@ class ScalaPipelineOrderingSpec extends AbstractScalaTypeElementSpec {
                 .findAll { it }
                 .collect { new File(it) }
         def noop = { String message, Object element -> } as BiConsumer<String, Object>
-        // No compiler Context here, so no annotation type can be resolved on demand.
+        // No compiler Context here, so neither an annotation type nor a classpath class can be
+        // resolved on demand.
         def noAnnotationTypes = { String name -> null } as Function
+        def noClasspathClasses = { String name -> null } as Function
 
         when: 'the visitor pass is requested explicitly and then again through generation'
         def events = ScalaVisitorOrderRecorder.withRecording {
-            def engine = new ScalaProcessingEngine(outputDirectory, classpath, [:], noAnnotationTypes, noop, noop, noop)
+            def engine = new ScalaProcessingEngine(outputDirectory, classpath, [:], noAnnotationTypes, noClasspathClasses, noop, noop, noop)
             engine.processTypeVisitors()
             engine.processBeanDefinitions()
             ScalaVisitorOrderRecorder.events()
