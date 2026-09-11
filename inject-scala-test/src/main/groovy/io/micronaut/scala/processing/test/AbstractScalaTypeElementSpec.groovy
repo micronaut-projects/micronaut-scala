@@ -23,6 +23,7 @@ import io.micronaut.inject.BeanDefinitionReference
 import io.micronaut.inject.ast.ClassElement
 import spock.lang.Specification
 
+import java.nio.file.Path
 import java.util.function.Consumer
 
 /**
@@ -73,6 +74,33 @@ abstract class AbstractScalaTypeElementSpec extends Specification {
     protected ClassElement buildClassElement(List<ScalaCompiler.SourceFile> sources, String className) {
         List<ClassElement> elements = []
         ScalaCompiler.compile(sources, List.of(), { ClassElement element -> elements.add(element) } as Consumer<ClassElement>)
+        elements.find { it.name == className }
+    }
+
+    /**
+     * Compiles sources in their own compiler run and returns the output directory, for a later
+     * {@link #buildClassElementAgainst} to compile against.
+     *
+     * <p>This is how a classpath type is put in front of the plugin: in the second run the
+     * compiler reads these classes from their class files and TASTy, exactly as an incremental
+     * build reads the files it did not recompile.</p>
+     */
+    protected Path precompile(ScalaCompiler.SourceFile... sources) {
+        ScalaCompiler.compile(sources.toList(), List.of(), { ClassElement element -> } as Consumer<ClassElement>).outputDirectory()
+    }
+
+    /**
+     * Compiles the source against earlier {@link #precompile} output and returns the element
+     * for the named class.
+     */
+    protected ClassElement buildClassElementAgainst(List<Path> precompiled, String className, String source) {
+        List<ClassElement> elements = []
+        ScalaCompiler.compile(
+            [ScalaCompiler.SourceFile.scala(className, source)],
+            List.of(),
+            precompiled,
+            { ClassElement element -> elements.add(element) } as Consumer<ClassElement>
+        )
         elements.find { it.name == className }
     }
 

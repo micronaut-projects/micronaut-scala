@@ -336,6 +336,30 @@ public final class ScalaCompiler {
      * @return The compilation
      */
     static Compilation compile(List<SourceFile> sources, List<String> compilerOptions, Consumer<ClassElement> classElementConsumer) {
+        return compile(sources, compilerOptions, List.of(), classElementConsumer);
+    }
+
+    /**
+     * Compiles sources in one compiler run against the output of earlier runs.
+     *
+     * <p>This is the shape of an incremental build: the classes the sources refer to were
+     * compiled before, so the compiler reads them from the classpath rather than from source,
+     * and the plugin sees them as classpath types. Nothing else in the harness exercises that
+     * path, and it is the one Gradle and sbt take on every edit that does not touch every
+     * file.</p>
+     *
+     * @param sources The sources
+     * @param compilerOptions The additional compiler options
+     * @param precompiled Output directories of earlier compilations, placed ahead of the test
+     *     classpath
+     * @param classElementConsumer Receives every visited class element
+     * @return The compilation
+     */
+    static Compilation compile(
+        List<SourceFile> sources,
+        List<String> compilerOptions,
+        List<Path> precompiled,
+        Consumer<ClassElement> classElementConsumer) {
         if (sources.isEmpty()) {
             throw new IllegalArgumentException("At least one source is required");
         }
@@ -355,9 +379,9 @@ public final class ScalaCompiler {
             List<String> warnings = new ArrayList<>();
             ScalaClassElementCaptureVisitor.withConsumer(
                 classElementConsumer,
-                () -> warnings.addAll(compileSources(outputDirectory, sourceFiles, compilerOptions))
+                () -> warnings.addAll(compileSources(outputDirectory, sourceFiles, compilerOptions, precompiled))
             );
-            return new Compilation(outputDirectory, newClassLoader(outputDirectory), List.copyOf(warnings));
+            return new Compilation(outputDirectory, newClassLoader(outputDirectory, precompiled), List.copyOf(warnings));
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
@@ -381,14 +405,27 @@ public final class ScalaCompiler {
         }
     }
 
-    private static List<String> compileSources(Path outputDirectory, List<Path> sourceFiles, List<String> compilerOptions) {
-        return runCompiler(outputDirectory, sourceFiles, compilerOptions, true).warnings();
+    private static List<String> compileSources(
+        Path outputDirectory,
+        List<Path> sourceFiles,
+        List<String> compilerOptions,
+        List<Path> precompiled) {
+        return runCompiler(outputDirectory, sourceFiles, compilerOptions, precompiled, true).warnings();
     }
 
     private static Diagnostics runCompiler(
         Path outputDirectory,
         List<Path> sourceFiles,
         List<String> compilerOptions,
+        boolean failOnError) {
+        return runCompiler(outputDirectory, sourceFiles, compilerOptions, List.of(), failOnError);
+    }
+
+    private static Diagnostics runCompiler(
+        Path outputDirectory,
+        List<Path> sourceFiles,
+        List<String> compilerOptions,
+        List<Path> precompiled,
         boolean failOnError) {
         String classpath = System.getProperty("micronaut.scala.test.classpath");
         String pluginJar = System.getProperty("micronaut.scala.plugin.jar");
@@ -397,7 +434,7 @@ public final class ScalaCompiler {
         }
         List<String> arguments = new ArrayList<>();
         arguments.add("-classpath");
-        arguments.add(classpath);
+        arguments.add(withPrecompiled(classpath, precompiled));
         arguments.add("-d");
         arguments.add(outputDirectory.toString());
         if (compilerOptions.stream().noneMatch(option -> option.startsWith("-release"))) {
@@ -454,11 +491,25 @@ public final class ScalaCompiler {
             + ": " + message;
     }
 
-    private static URLClassLoader newClassLoader(Path outputDirectory) {
+    private static String withPrecompiled(String classpath, List<Path> precompiled) {
+        if (precompiled.isEmpty()) {
+            return classpath;
+        }
+        StringBuilder joined = new StringBuilder();
+        for (Path directory : precompiled) {
+            joined.append(directory.toAbsolutePath()).append(File.pathSeparatorChar);
+        }
+        return joined.append(classpath).toString();
+    }
+
+    private static URLClassLoader newClassLoader(Path outputDirectory, List<Path> precompiled) {
         String classpath = System.getProperty("micronaut.scala.test.classpath");
         List<URL> urls = new ArrayList<>();
         try {
             urls.add(outputDirectory.toUri().toURL());
+            for (Path directory : precompiled) {
+                urls.add(directory.toUri().toURL());
+            }
             for (String path : classpathEntries(classpath)) {
                 urls.add(new File(path).toURI().toURL());
             }
