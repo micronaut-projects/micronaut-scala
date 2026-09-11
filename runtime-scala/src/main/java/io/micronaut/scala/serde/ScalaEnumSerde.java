@@ -37,7 +37,8 @@ import java.lang.reflect.Method;
  * case objects have no properties, so nothing useful comes out and nothing at all goes back
  * in.</p>
  *
- * <p>The name written is the one the case declares. Reading it back goes through the companion's
+ * <p>The name written is the one the case declares -- its product prefix, not its {@code toString},
+ * which an enum may override for display. Reading it back goes through the companion's
  * generated {@code valueOf}, which is the same lookup the language itself uses, so a name the
  * enum does not have is rejected here rather than becoming a null the caller meets later.</p>
  *
@@ -62,7 +63,7 @@ public final class ScalaEnumSerde<E extends scala.reflect.Enum> implements
             if (value == null) {
                 encoder.encodeNull();
             } else {
-                encoder.encodeString(value.toString());
+                encoder.encodeString(caseName(value));
             }
         };
     }
@@ -95,6 +96,16 @@ public final class ScalaEnumSerde<E extends scala.reflect.Enum> implements
                 return deserialize(decoder, decoderContext, enumType);
             }
         };
+    }
+
+    /**
+     * The name of the case, which is what the generated {@code valueOf} accepts. Every Scala 3
+     * enum is a {@code Product} whose prefix is the case name, and that is stable where
+     * {@code toString} is not: an enum that overrides {@code toString} for display would
+     * otherwise write a value its own {@code valueOf} rejects.
+     */
+    private static String caseName(scala.reflect.Enum value) {
+        return value instanceof scala.Product product ? product.productPrefix() : value.toString();
     }
 
     /**
