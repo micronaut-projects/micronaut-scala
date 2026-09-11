@@ -135,8 +135,9 @@ class FormulaDto(val otherColumns: java.util.List[String], bytesValue: Array[Byt
 class FormulaCreationDto(val bytes: Array[Byte])
 ''')
 
-        then:
-        element.getBeanProperties()*.name == ['otherColumns']
+        then: 'the private constructor-forwarding accessor for bytesValue is not a property, while\n        the public val declared by the superclass is inherited as one, matching Java parity'
+        element.getBeanProperties()*.name as Set == ['otherColumns', 'bytes'] as Set
+        element.getBeanProperties().every { it.name != 'bytesValue' }
         element.primaryConstructor.get().parameters*.name == ['otherColumns', 'bytesValue']
     }
 

@@ -1,0 +1,214 @@
+import org.gradle.api.file.DuplicatesStrategy
+import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.tasks.bundling.Jar
+import org.gradle.api.tasks.scala.ScalaCompile
+
+/**
+ * Builds one published compiler-plugin variant.
+ *
+ * The compiler plugin API is not binary compatible across compiler releases, so each
+ * supported Scala version is a separate publication built from the same sources. A variant
+ * declares only which compiler it is for:
+ *
+ *     scalaCompilerVariant {
+ *         scalaVersion = "3.3.8"
+ *     }
+ *
+ * Everything below is identical for every variant and deliberately lives in one place: the
+ * variants differ in a version string, and letting them drift in anything else is how a
+ * "supported" compiler ends up untested.
+ */
+plugins {
+    id "io.micronaut.build.internal.convention-library"
+    id "scala"
+}
+
+interface ScalaCompilerVariantExtension {
+    Property<String> getScalaVersion()
+}
+
+def variant = extensions.create("scalaCompilerVariant", ScalaCompilerVariantExtension)
+def catalog = extensions.getByType(VersionCatalogsExtension).named("libs")
+variant.scalaVersion.convention(catalog.findVersion("scala3").get().requiredVersion)
+
+// The plugin is loaded by whatever JVM runs the user's Scala compiler, and JDK 25 is the
+// supported baseline for this repository. One constant for both halves of the plugin: the
+// Java and Scala sources are compiled by different tasks, and letting them drift is how the
+// jar ended up half Java 17 and half Java 25 bytecode.
+def javaTarget = 25
+
+sourceSets {
+    main {
+        java.srcDir("../inject-scala/src/main/java")
+        scala.srcDir("../inject-scala/src/main/scala")
+        resources.srcDir("../inject-scala/src/main/resources")
+    }
+}
+
+// What the jar bundles, and therefore what the POM must NOT declare. A consumer would
+// otherwise get every one of these classes twice -- once inside the jar and once from the
+// POM -- with classpath order deciding which copy wins. It is also what makes the documented
+// usage work: Gradle turns each resolved `scalaCompilerPlugins` file into its own `-Xplugin`
+// argument, so a transitive POM hands `dotc` a dozen jars with no plugin descriptor.
+//
+// Not shading: relocation was considered and declined. The bundle stays at original package
+// paths, so a consumer must not also resolve these coordinates.
+configurations {
+    bundled {
+        canBeConsumed = false
+        canBeResolved = true
+    }
+}
+
+dependencies {
+    bundled(catalog.findLibrary("micronaut-core-processor").get()) {
+        exclude(group: "io.micronaut.sourcegen", module: "micronaut-sourcegen-bom")
+        exclude(group: "org.scala-lang", module: "scala3-library_3")
+    }
+    bundled(catalog.findLibrary("asm").get())
+
+    // Compiled against, bundled into the jar, and deliberately absent from the POM.
+    compileOnly(catalog.findLibrary("micronaut-core-processor").get()) {
+        exclude(group: "io.micronaut.sourcegen", module: "micronaut-sourcegen-bom")
+        exclude(group: "org.scala-lang", module: "scala3-library_3")
+    }
+    compileOnly(catalog.findLibrary("asm").get())
+
+    // The one real dependency: the host compiler supplies scala3-library, and the jar
+    // deliberately excludes it, so a consumer does need to resolve it.
+    api("org.scala-lang:scala3-library_3:${variant.scalaVersion.get()}")
+
+    compileOnly("org.scala-lang:scala3-compiler_3:${variant.scalaVersion.get()}")
+
+    testImplementation(catalog.findLibrary("micronaut-context").get())
+}
+
+// Sourcegen and released Core versions may carry a newer Scala BOM. A compiler plugin must
+// never be assembled against that version accidentally: this variant is pinned to its one
+// supported compiler release.
+configurations.configureEach {
+    // Gradle resolves its own Zinc into a `zinc` configuration, and Zinc is built for Scala
+    // 2.13: it wants `org.scala-lang:scala-library` and `scala-reflect` at 2.13.x. Pinning
+    // inside it fails the build -- with the whole group pinned, first "Version 3.9.0 is not
+    // compatible with org.scala-sbt:zinc_2.13:1.12.0", then "Could not find
+    // org.scala-lang:scala-reflect:3.9.0". Both were seen; neither is this project's
+    // toolchain.
+    if (name == "zinc") {
+        return
+    }
+    resolutionStrategy.eachDependency {
+        // The artifacts that ship from one compiler release and are read as one unit:
+        // `scala3-*` and `tasty-core_3`. A constraint from elsewhere moving one of them
+        // produces exactly the ABI mismatch this pin exists to prevent.
+        //
+        // Deliberately not the whole `org.scala-lang` group. `scala-library` follows its own
+        // line: the 3.3 LTS depends on the Scala 2.13 artifact, so forcing it to the compiler
+        // version fails with "Could not find org.scala-lang:scala-library:3.3.8". Adding the
+        // second variant is what exposed that -- against 3.9.0 alone the broad rule looked
+        // correct, because there `scala-library` happens to be published at 3.9.0 too.
+        //
+        // `org.scala-lang.modules` is a different group and is not matched either:
+        // `scala-asm` carries its own versioning (9.9.0-scala-1).
+        def pinned = it.requested.name.startsWith("scala3-") || it.requested.name == "tasty-core_3"
+        if (it.requested.group == "org.scala-lang" && pinned) {
+            it.useVersion(variant.scalaVersion.get())
+            it.because("compiler plugins are binary-compatible only with their exact Scala compiler release")
+        }
+    }
+}
+
+// `options.release` is what actually decides the emitted class file version;
+// `sourceCompatibility`/`targetCompatibility` alone were being overridden by the shared
+// convention plugin.
+tasks.withType(JavaCompile).configureEach {
+    options.release.set(javaTarget)
+}
+
+tasks.withType(ScalaCompile).configureEach {
+    sourceCompatibility = javaTarget.toString()
+    targetCompatibility = javaTarget.toString()
+    scalaCompileOptions.additionalParameters.add("-release:$javaTarget".toString())
+    scalaCompileOptions.additionalParameters.add("-J--add-modules=java.compiler")
+    scalaCompileOptions.forkOptions.jvmArgs = (scalaCompileOptions.forkOptions.jvmArgs ?: []) + "--add-modules=java.compiler"
+}
+
+// The Scala compiler plugin is loaded by a compiler-owned classloader. Keep Micronaut and
+// ASM implementation classes in the plugin, but let the host compiler provide scala-library
+// and scala3-library.
+def bundledRuntimeJars = {
+    configurations.bundled.resolve().findAll { file ->
+        file.isFile() && file.name.endsWith(".jar") &&
+            !file.name.startsWith("scala3-library_3-") &&
+            !file.name.startsWith("scala-library-")
+    }
+}
+
+def ownServiceDirectory = layout.projectDirectory.dir("../inject-scala/src/main/resources/META-INF/services")
+def mergedServiceDirectory = layout.buildDirectory.dir("merged-service-files")
+
+// `DuplicatesStrategy.EXCLUDE` keeps the first entry for a path and drops the rest with no
+// message. For `META-INF/services/**` that is silent data loss: this project's own
+// descriptor was winning over Core's, so Core's registrars never reached the plugin jar.
+// Services are resolved by `ServiceLoader`, so a dropped descriptor is a missing
+// implementation with no build error anywhere. Union every descriptor instead.
+def mergeServiceFiles = tasks.register("mergeServiceFiles") {
+    inputs.files(configurations.bundled)
+    // The project's own descriptors are an input too. Without this the task stays
+    // up-to-date when one of them is added or changed, and the new descriptor silently
+    // never reaches the jar -- which is exactly what happened when the parameter default
+    // value provider was registered.
+    inputs.dir(ownServiceDirectory).withPropertyName("ownServiceDescriptors")
+    outputs.dir(mergedServiceDirectory)
+    def serviceDirectory = ownServiceDirectory
+    def outputDirectory = mergedServiceDirectory
+    def jars = bundledRuntimeJars
+    def zip = { f -> zipTree(f) }
+    doLast {
+        def entries = { text ->
+            text.readLines()*.trim().findAll { !it.isEmpty() && !it.startsWith("#") }
+        }
+        def merged = [:]
+        def own = serviceDirectory.asFile
+        if (own.isDirectory()) {
+            own.listFiles().findAll { it.isFile() }.each { file ->
+                merged.computeIfAbsent(file.name, { new LinkedHashSet<String>() }).addAll(entries(file.text))
+            }
+        }
+        jars().each { jar ->
+            zip(jar).matching { include("META-INF/services/*") }.each { file ->
+                merged.computeIfAbsent(file.name, { new LinkedHashSet<String>() }).addAll(entries(file.text))
+            }
+        }
+        def target = outputDirectory.get().asFile
+        target.deleteDir()
+        target.mkdirs()
+        merged.each { name, implementations ->
+            new File(target, name).text = implementations.join("\n") + "\n"
+        }
+    }
+}
+
+tasks.named("jar", Jar) {
+    archiveBaseName.set(variant.scalaVersion.map { "micronaut-inject-scala_$it" })
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    exclude("META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.SF")
+    // Taken from the merged descriptors instead.
+    exclude("META-INF/services/**")
+    from({ bundledRuntimeJars().collect { zipTree(it) } })
+    // Sourced flat and mapped in, so the exclusion above does not match them.
+    from(mergeServiceFiles) {
+        into("META-INF/services")
+    }
+}
+
+// `artifactId` is a plain String on MavenPublication, so it cannot take a provider, and the
+// publication is realized before the build script body runs -- reading the extension eagerly
+// gave every variant the *convention* version, so the LTS jar was published under the 3.9.0
+// coordinate while containing 3.3.8 code. Deferred until the variant has been configured.
+afterEvaluate {
+    publishing {
+        publications.withType(MavenPublication).configureEach {
+            artifactId = "micronaut-inject-scala_${variant.scalaVersion.get()}"
+        }
+    }
+}

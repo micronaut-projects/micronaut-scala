@@ -16,6 +16,7 @@
 package io.micronaut.scala.processing.visitor;
 
 import io.micronaut.inject.ast.ElementModifier;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.List;
@@ -33,6 +34,9 @@ import java.util.Set;
  * @param modifiers The modifiers
  * @param constructor Whether this represents a constructor
  * @param nativeType The native Scala compiler object
+ * @param overriddenMethods The declarations this method overrides, least specific first
+ * @param genericReturnType The return type with the declaring type's variables bound, or
+ *     {@code null} when it is the declared one
  */
 public record ScalaMethodData(
     String name,
@@ -43,14 +47,84 @@ public record ScalaMethodData(
     List<ScalaAnnotationData> annotations,
     Set<ElementModifier> modifiers,
     boolean constructor,
-    Object nativeType
+    Object nativeType,
+    List<ScalaMethodData> overriddenMethods,
+    @Nullable ScalaTypeData genericReturnType
 ) implements ScalaAnnotatedElementData {
 
+    /**
+     * A method as declared, whose generic return type is its declared one.
+     *
+     * @param name The method name
+     * @param returnType The return type
+     * @param parameters The parameters
+     * @param typeParameters The type parameters
+     * @param thrownTypes The declared thrown types
+     * @param annotations The annotations
+     * @param modifiers The modifiers
+     * @param constructor Whether this is a constructor
+     * @param nativeType The native Scala compiler object
+     * @param overriddenMethods The declarations this method overrides
+     */
+    public ScalaMethodData(
+        String name,
+        ScalaTypeData returnType,
+        List<ScalaParameterData> parameters,
+        List<ScalaTypeData> typeParameters,
+        List<ScalaTypeData> thrownTypes,
+        List<ScalaAnnotationData> annotations,
+        Set<ElementModifier> modifiers,
+        boolean constructor,
+        Object nativeType,
+        List<ScalaMethodData> overriddenMethods) {
+        this(name, returnType, parameters, typeParameters, thrownTypes, annotations, modifiers, constructor, nativeType, overriddenMethods, null);
+    }
+
+    /**
+     * A method without the declarations it overrides, for the overridden ones themselves.
+     *
+     * @param name The method name
+     * @param returnType The return type
+     * @param parameters The parameters
+     * @param typeParameters The type parameters
+     * @param thrownTypes The declared thrown types
+     * @param annotations The annotations
+     * @param modifiers The modifiers
+     * @param constructor Whether this is a constructor
+     * @param nativeType The native Scala compiler object
+     */
+    public ScalaMethodData(
+        String name,
+        ScalaTypeData returnType,
+        List<ScalaParameterData> parameters,
+        List<ScalaTypeData> typeParameters,
+        List<ScalaTypeData> thrownTypes,
+        List<ScalaAnnotationData> annotations,
+        Set<ElementModifier> modifiers,
+        boolean constructor,
+        Object nativeType) {
+        this(name, returnType, parameters, typeParameters, thrownTypes, annotations, modifiers, constructor, nativeType, List.of());
+    }
+
     public ScalaMethodData {
+        overriddenMethods = overriddenMethods == null ? Collections.emptyList() : List.copyOf(overriddenMethods);
         parameters = parameters == null ? Collections.emptyList() : List.copyOf(parameters);
         typeParameters = typeParameters == null ? Collections.emptyList() : List.copyOf(typeParameters);
         thrownTypes = thrownTypes == null ? Collections.emptyList() : List.copyOf(thrownTypes);
         annotations = annotations == null ? Collections.emptyList() : List.copyOf(annotations);
         modifiers = modifiers == null ? Collections.emptySet() : Set.copyOf(modifiers);
     }
+
+    /**
+     * The return type with the type variables of the declaring type bound as they were at the
+     * point of use: {@code Book} for {@code find} inherited through {@code Repo[Book, Long]}.
+     * {@link #returnType()} stays the declared {@code E}, which is what the method compiles
+     * to and what an override of it has to be declared as.
+     *
+     * @return The generic return type
+     */
+    public ScalaTypeData resolvedReturnType() {
+        return genericReturnType == null ? returnType : genericReturnType;
+    }
+
 }

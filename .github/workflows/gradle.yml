@@ -22,7 +22,6 @@ jobs:
       matrix:
         java: ['25']
     env:
-      TESTCONTAINERS_RYUK_DISABLED: true
       SONAR_TOKEN_AVAILABLE: ${{ secrets.SONAR_TOKEN != '' }}
     steps:
        # https://github.com/actions/virtual-environments/issues/709

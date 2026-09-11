@@ -16,6 +16,7 @@
 package io.micronaut.scala.processing.visitor;
 
 import io.micronaut.inject.ast.ElementModifier;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.List;
@@ -39,6 +40,8 @@ import java.util.Set;
  * @param properties The properties
  * @param enclosingTypeName The enclosing type name for inner classes
  * @param nativeType The native Scala compiler object
+ * @param nestedTypeNames The binary names of the classes declared inside this one, for a class
+ *     read from the classpath; a source class's are extracted as classes of their own
  */
 public record ScalaClassData(
     String name,
@@ -48,15 +51,57 @@ public record ScalaClassData(
     boolean interfaceType,
     boolean enumType,
     List<ScalaTypeData> typeParameters,
-    ScalaTypeData superType,
+    @Nullable ScalaTypeData superType,
     List<ScalaTypeData> interfaces,
     List<ScalaMethodData> constructors,
     List<ScalaMethodData> methods,
     List<ScalaFieldData> fields,
     List<ScalaPropertyData> properties,
-    String enclosingTypeName,
-    Object nativeType
+    @Nullable String enclosingTypeName,
+    Object nativeType,
+    List<String> nestedTypeNames
 ) implements ScalaAnnotatedElementData {
+
+    /**
+     * A class whose nested types, if any, are found elsewhere -- a source class, whose nested
+     * classes are extracted as classes of their own.
+     *
+     * @param name The class name
+     * @param annotations The annotations
+     * @param modifiers The modifiers
+     * @param annotationType Whether this is an annotation type
+     * @param interfaceType Whether this is an interface
+     * @param enumType Whether this is an enum
+     * @param typeParameters The type parameters
+     * @param superType The superclass
+     * @param interfaces The interfaces
+     * @param constructors The constructors
+     * @param methods The methods
+     * @param fields The fields
+     * @param properties The properties
+     * @param enclosingTypeName The enclosing type name for inner classes
+     * @param nativeType The native Scala compiler object
+     */
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    public ScalaClassData(
+        String name,
+        List<ScalaAnnotationData> annotations,
+        Set<ElementModifier> modifiers,
+        boolean annotationType,
+        boolean interfaceType,
+        boolean enumType,
+        List<ScalaTypeData> typeParameters,
+        @Nullable ScalaTypeData superType,
+        List<ScalaTypeData> interfaces,
+        List<ScalaMethodData> constructors,
+        List<ScalaMethodData> methods,
+        List<ScalaFieldData> fields,
+        List<ScalaPropertyData> properties,
+        @Nullable String enclosingTypeName,
+        Object nativeType) {
+        this(name, annotations, modifiers, annotationType, interfaceType, enumType, typeParameters, superType,
+            interfaces, constructors, methods, fields, properties, enclosingTypeName, nativeType, List.of());
+    }
 
     public ScalaClassData {
         annotations = annotations == null ? Collections.emptyList() : List.copyOf(annotations);

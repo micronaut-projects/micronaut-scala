@@ -277,4 +277,181 @@ class DefaultOperations extends Operations
         definition.findMethod('convert', Integer.TYPE).present
         definition.executableMethods.findAll { it.methodName == 'convert' }.size() == 2
     }
+    void "applies class-level advice to a method inherited from a trait"() {
+        when: 'the interceptor appends, so interception is visible in the result itself'
+        def context = buildContext('''
+package traitadvice
+
+import io.micronaut.aop.Around
+import io.micronaut.aop.MethodInterceptor
+import io.micronaut.aop.MethodInvocationContext
+import io.micronaut.context.annotation.Type
+import jakarta.inject.Singleton
+import java.lang.annotation.*
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE, ElementType.METHOD))
+@Around
+@Type(Array(classOf[Shouter]))
+class Logged extends scala.annotation.StaticAnnotation
+
+@Singleton
+class Shouter extends MethodInterceptor[Object, Object] {
+  override def intercept(context: MethodInvocationContext[Object, Object]): Object =
+    String.valueOf(context.proceed()) + "!"
+}
+
+trait Greeter {
+  def greet(): String = "hello"
+}
+
+@Logged
+@Singleton
+class Inheriting extends Greeter
+
+@Logged
+@Singleton
+class Overriding extends Greeter {
+  override def greet(): String = "hi"
+  def own(): String = "own"
+}
+''', [:], true)
+
+        then: 'a trait method that is merely inherited is advised, not silently skipped'
+        getBean(context, 'traitadvice.Inheriting').greet() == 'hello!'
+
+        and: 'as are an overridden trait method and one declared on the class'
+        def overriding = getBean(context, 'traitadvice.Overriding')
+        overriding.greet() == 'hi!'
+        overriding.own() == 'own!'
+
+        cleanup:
+        context?.close()
+    }
+
+    void "rejects advice on a final method with a diagnostic"() {
+        when:
+        buildBeanDefinition('finaladvice.Service', '''
+package finaladvice
+
+import io.micronaut.aop.Around
+import io.micronaut.aop.MethodInterceptor
+import io.micronaut.aop.MethodInvocationContext
+import io.micronaut.context.annotation.Type
+import jakarta.inject.Singleton
+import java.lang.annotation.*
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE, ElementType.METHOD))
+@Around
+@Type(Array(classOf[Noop]))
+class Logged extends scala.annotation.StaticAnnotation
+
+@Singleton
+class Noop extends MethodInterceptor[Object, Object] {
+  override def intercept(context: MethodInvocationContext[Object, Object]): Object = context.proceed()
+}
+
+@Logged
+@Singleton
+class Service {
+  final def fixed(): String = "x"
+}
+''')
+
+        then: 'a final method cannot be overridden by the proxy, so this must not pass silently'
+        def e = thrown(Throwable)
+        e.message.contains('declared final')
+    }
+
+    void "intercepts construction with AroundConstruct"() {
+        when:
+        def context = buildContext('''
+package ctoradvice
+
+import io.micronaut.aop.AroundConstruct
+import io.micronaut.aop.ConstructorInterceptor
+import io.micronaut.aop.ConstructorInvocationContext
+import io.micronaut.context.annotation.Type
+import jakarta.inject.Singleton
+import java.lang.annotation.*
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE))
+@AroundConstruct
+@Type(Array(classOf[CtorRecorder]))
+class Constructed extends scala.annotation.StaticAnnotation
+
+@Singleton
+class CtorRecorder extends ConstructorInterceptor[Object] {
+  var seen: List[String] = Nil
+  override def intercept(context: ConstructorInvocationContext[Object]): Object = {
+    seen = seen :+ context.getConstructor.getDeclaringBeanType.getSimpleName
+    context.proceed()
+  }
+}
+
+@Constructed
+@Singleton
+class Made {
+  var name: String = "n"
+}
+''', [:], true)
+
+        then: 'the interceptor runs and the bean is still constructed through it'
+        def recorder = getBean(context, 'ctoradvice.CtorRecorder')
+        getBean(context, 'ctoradvice.Made').name() == 'n'
+        recorder.seen().contains('Made')
+
+        cleanup:
+        context?.close()
+    }
+
+    void "implements the additional interfaces an introduction declares"() {
+        when:
+        def context = buildContext('''
+package introextra
+
+import io.micronaut.aop.Introduction
+import io.micronaut.aop.MethodInterceptor
+import io.micronaut.aop.MethodInvocationContext
+import io.micronaut.context.annotation.Type
+import jakarta.inject.Singleton
+import java.lang.annotation.*
+
+trait Extra {
+  def extra(): String
+}
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE))
+@Introduction(interfaces = Array(classOf[Extra]))
+@Type(Array(classOf[Stubber]))
+class Stubbed extends scala.annotation.StaticAnnotation
+
+@Singleton
+class Stubber extends MethodInterceptor[Object, Object] {
+  override def intercept(context: MethodInvocationContext[Object, Object]): Object =
+    "stub:" + context.getMethodName
+}
+
+@Stubbed
+trait Primary {
+  def primary(): String
+}
+''', [:], true)
+        def bean = getBean(context, 'introextra.Primary')
+        def extraType = context.classLoader.loadClass('introextra.Extra')
+
+        then: 'the introduced type implements the trait it declares as well as its own'
+        bean.primary() == 'stub:primary'
+        extraType.isInstance(bean)
+
+        and: 'and the interceptor answers for the additional interface too'
+        extraType.getMethod('extra').invoke(bean) == 'stub:extra'
+
+        cleanup:
+        context?.close()
+    }
+
 }

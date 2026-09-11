@@ -1,0 +1,115 @@
+Serialization is https://micronaut-projects.github.io/micronaut-serde/latest/guide/[Micronaut
+Serialization] reading the introspection the compiler plugin generates. A case class needs
+nothing Scala-specific for that: its parameters are its properties, its constructor is what the
+introspection instantiates, and `@Serdeable` is `@Introspected` plus the instruction that the
+type may cross a serialization boundary.
+
+snippet::io.micronaut.docs.serde.Line[project=test-suite-scala-serde,source=main,language=scala,tags=line]
+
+That writes as `{"sku":"sku-1","quantity":2}` and reads back through the same constructor. No
+reflective access to the type is needed at runtime, so it works under GraalVM native image
+without configuration.
+
+Where Scala needs help is its own vocabulary. `Option` is a presence JSON has no word for, the
+Scala collections are not `java.util` collections, and a Scala 3 `enum` is not a
+`java.lang.Enum` — so none of the serializers Micronaut Serialization ships apply to any of
+them. `micronaut-runtime-scala` supplies those, so it must be on the runtime classpath for any of
+this chapter to hold:
+
+dependency:io.micronaut.scala:micronaut-runtime-scala[scope="runtimeOnly"]
+
+alongside the serialization implementation itself:
+
+dependency:io.micronaut.serde:micronaut-serde-jackson[]
+
+== A worked example
+
+snippet::io.micronaut.docs.serde.Order[project=test-suite-scala-serde,source=main,language=scala,tags=clazz]
+
+With every member supplied, that writes as:
+
+[source,json]
+----
+{
+  "reference": "A-1",
+  "status": "Placed",
+  "lines": [{"sku": "sku-1", "quantity": 2}],
+  "notes": "leave at the door",
+  "labels": {"priority": "high"}
+}
+----
+
+The rest of this chapter is what each of those members is doing.
+
+== Option
+
+A `Some` is written as the value itself, with no trace of the wrapper. A `None` is *absence*:
+the field is left out of the document rather than written as `null`, because that is what the
+type says.
+
+Reading is where a Scala author has to make one decision. Give the member a default:
+
+[source,scala]
+----
+notes: Option[String] = None
+----
+
+The default is what a document that omits the field falls back to. Without it the member is
+`null` — not `None` — which is a value the Scala type says cannot exist.
+
+That is not a limitation of the plugin. Micronaut Serialization decides whether to ask a type
+for a default from a fixed list, and the list is `java.util.Optional` and its primitive
+variants; a `Deserializer` cannot add itself to it. Tracked upstream as
+https://github.com/micronaut-projects/micronaut-serialization/issues/1416[micronaut-serialization#1416].
+
+TIP: Write `= None` regardless of serialization. It is the idiomatic declaration anyway — it
+makes the member optional at the call site as well as in the document, so `Order("A-2",
+Status.Shipped, lines)` compiles and the two agree about what "optional" means. The same applies
+to a defaulted collection: `labels: Map[String, String] = Map.empty`.
+
+An explicit `null` in the document reads as `None`, with no default required. Only an absent
+field needs one.
+
+== Collections
+
+`List`, `Seq`, `Set`, `Vector`, `IndexedSeq` and their mutable counterparts are all written as
+JSON arrays, and each is read back as *the type the member declares* rather than one shape for
+all of them. `Map` is written as a JSON object, keyed by the map's own keys, the same way
+`java.util.Map` is.
+
+Nothing has to name a concrete implementation. Write `Seq[String]` and a `Seq` comes back; write
+`Vector[Int]` and a `Vector` does.
+
+NOTE: The element type is read from the declaration, so a collection of an introspected type
+round-trips through that type's own serializer — `List[Line]` and `Map[String, Line]` both work,
+and so does `Option[Line]`.
+
+Reading relies on the collection converters `micronaut-runtime-scala` registers, which are the
+same ones that bind configuration properties and injection points. A collection outside that set
+has to be reached through one that is in it.
+
+== Scala 3 enums
+
+An `enum` whose cases take no parameters is written as its case name and read back through the
+`valueOf` the compiler generates on it:
+
+snippet::io.micronaut.docs.serde.Status[project=test-suite-scala-serde,source=main,language=scala,tags=enum]
+
+A name the enum does not have is rejected where it is read, rather than becoming a `null` the
+caller meets somewhere else.
+
+The enum does not need `@Serdeable` of its own. An enum whose cases take parameters is a sum
+type rather than a set of names, has no `valueOf`, and is not covered — model it as a sealed
+hierarchy of `@Serdeable` case classes instead.
+
+== What is not Scala-specific
+
+Everything else is ordinary Micronaut Serialization, and its own documentation applies
+unchanged: `@JsonProperty` and the other Jackson annotations it understands, naming strategies,
+views, `@Serdeable.Serializable` and `@Serdeable.Deserializable` for read-only or write-only
+types, and custom serializers of your own. Remember only that Scala applies a Java annotation by
+rules of its own — see <<annotations, Annotations>>.
+
+NOTE: The examples in this chapter live in `test-suite-scala-serde`, are compiled by this
+repository's build with the plugin, and are round-tripped through a real `ObjectMapper` by its
+tests. Every document shown above is asserted there.

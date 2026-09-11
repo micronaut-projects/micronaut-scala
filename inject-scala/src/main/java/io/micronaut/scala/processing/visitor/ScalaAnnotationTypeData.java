@@ -30,6 +30,8 @@ import java.util.Map;
  * @param members The annotation members by name
  * @param retentionPolicyName The retention policy enum name, if known
  * @param repeatableContainerName The repeatable container annotation name, if known
+ * @param javaDefined Whether the annotation type is a Java annotation, which decides the
+ *     retention it gets when it declares none
  * @param nativeType The native Scala compiler object
  */
 public record ScalaAnnotationTypeData(
@@ -38,6 +40,7 @@ public record ScalaAnnotationTypeData(
     Map<String, ScalaAnnotationMemberData> members,
     @Nullable String retentionPolicyName,
     @Nullable String repeatableContainerName,
+    boolean javaDefined,
     Object nativeType
 ) {
 

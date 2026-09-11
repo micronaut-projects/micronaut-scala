@@ -14,10 +14,6 @@ Micronaut Scala currently requires JDK 25.
 
 Micronaut Scala can be imported into IntelliJ IDEA by opening the `build.gradle` file.
 
-## Docker Setup
-
-The parity tests currently require Docker to be installed.
-
 ## Running Tests
 
 To run the tests, use `./gradlew check`.
@@ -85,7 +81,8 @@ If the PR is going into the next minor version of the module, we need to release
 
 When you merge a PR that will go into the next module's minor release:
 
-- Update `gradle.properties`'s `githubCoreBranch` to point to the next minor branch of Micronaut Core.
+- Update `micronautCoreBranch` in `gradle.properties`, or the `micronautCoreBranch`
+  default in `settings.gradle`, to point to the next minor branch of Micronaut Core.
 - Update `gradle.properties`'s `projectVersion` to the next minor snapshot.
 - Upgrade the module to the latest version of Micronaut.
 

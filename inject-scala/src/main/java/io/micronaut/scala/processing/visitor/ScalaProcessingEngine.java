@@ -15,12 +15,16 @@
  */
 package io.micronaut.scala.processing.visitor;
 
+import io.micronaut.context.annotation.Mixin;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.context.annotation.Requires.Sdk;
+import io.micronaut.context.visitor.VisitorUtils;
+import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Generated;
 import io.micronaut.core.annotation.Vetoed;
 import io.micronaut.core.io.service.ServiceDefinition;
 import io.micronaut.core.io.service.SoftServiceLoader;
+import io.micronaut.core.naming.NameUtils;
 import io.micronaut.core.order.OrderUtil;
 import io.micronaut.core.util.StringUtils;
 import io.micronaut.core.version.VersionUtils;
@@ -51,26 +55,36 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * Executes Micronaut's visitor and bean-definition pipeline for Scala compiler data.
  */
 public final class ScalaProcessingEngine {
 
+    private static final String MODULE_INSTANCE_FIELD = "MODULE$";
+    private static final String MICRONAUT_INTROSPECTIONS_USE_CONTEXT_CLASSLOADER =
+        "micronaut.introspections.use.context.classloader";
+
     private final File outputDirectory;
     private final Collection<File> classpath;
     private final Map<String, String> options;
-    private final Consumer<String> infoReporter;
-    private final Consumer<String> warningReporter;
-    private final Consumer<String> errorReporter;
+    private final Function<String, ScalaAnnotationTypeData> annotationTypeResolver;
+    private final Function<String, ScalaClassData> classpathClassResolver;
+    private final BiConsumer<String, Object> infoReporter;
+    private final BiConsumer<String, Object> warningReporter;
+    private final BiConsumer<String, Object> errorReporter;
     private final Map<String, ScalaClassData> sourceClasses = new LinkedHashMap<>();
+    private final Map<Object, String> documentation = new IdentityHashMap<>();
     private final Set<String> generatedBeanDefinitions = new HashSet<>();
     private final Set<String> visitedTypes = new HashSet<>();
     private boolean typeVisitorsProcessed;
@@ -81,6 +95,10 @@ public final class ScalaProcessingEngine {
      * @param outputDirectory The compiler class output directory
      * @param classpath The compilation classpath
      * @param options Micronaut processing options
+     * @param annotationTypeResolver Resolves an annotation type by name, for annotations never
+     *     seen on an extracted element
+     * @param classpathClassResolver Resolves a Scala class the compiler read from the classpath
+     *     by name, or {@code null} when the name is not one
      * @param infoReporter The info reporter
      * @param warningReporter The warning reporter
      * @param errorReporter The error reporter
@@ -89,12 +107,16 @@ public final class ScalaProcessingEngine {
         File outputDirectory,
         Collection<File> classpath,
         Map<String, String> options,
-        Consumer<String> infoReporter,
-        Consumer<String> warningReporter,
-        Consumer<String> errorReporter) {
+        Function<String, ScalaAnnotationTypeData> annotationTypeResolver,
+        Function<String, ScalaClassData> classpathClassResolver,
+        BiConsumer<String, Object> infoReporter,
+        BiConsumer<String, Object> warningReporter,
+        BiConsumer<String, Object> errorReporter) {
         this.outputDirectory = outputDirectory;
         this.classpath = List.copyOf(classpath);
         this.options = Map.copyOf(options);
+        this.annotationTypeResolver = annotationTypeResolver;
+        this.classpathClassResolver = classpathClassResolver;
         this.infoReporter = infoReporter;
         this.warningReporter = warningReporter;
         this.errorReporter = errorReporter;
@@ -114,6 +136,19 @@ public final class ScalaProcessingEngine {
     }
 
     /**
+     * Adds the documentation comments found on a compilation unit's declarations.
+     *
+     * <p>Separate from {@link #addClasses} because a comment is not part of the tree it
+     * documents: the compiler keeps them in a side table keyed by symbol, so they are
+     * collected alongside the model rather than inside it.</p>
+     *
+     * @param comments The raw comments, keyed by the native compiler object they document
+     */
+    public void addDocumentation(Map<Object, String> comments) {
+        documentation.putAll(comments);
+    }
+
+    /**
      * Processes type element visitors once all source classes have been collected.
      */
     public void processTypeVisitors() {
@@ -122,7 +157,11 @@ public final class ScalaProcessingEngine {
         }
         typeVisitorsProcessed = true;
         ScalaVisitorContext context = visitorContext();
-        setMicronautOptionsAsSystemProperties();
+        withMicronautOptionsAsSystemProperties(() ->
+            withProcessingClassLoader(context, () -> processTypeVisitors(context)));
+    }
+
+    private void processTypeVisitors(ScalaVisitorContext context) {
         List<LoadedScalaVisitor> loadedVisitors = loadTypeElementVisitors(context);
         for (LoadedScalaVisitor loadedVisitor : loadedVisitors) {
             context.setVisitorKind(loadedVisitor.getVisitor().getVisitorKind());
@@ -131,27 +170,33 @@ public final class ScalaProcessingEngine {
             } catch (ProcessingException e) {
                 reportProcessingException(e);
             } catch (Throwable e) {
-                // Fatal, matching inject-java and the finish() handling below: a visitor whose
-                // start() blew up must not go on to be used for the whole visit pass.
-                context.fail("Error initializing type visitor [" + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), null);
+                // Reported, not thrown. `fail` throws, and throwing here escapes the loop so
+                // no later visitor is even started -- and the caller that catches the
+                // ProcessingException reports the same message again. inject-java reports
+                // without throwing and carries on.
+                context.reportError("Error initializing type visitor [" + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), null);
             }
         }
-        for (LoadedScalaVisitor loadedVisitor : loadedVisitors) {
-            TypeElementQuery query = loadedVisitor.getVisitor().query();
-            Set<String> visitedForVisitor = new HashSet<>();
-            for (ScalaClassData classData : new LinkedHashSet<>(sourceClasses.values())) {
-                if (!visitedForVisitor.add(classData.name())) {
-                    continue;
-                }
-                ClassElement classElement = context.sourceClassElement(classData.name()).orElseThrow();
+        // Class-major, as `TypeElementVisitorProcessor` is. Visitor-major dispatch gives
+        // classes A, B and visitors high, low the order `high:A, high:B, low:A, low:B` where
+        // Java produces `high:A, low:A, high:B, low:B`, which changes what an aggregating
+        // visitor accumulating per-class state sees.
+        applyMixins(context);
+        for (ClassElement classElement : classElementsToVisit(context)) {
+            for (LoadedScalaVisitor loadedVisitor : loadedVisitors) {
                 if (!loadedVisitor.matchesClass(classElement.getAnnotationMetadata())) {
                     continue;
                 }
                 context.setVisitorKind(loadedVisitor.getVisitor().getVisitorKind());
                 try {
-                    visitClass(loadedVisitor, classElement, query, context);
+                    visitClass(loadedVisitor, classElement, loadedVisitor.getVisitor().query(), context);
                 } catch (ProcessingException e) {
                     reportProcessingException(e);
+                } catch (RuntimeException e) {
+                    // A visitor that throws anything else used to escape as a compiler crash
+                    // rather than a diagnostic naming the class it was visiting.
+                    context.reportError("Error visiting [" + classElement.getName() + "] with ["
+                        + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), classElement);
                 }
             }
         }
@@ -162,10 +207,97 @@ public final class ScalaProcessingEngine {
             } catch (ProcessingException e) {
                 reportProcessingException(e);
             } catch (Throwable e) {
-                context.fail("Error finalizing type visitor [" + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), null);
+                // See the start() loop: reported rather than thrown so the remaining
+                // visitors still get to finish.
+                context.reportError("Error finalizing type visitor [" + loadedVisitor.getVisitor() + "]: " + exceptionMessage(e), null);
             }
         }
         context.setVisitorKind(TypeElementVisitor.VisitorKind.ISOLATING);
+    }
+
+    /**
+     * The classes the visitors run over: every collected source class, followed by the ones
+     * {@code @ClassImport} names that are not source classes themselves.
+     *
+     * <p>An imported type is not compiled here -- it is a third-party model or a generated class
+     * that nobody can annotate -- so nothing would ever visit it if the list were only what the
+     * compiler handed us. {@code TypeElementVisitorProcessor} extends its own round the same way,
+     * and {@link VisitorUtils#collectImportedElements} is what marks each imported element with
+     * {@code @ImportedClass} and applies the annotations the import asked for. Without that mark
+     * the introspection writer has no originating element and no target package to write to.</p>
+     *
+     * <p>A type can be imported by several importers, or be imported and compiled at once, so the
+     * names already queued are what decides whether an import adds anything.</p>
+     *
+     * @param context The visitor context
+     * @return The class elements to process, source classes first
+     */
+    private List<ClassElement> classElementsToVisit(ScalaVisitorContext context) {
+        var classElements = new ArrayList<ClassElement>();
+        var names = new HashSet<String>();
+        for (ScalaClassData classData : classSnapshot()) {
+            if (!names.add(classData.name())) {
+                continue;
+            }
+            Optional<ScalaClassElement> resolved = context.sourceClassElement(classData.name());
+            if (resolved.isEmpty()) {
+                // Was `orElseThrow()`, which crashed the compiler with a bare
+                // NoSuchElementException naming nothing.
+                context.reportError("No source element for [" + classData.name() + "]; it was collected but cannot be resolved", null);
+                continue;
+            }
+            classElements.add(resolved.get());
+        }
+        for (ClassElement classElement : List.copyOf(classElements)) {
+            for (ClassElement imported : VisitorUtils.collectImportedElements(classElement, context)) {
+                if (names.add(imported.getName())) {
+                    classElements.add(imported);
+                }
+            }
+        }
+        return classElements;
+    }
+
+    /**
+     * Copies each mixin's annotations onto the type it targets, before anything reads them.
+     *
+     * <p>A mixin is a separate declaration that annotates a type its author does not own, so the
+     * annotations have to be in place before the visitors run -- afterwards is too late, the
+     * introspection or bean definition has already been written from metadata that never had
+     * them. Java gets the ordering from a separate annotation processor,
+     * {@code MixinVisitorProcessor}, which claims {@code @Mixin} and runs its round first; here
+     * there is one pass, so the step is explicit.</p>
+     *
+     * @param context The visitor context
+     */
+    private void applyMixins(ScalaVisitorContext context) {
+        for (ScalaClassData classData : classSnapshot()) {
+            ScalaClassElement mixin = context.sourceClassElement(classData.name()).orElse(null);
+            if (mixin == null) {
+                continue;
+            }
+            AnnotationValue<Mixin> mixinAnnotation = mixin.getAnnotation(Mixin.class);
+            if (mixinAnnotation == null) {
+                continue;
+            }
+            String target = mixinAnnotation.stringValue("target").orElse(mixinAnnotation.stringValue().orElse(null));
+            if (target == null || Object.class.getName().equals(target)) {
+                continue;
+            }
+            ClassElement mixinTarget = context.getClassElement(target).orElse(null);
+            if (mixinTarget == null) {
+                context.warn("Cannot access class: " + target, mixin);
+                continue;
+            }
+            try {
+                VisitorUtils.applyMixin(mixinAnnotation, mixin, mixinTarget, context);
+            } catch (ProcessingException e) {
+                reportProcessingException(e);
+            } catch (RuntimeException e) {
+                context.reportError("Error applying mixin [" + mixin.getName() + "] to ["
+                    + target + "]: " + exceptionMessage(e), mixin);
+            }
+        }
     }
 
     /**
@@ -176,19 +308,40 @@ public final class ScalaProcessingEngine {
             return;
         }
         beanDefinitionsProcessed = true;
+        // Generating definitions without having run the visitors produces beans with no
+        // AOP, no introspections, no validation and no user visitors, and reports nothing.
+        // Keeping the ordering invariant here rather than in the caller means no future
+        // change to the phase wiring can violate it. processTypeVisitors() is idempotent.
+        processTypeVisitors();
         ScalaVisitorContext context = visitorContext();
+        try {
+            withProcessingClassLoader(context, () -> generateBeanDefinitions(context));
+        } finally {
+            // Always, even if generation threw. Service descriptors are written here, and a
+            // definition on disk without its descriptor is a bean the runtime cannot see.
+            context.finish();
+            BeanDefinitionWriter.finish();
+        }
+    }
+
+    private void generateBeanDefinitions(ScalaVisitorContext context) {
         startBeanElementVisitors(context);
-        for (ScalaClassData classData : new LinkedHashSet<>(sourceClasses.values())) {
-            if (classData.name().endsWith(BeanDefinitionVisitor.PROXY_SUFFIX)) {
+        for (ClassElement classElement : classElementsToVisit(context)) {
+            if (classElement.getName().endsWith(BeanDefinitionVisitor.PROXY_SUFFIX)) {
                 continue;
             }
-            ClassElement classElement = context.sourceClassElement(classData.name()).orElseThrow();
             if (classElement.hasAnnotation(Vetoed.class) || classElement.hasAnnotation(Generated.class)) {
                 continue;
             }
             try {
                 DefaultElementBeanDefinitionBuilderFactory beanDefinitionBuilderFactory = new DefaultElementBeanDefinitionBuilderFactory(context);
+                String suppressedDefinition = classElement instanceof ScalaClassElement scalaClassElement
+                    && scalaClassElement.classData() != null
+                    ? scalaObjectSelfDefinitionName(scalaClassElement.classData()) : null;
                 for (OutputObjectDef outputObjectDef : BeanDefinitionCreatorFactory.produce(classElement, beanDefinitionBuilderFactory, context)) {
+                    if (outputObjectDef.objectDef().getName().equals(suppressedDefinition)) {
+                        continue;
+                    }
                     if (generatedBeanDefinitions.add(outputObjectDef.objectDef().getName())) {
                         writeBeanDefinition(outputObjectDef, context);
                     }
@@ -201,8 +354,6 @@ public final class ScalaProcessingEngine {
         }
         finishBeanElementVisitors(context);
         writeBeanDefinitionBuilders(context);
-        context.finish();
-        BeanDefinitionWriter.finish();
     }
 
     private void writeBeanDefinitionBuilders(ScalaVisitorContext context) {
@@ -245,6 +396,9 @@ public final class ScalaProcessingEngine {
                 sourceClasses.values(),
                 classpath,
                 options,
+                annotationTypeResolver,
+                classpathClassResolver,
+                documentation,
                 infoReporter,
                 warningReporter,
                 errorReporter
@@ -317,12 +471,38 @@ public final class ScalaProcessingEngine {
         }
     }
 
+    /**
+     * The definition Micronaut would generate for a Scala {@code object}'s own class, which
+     * must not be written.
+     *
+     * <p>An {@code object} compiles to a class with a private constructor and a public
+     * static {@code MODULE$} holding the one instance, so it is modelled as a factory
+     * producing that field. {@code DeclaredBeanElementCreator} always emits the factory
+     * class's own bean definition too, and here that definition has the same bean type as
+     * the produced one and would be constructed through the private constructor -- so
+     * resolving the bean fails with {@code NonUniqueBeanException}. Only the {@code MODULE$}
+     * instance is a bean.
+     *
+     * @param classData The class
+     * @return The definition name to suppress, or {@code null} for an ordinary class
+     */
+    private static @Nullable String scalaObjectSelfDefinitionName(ScalaClassData classData) {
+        boolean isModuleClass = classData.name().endsWith("$")
+            && classData.fields().stream().anyMatch(field -> MODULE_INSTANCE_FIELD.equals(field.name()));
+        if (!isModuleClass) {
+            return null;
+        }
+        return NameUtils.getPackageName(classData.name())
+            + ".$" + NameUtils.getSimpleName(classData.name()) + BeanDefinitionWriter.CLASS_SUFFIX;
+    }
+
     private void reportProcessingException(ProcessingException exception) {
         String message = exception.getMessage();
+        Object originatingElement = exception.getOriginatingElement();
         if (message != null && !message.isBlank()) {
-            errorReporter.accept(message);
+            errorReporter.accept(message, originatingElement);
         } else {
-            errorReporter.accept(processingExceptionMessage(exception));
+            errorReporter.accept(processingExceptionMessage(exception), originatingElement);
         }
     }
 
@@ -336,7 +516,7 @@ public final class ScalaProcessingEngine {
             try {
                 visitor = definition.load();
             } catch (Throwable e) {
-                warningReporter.accept("TypeElementVisitor [" + definition.getName() + "] will be ignored due to loading error: " + exceptionMessage(e));
+                warningReporter.accept("TypeElementVisitor [" + definition.getName() + "] will be ignored due to loading error: " + exceptionMessage(e), null);
                 continue;
             }
             if (visitor == null || !visitor.isEnabled() || !meetsRequires(visitor)) {
@@ -365,14 +545,108 @@ public final class ScalaProcessingEngine {
         if (StringUtils.isEmpty(version) || VersionUtils.isAtLeastMicronautVersion(version)) {
             return true;
         }
-        warningReporter.accept("TypeElementVisitor [" + visitor.getClass().getName() + "] will be ignored because Micronaut version [" + VersionUtils.MICRONAUT_VERSION + "] must be at least " + version);
+        warningReporter.accept("TypeElementVisitor [" + visitor.getClass().getName() + "] will be ignored because Micronaut version [" + VersionUtils.MICRONAUT_VERSION + "] must be at least " + version, null);
         return false;
     }
 
-    private void setMicronautOptionsAsSystemProperties() {
+    /**
+     * A stable snapshot of the collected classes.
+     *
+     * <p>Was {@code new LinkedHashSet<>(sourceClasses.values())}. {@link ScalaClassData} is a
+     * record whose components include the dotty {@code TypeDef} it came from, so building a
+     * hash set structurally hashes the entire typed tree of every class -- once per visitor
+     * pass and again for bean definitions, with real recursion risk on a large class. The
+     * map is already keyed by name, so its values are distinct and ordered without any of
+     * that; the copy is only to iterate safely while visitors add classes.</p>
+     */
+    private List<ScalaClassData> classSnapshot() {
+        return List.copyOf(sourceClasses.values());
+    }
+
+    /**
+     * Promotes `micronaut.*` options to system properties for the duration of processing,
+     * restoring what was there before.
+     *
+     * <p>They used to be set and left. A Scala compile daemon is shared between projects, so
+     * one project's `micronaut.processing.*` settings leaked into every later compile in that
+     * daemon and raced between concurrent ones.</p>
+     *
+     * @param work The processing to run with the properties in place
+     */
+    /**
+     * Runs processing with the compilation classpath as the thread's context classloader, and
+     * with the two switches that tell Micronaut to use it.
+     *
+     * <p>The plugin jar bundles Micronaut, so anything in it that resolves a type or a service
+     * through "its own" classloader searches the plugin and not the application. That is not a
+     * problem for the Java integration, whose processor path carries the framework alongside
+     * everything the application compiles against, and Core provides these switches for exactly
+     * the case where the two differ. Without them Micronaut Data could not find the
+     * introspection for the query builder its {@code @JdbcRepository} names, fell back to the
+     * default JPA builder, and generated {@code DELETE io.micronaut.docs.data.Book AS book_}
+     * where Java generated {@code DELETE FROM `book`} -- valid JPA-QL, and not something any
+     * SQL database will accept.</p>
+     *
+     * @param context The visitor context, which owns the compilation classpath
+     * @param work The processing to run
+     */
+    private void withProcessingClassLoader(ScalaVisitorContext context, Runnable work) {
+        Thread thread = Thread.currentThread();
+        ClassLoader previousClassLoader = thread.getContextClassLoader();
+        thread.setContextClassLoader(context.getProcessingClassLoader());
+        try {
+            withSystemProperties(
+                Map.of(
+                    VisitorContext.MICRONAUT_PROCESSING_USE_CONTEXT_CLASSLOADER, "true",
+                    MICRONAUT_INTROSPECTIONS_USE_CONTEXT_CLASSLOADER, "true"
+                ),
+                work
+            );
+        } finally {
+            thread.setContextClassLoader(previousClassLoader);
+        }
+    }
+
+    private void withSystemProperties(Map<String, String> properties, Runnable work) {
+        Map<String, String> previous = new LinkedHashMap<>();
+        List<String> added = new ArrayList<>();
+        properties.forEach((key, value) -> {
+            String existing = System.getProperty(key);
+            if (existing == null) {
+                added.add(key);
+            } else {
+                previous.put(key, existing);
+            }
+            System.setProperty(key, value);
+        });
+        try {
+            work.run();
+        } finally {
+            previous.forEach(System::setProperty);
+            added.forEach(System::clearProperty);
+        }
+    }
+
+    private void withMicronautOptionsAsSystemProperties(Runnable work) {
+        Map<String, String> previous = new LinkedHashMap<>();
+        List<String> added = new ArrayList<>();
         options.entrySet().stream()
             .filter(entry -> entry.getKey().startsWith(VisitorContext.MICRONAUT_BASE_OPTION_NAME))
-            .forEach(entry -> System.setProperty(entry.getKey(), entry.getValue()));
+            .forEach(entry -> {
+                String existing = System.getProperty(entry.getKey());
+                if (existing == null) {
+                    added.add(entry.getKey());
+                } else {
+                    previous.put(entry.getKey(), existing);
+                }
+                System.setProperty(entry.getKey(), entry.getValue());
+            });
+        try {
+            work.run();
+        } finally {
+            previous.forEach(System::setProperty);
+            added.forEach(System::clearProperty);
+        }
     }
 
     private void startBeanElementVisitors(ScalaVisitorContext context) {
@@ -423,19 +697,25 @@ public final class ScalaProcessingEngine {
         return "Error processing Scala element" + elementDescription + ": " + exceptionMessage(exception);
     }
 
+    /**
+     * The first non-blank message in a cause chain.
+     *
+     * <p>The chain is followed with a set of the exceptions already seen. Comparing only
+     * against the head caught a two-element cycle and nothing deeper: a chain of
+     * {@code a -> b -> c -> b} never returns to {@code a}, so the walk ran forever and hung
+     * the compiler on a diagnostic.</p>
+     */
     private static String exceptionMessage(Throwable exception) {
         Throwable current = exception;
         Throwable fallback = exception;
-        while (current != null) {
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        while (current != null && visited.add(current)) {
             fallback = current;
             String message = current.getMessage();
             if (message != null && !message.isBlank()) {
                 return message;
             }
             current = current.getCause();
-            if (current == exception) {
-                break;
-            }
         }
         StackTraceElement[] stackTrace = fallback.getStackTrace();
         if (stackTrace.length == 0) {

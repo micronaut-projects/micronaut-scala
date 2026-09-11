@@ -18,12 +18,8 @@ package io.micronaut.scala.processing.visitor;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.ast.ClassElement;
-import io.micronaut.inject.ast.ElementModifier;
 import io.micronaut.inject.ast.FieldElement;
 import org.jspecify.annotations.Nullable;
-
-import java.util.LinkedHashSet;
-import java.util.Set;
 
 /**
  * Scala field element.
@@ -34,6 +30,7 @@ public final class ScalaFieldElement extends AbstractScalaMemberElement implemen
     private final ScalaVisitorContext visitorContext;
     private final ScalaFieldData fieldData;
     private @Nullable ClassElement type;
+    private @Nullable ClassElement genericType;
 
     ScalaFieldElement(ScalaClassElement declaringType, ScalaFieldData fieldData, ScalaVisitorContext visitorContext) {
         this(declaringType, fieldData, visitorContext, visitorContext.annotationMetadata(fieldData));
@@ -48,7 +45,7 @@ public final class ScalaFieldElement extends AbstractScalaMemberElement implemen
             declaringType,
             fieldData.name(),
             fieldData.nativeType(),
-            fieldModifiers(fieldData.modifiers()),
+            fieldData.modifiers(),
             MutableAnnotationMetadata.of(annotationMetadata),
             visitorContext.getScalaAnnotationMetadataBuilder()
         );
@@ -65,6 +62,21 @@ public final class ScalaFieldElement extends AbstractScalaMemberElement implemen
         return type;
     }
 
+    /**
+     * The type with the declaring type's variables bound as they were where the field was
+     * reached; {@link #getType()} stays the declared type, the JVM signature.
+     */
+    @Override
+    public ClassElement getGenericType() {
+        if (fieldData.genericType() == null) {
+            return getType();
+        }
+        if (genericType == null) {
+            genericType = visitorContext.getElementFactory().newClassElement(fieldData.resolvedType());
+        }
+        return genericType;
+    }
+
     @Override
     public @Nullable Object getConstantValue() {
         return fieldData.constantValue();
@@ -72,24 +84,19 @@ public final class ScalaFieldElement extends AbstractScalaMemberElement implemen
 
     @Override
     public boolean isReflectionRequired() {
-        return true;
+        return isReflectionRequired(declaringType);
     }
 
     @Override
     public boolean isReflectionRequired(ClassElement callingType) {
-        return true;
+        // Answering true unconditionally -- and ignoring the calling type entirely -- made
+        // Micronaut emit reflective access and GraalVM reflection metadata for every field,
+        // including ones it could read directly.
+        return !isAccessible(callingType);
     }
 
     @Override
     public FieldElement withAnnotationMetadata(AnnotationMetadata annotationMetadata) {
         return new ScalaFieldElement(declaringType, fieldData, visitorContext, annotationMetadata);
-    }
-
-    private static Set<ElementModifier> fieldModifiers(Set<ElementModifier> modifiers) {
-        Set<ElementModifier> fieldModifiers = new LinkedHashSet<>(modifiers);
-        fieldModifiers.remove(ElementModifier.PUBLIC);
-        fieldModifiers.remove(ElementModifier.PROTECTED);
-        fieldModifiers.add(ElementModifier.PRIVATE);
-        return fieldModifiers;
     }
 }

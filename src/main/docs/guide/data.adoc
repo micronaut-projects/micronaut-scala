@@ -1,0 +1,123 @@
+https://micronaut-projects.github.io/micronaut-data/latest/guide/[Micronaut Data] generates
+a repository's implementation at compile time from the shape of its methods, and it reads more
+of the compile-time model than anything else Micronaut ships to do it. A repository is
+introduction advice over an abstract type; the queries come from method names and from the
+resolved return types of a parameterized library supertype; the entity is mapped from a case
+class whose annotations sit on constructor parameters. All of that works from Scala, and this
+chapter is what it looks like and what has to be wired for it to happen.
+
+== Dependencies
+
+Micronaut Data does its work in a `TypeElementVisitor`, and the compiler plugin discovers
+visitors from the *compilation* classpath — see <<dependencies, Artifacts and Dependencies>>.
+So the processor is a compile-time dependency of the module holding the entities and
+repositories:
+
+dependency:io.micronaut.data:micronaut-data-processor[scope="compileOnly"]
+
+WARNING: Not `annotationProcessor`. That configuration feeds `javac`, and the Scala compiler
+never sees it. The build still succeeds and the repository still injects — it is introduction
+advice, and the plugin generates that regardless — but the first call fails with
+`IllegalStateException: Micronaut Data method is missing compilation time query information.
+Ensure that the Micronaut Data annotation processors are declared in your build`. That advice
+is written for Java; for Scala sources the answer is the compile-time dependency above. A
+module holding both Java and Scala entities needs it in both configurations.
+
+Then the ordinary runtime pieces — the JDBC implementation, a connection pool and a driver.
+For the in-memory database this chapter uses:
+
+dependency:io.micronaut.data:micronaut-data-jdbc[]
+
+dependency:io.micronaut.sql:micronaut-jdbc-hikari[scope="runtimeOnly"]
+
+dependency:com.h2database:h2[scope="runtimeOnly"]
+
+And `micronaut-runtime-scala`, which is what lets a repository method return a Scala
+collection — more on that below:
+
+dependency:io.micronaut.scala:micronaut-runtime-scala[scope="runtimeOnly"]
+
+== An entity
+
+An entity is a case class. Its parameters are its columns, and `@Id` marks the one the
+database assigns:
+
+snippet::io.micronaut.docs.data.Book[project=test-suite-scala-data,source=main,language=scala,tags=clazz]
+
+The annotations are on the *class parameters*, because that is where a Scala property is
+declared. The plugin carries them to the property the introspection exposes, so Micronaut Data
+sees the same thing it would see on a Java record — the rule <<idiomatic, Idiomatic Scala>>
+gives for configuration applies here unchanged.
+
+The identifier is Scala's `Long`, which is the primitive. An entity that has not been saved yet
+has `id` of `0`, not `null` — the same convention a Java entity with a `long` identifier
+follows, and what `save` returns has the identifier the database assigned.
+
+== A repository
+
+A repository is a trait. Extending `CrudRepository` supplies the usual operations; any further
+method is a query derived from its own name — read `findByTitle` as `where title = ?` and
+`countByPagesGreaterThan` as `select count(*) … where pages > ?`:
+
+snippet::io.micronaut.docs.data.BookRepository[project=test-suite-scala-data,source=main,language=scala,tags=clazz]
+
+There is no implementation of either type anywhere, and none to write. At compile time the
+plugin generates the entity's introspection, Micronaut Data reads it to work out the table and
+columns, derives the SQL for every method including the inherited ones, and generates the
+class that runs it. Injecting `BookRepository` gives you that class.
+
+It has to be a trait or an abstract class. A concrete class has a body of its own and cannot
+be introduced; a trait can have concrete methods too, which run as written.
+
+`@JdbcRepository(dialect = Dialect.H2)` is written exactly as in Java — a Java annotation with
+a named enum argument — and `CrudRepository[Book, Long]` is the parameterized library
+supertype whose inherited methods Micronaut Data resolves against the entity.
+
+== Scala types in signatures
+
+`findByTitle` returns `List[Book]` — Scala's `List`, not `java.util.List`. Micronaut Data asks
+at compile time whether a declared return type stands in for an `Iterable` so that it knows to
+generate a many-row query, and the plugin answers yes for a Scala collection. At runtime the
+rows arrive as a Java collection and `micronaut-runtime-scala`'s converters produce the
+declared one, so the caller gets `scala.List` back. Write the Scala type and you get the Scala
+type.
+
+`Long` return types are the primitive, as `countByPagesGreaterThan` shows.
+
+A query that may find nothing is declared as `java.util.Optional`, as `findFirstByTitle`
+does — not `Option`. Micronaut Data recognises the single-result containers from a list of its
+own (`Optional`, the reactive types) and rejects anything else at compile time:
+
+----
+Unable to implement Repository method: BookRepository.findFirstByTitle(String title).
+Query results in a type [Book] whilst method returns an incompatible type: scala.Option
+----
+
+Convert at the call site with `.toScala` from `scala.jdk.OptionConverters` if an `Option` is
+wanted.
+
+== Configuration and testing
+
+The repository binds to the default data source, so the ordinary Micronaut Data configuration
+applies. For an in-memory H2 database that creates its own schema:
+
+[source,yaml]
+----
+datasources:
+  default:
+    url: jdbc:h2:mem:books;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    schema-generate: CREATE_DROP
+    dialect: H2
+----
+
+That is all a test needs: start an `ApplicationContext` with those properties, inject the
+repository, and call it. Nothing about testing is Scala-specific.
+
+NOTE: The types in this chapter live in `test-suite-scala-data`, are compiled by this
+repository's build with the plugin, and are executed by its tests against exactly that
+configuration — saving rows, deriving queries, counting in SQL. The module also compiles a
+Java repository of the same shape with Micronaut Data's own annotation processor, and what the
+two generate is compared; that comparison is how the Scala path was made to match.

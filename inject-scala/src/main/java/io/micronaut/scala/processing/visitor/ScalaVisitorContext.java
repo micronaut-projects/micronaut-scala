@@ -45,13 +45,15 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * Visitor context for Scala compiler plugin processing.
@@ -68,13 +70,35 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
     private final ExpressionCompilationContextFactory expressionCompilationContextFactory = new DefaultExpressionCompilationContextFactory(this);
     private final Map<String, ScalaClassData> sourceClasses = new LinkedHashMap<>();
     private final Map<String, ScalaClassElement> sourceElements = new LinkedHashMap<>();
+    /**
+     * Scala classes the compiler read from the classpath, once modelled. Keyed by name like the
+     * source elements, and for the same reason: an element is identity, and the same type
+     * reached twice has to be the same element.
+     */
+    private final Map<String, Optional<ScalaClassElement>> classpathElements = new HashMap<>();
+    /**
+     * One element per package. Every class in a package has to answer {@code getPackage()}
+     * with the same element, or an annotation added to one class's package is invisible from
+     * the next class in it -- and from a second call on the same class.
+     */
+    private final Map<String, ScalaPackageElement> packageElements = new LinkedHashMap<>();
     private final IdentityHashMap<Object, MutableAnnotationMetadata> elementAnnotationMetadata = new IdentityHashMap<>();
     private final List<AbstractBeanDefinitionBuilder> beanDefinitionBuilders = new ArrayList<>();
     private final Map<String, String> options;
-    private final Consumer<String> infoReporter;
-    private final Consumer<String> warningReporter;
-    private final Consumer<String> errorReporter;
+    private final Function<String, ScalaAnnotationTypeData> annotationTypeResolver;
+    private final Function<String, ScalaClassData> classpathClassResolver;
+    private final BiConsumer<String, Object> infoReporter;
+    private final BiConsumer<String, Object> warningReporter;
+    private final BiConsumer<String, Object> errorReporter;
     private final ClassLoader classLoader;
+    // Only ever used to reach the two-argument getAnnotationType, whose resolutions are
+    // cached in a registry shared by every metadata instance.
+    private final MutableAnnotationMetadata annotationTypeRegistrar = new MutableAnnotationMetadata();
+    // Keyed by the native compiler object each element carries, because that is the only
+    // identity shared between the extracted model and the elements built from it. Doc
+    // comments live in the compiler's own side table rather than on the trees, so they
+    // cannot ride along inside the extracted data the way annotations do.
+    private final Map<Object, String> documentation;
     private TypeElementVisitor.VisitorKind visitorKind = TypeElementVisitor.VisitorKind.ISOLATING;
 
     public ScalaVisitorContext(
@@ -82,12 +106,18 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         Collection<ScalaClassData> sourceClasses,
         Collection<File> classpath,
         Map<String, String> options,
-        Consumer<String> infoReporter,
-        Consumer<String> warningReporter,
-        Consumer<String> errorReporter) {
+        Function<String, ScalaAnnotationTypeData> annotationTypeResolver,
+        Function<String, ScalaClassData> classpathClassResolver,
+        Map<Object, String> documentation,
+        BiConsumer<String, Object> infoReporter,
+        BiConsumer<String, Object> warningReporter,
+        BiConsumer<String, Object> errorReporter) {
+        this.documentation = documentation == null ? Map.of() : documentation;
         this.outputDirectory = outputDirectory;
         this.outputVisitor = new DirectoryClassWriterOutputVisitor(outputDirectory);
         this.options = options == null ? Collections.emptyMap() : Map.copyOf(options);
+        this.annotationTypeResolver = annotationTypeResolver;
+        this.classpathClassResolver = classpathClassResolver == null ? name -> null : classpathClassResolver;
         this.infoReporter = infoReporter;
         this.warningReporter = warningReporter;
         this.errorReporter = errorReporter;
@@ -119,12 +149,57 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         }
     }
 
+    /**
+     * The raw documentation comment written on the given native element, if it has one.
+     *
+     * @param nativeType The native compiler object, as an element reports it
+     * @return The raw comment, delimiters included
+     */
+    Optional<String> documentation(@Nullable Object nativeType) {
+        return nativeType == null ? Optional.empty() : Optional.ofNullable(documentation.get(nativeType));
+    }
+
+    /**
+     * Makes an annotation type loadable by name for anything that asks the metadata for it.
+     *
+     * <p>{@code AnnotationMetadata.getAnnotationType(String)} resolves through the classloader of
+     * the metadata implementation, which here is the plugin jar: it bundles Micronaut, and
+     * nothing else. Every annotation an application actually uses -- {@code @Get},
+     * {@code @Controller}, its own -- lives on the compilation classpath instead, which the
+     * plugin's own classloader cannot see. Java has no such split, because its processor path
+     * carries the annotations alongside the processor, so a visitor written against the Element
+     * API works there and silently does nothing here: {@code getAnnotationTypeByStereotype}
+     * returns empty, and micronaut-openapi took that to mean the method was not an endpoint,
+     * generating a specification with no paths at all.</p>
+     *
+     * <p>The two-argument form takes the classloader to use and caches what it resolves in the
+     * shared registry the no-argument form reads, so resolving each annotation once against the
+     * compilation classpath is what makes it findable afterwards, whichever classloader the
+     * caller's own lookup would have used.</p>
+     *
+     * @param annotationName The annotation type name
+     */
+    void makeAnnotationTypeResolvable(String annotationName) {
+        annotationTypeRegistrar.getAnnotationType(annotationName, getProcessingClassLoader());
+    }
+
     Optional<ScalaClassElement> sourceClassElement(String name) {
         ScalaClassData classData = sourceClasses.get(name);
         if (classData == null) {
             return Optional.empty();
         }
         return Optional.of(sourceElements.computeIfAbsent(name, ignored -> elementFactory.newClassElementForData(classData)));
+    }
+
+    /**
+     * Resolves an annotation type by name through the compiler, for annotations that were
+     * never seen on an extracted element.
+     *
+     * @param annotationName The annotation type name
+     * @return The annotation type, or {@code null} if it is not an annotation on this classpath
+     */
+    @Nullable ScalaAnnotationTypeData resolveAnnotationType(String annotationName) {
+        return annotationTypeResolver.apply(annotationName);
     }
 
     Optional<ScalaClassData> sourceClassData(String name) {
@@ -232,6 +307,16 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         return annotationMetadataBuilder;
     }
 
+    /**
+     * The element for a package, created once and shared.
+     *
+     * @param packageName The package name
+     * @return The package element
+     */
+    ScalaPackageElement packageElement(String packageName) {
+        return packageElements.computeIfAbsent(packageName, name -> new ScalaPackageElement(name, this));
+    }
+
     MutableAnnotationMetadata annotationMetadata(ScalaAnnotatedElementData element) {
         return elementAnnotationMetadata.computeIfAbsent(
             annotationMetadataKey(element),
@@ -245,6 +330,21 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         }
         Object nativeType = element.nativeType();
         return nativeType == null ? element : nativeType;
+    }
+
+    /**
+     * Loads a type named by an annotation member from the compilation classpath.
+     *
+     * @param name The type name
+     * @return The type, or {@code null} when the classpath does not have it
+     */
+    @Nullable
+    Class<?> loadClasspathType(String name) {
+        try {
+            return Class.forName(name, false, classLoader);
+        } catch (ClassNotFoundException | LinkageError e) {
+            return null;
+        }
     }
 
     ClassLoader getProcessingClassLoader() {
@@ -285,11 +385,34 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         if (sourceElement.isPresent()) {
             return Optional.of(sourceElement.get());
         }
-        try {
-            return Optional.of(new ScalaLoadedClassElement(Class.forName(name, false, classLoader), this));
-        } catch (ClassNotFoundException e) {
-            return Optional.empty();
-        }
+        // A class the compiler does not know is not a class this compilation can see, which is
+        // the answer javac's model gives as well. Loading it through a classloader instead
+        // described it by Java's conventions, which a Scala class does not follow, and could
+        // find a stale class file in the output directory from an earlier build.
+        return classpathClassElement(name).map(ClassElement.class::cast);
+    }
+
+    /**
+     * A Scala class the compiler read from the classpath, modelled from the compiler's own
+     * symbols rather than by loading it.
+     *
+     * <p>This is what an incremental build presents: the type was compiled in an earlier run
+     * and the compiler reads it from TASTy, into the same symbols a source type has. Loading the
+     * class instead described a case class by the tuple accessors it compiles to, because a
+     * Scala accessor follows no convention a classloader can recognise. Only a Scala class
+     * arrives this way; a Java one is still loaded, since the compiler's reading of a Java
+     * class file skips the annotations on its parameters.</p>
+     *
+     * @param name The class name
+     * @return The element, or empty when the compiler does not know the name as a Scala class
+     */
+    Optional<ScalaClassElement> classpathClassElement(String name) {
+        return classpathElements.computeIfAbsent(name, ignored -> {
+            ScalaClassData classData = classpathClassResolver.apply(name);
+            return classData == null
+                ? Optional.empty()
+                : Optional.of(elementFactory.newClassElementForData(classData));
+        });
     }
 
     @Override
@@ -313,23 +436,50 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
 
     @Override
     public void info(String message, @Nullable Element element) {
-        infoReporter.accept(message);
+        infoReporter.accept(message, nativeTypeOf(element));
     }
 
     @Override
     public void info(String message) {
-        infoReporter.accept(message);
+        infoReporter.accept(message, null);
     }
 
     @Override
     public void fail(String message, @Nullable Element element) {
-        errorReporter.accept(message);
+        errorReporter.accept(message, nativeTypeOf(element));
         throw new ProcessingException(element, message);
+    }
+
+    /**
+     * Reports an error without throwing.
+     *
+     * <p>{@link #fail} reports *and* throws, which is right when the caller wants to abandon
+     * the unit of work it is in. It is wrong inside a loop over visitors or classes: the
+     * throw escapes the loop, so one failing visitor silently prevents every later visitor
+     * from running, and the caller that catches the `ProcessingException` then reports the
+     * same message a second time. inject-java's reporting does not throw.</p>
+     *
+     * @param message The message
+     * @param element The element the error concerns, if any
+     */
+    void reportError(String message, @Nullable Element element) {
+        errorReporter.accept(message, nativeTypeOf(element));
     }
 
     @Override
     public void warn(String message, @Nullable Element element) {
-        warningReporter.accept(message);
+        warningReporter.accept(message, nativeTypeOf(element));
+    }
+
+    /**
+     * The element the caller blamed, reduced to the dotty tree or symbol it was built
+     * from. That is the only thing the compiler can turn back into a source position.
+     *
+     * @param element The element, or {@code null}
+     * @return The native type, or {@code null} when there is nothing to point at
+     */
+    private static @Nullable Object nativeTypeOf(@Nullable Element element) {
+        return element == null ? null : element.getNativeType();
     }
 
     @Override

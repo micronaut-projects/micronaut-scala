@@ -120,6 +120,7 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
         );
     }
 
+    @SuppressWarnings("checkstyle:ParameterNumber")
     private ScalaPropertyElement(
         ScalaClassElement declaringType,
         @Nullable ScalaPropertyData propertyData,
@@ -276,6 +277,29 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
             return field.getAnnotationMetadata();
         }
         return getAnnotationMetadata();
+    }
+
+    /**
+     * The documentation of this property, falling back to the declaring class's tag for it.
+     *
+     * <p>The inherited resolution looks where a property is documented in Java: on the field,
+     * or on the accessor. A Scala class parameter is documented in neither -- {@code class
+     * Engine(val manufacturer: String)} declares a property whose description belongs to the
+     * class, as a {@code @param} tag, because that is the only place the author can write it.
+     * Without this a configuration class written the ordinary Scala way produces metadata with
+     * no descriptions at all, which is the whole reason to read documentation.</p>
+     *
+     * @param parse Whether the comment may be parsed
+     * @return The documentation for this property, if anything documents it
+     */
+    @Override
+    public Optional<String> getDocumentation(boolean parse) {
+        Optional<String> declared = PropertyElement.super.getDocumentation(parse);
+        if (declared.isPresent() || !parse) {
+            return declared;
+        }
+        return declaringType.rawDocumentation()
+            .flatMap(raw -> ScalaDocParser.parameter(raw, getName()));
     }
 
     @Override
