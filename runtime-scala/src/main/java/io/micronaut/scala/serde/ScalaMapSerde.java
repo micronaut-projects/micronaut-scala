@@ -38,15 +38,21 @@ import scala.jdk.javaapi.CollectionConverters;
  * <p>Reading a map back is {@link ScalaCollectionDeserializer}'s job, for the reason given
  * there.</p>
  *
+ * <p>Declared over any key type, as {@code java.util.Map}'s own serializer is: a serializer is
+ * matched by the type arguments it declares, so one written for {@code Map[String, V]} did not
+ * answer for a member declared {@code Map[Int, V]}, and that member fell back to being
+ * introspected as a bean. A JSON key is a string whatever the map's key is; the key is written
+ * as its string form, and the deserializer converts it back to the declared key type.</p>
+ *
+ * @param <K> The key type
  * @param <V> The value type
  */
 @Singleton
 @Requires(classes = Serializer.class)
-public final class ScalaMapSerde<V> implements CustomizableSerializer<Map<String, V>> {
+public final class ScalaMapSerde<K, V> implements CustomizableSerializer<Map<K, V>> {
 
     @Override
-    public Serializer<Map<String, V>> createSpecific(EncoderContext context,
-                                                     Argument<? extends Map<String, V>> type)
+    public Serializer<Map<K, V>> createSpecific(EncoderContext context, Argument<? extends Map<K, V>> type)
         throws SerdeException {
         Argument<Object> valueType = valueType(type);
         Serializer<Object> valueSerializer = context.findSerializer(valueType)
@@ -54,9 +60,9 @@ public final class ScalaMapSerde<V> implements CustomizableSerializer<Map<String
         return (encoder, encoderContext, mapType, value) -> {
             Encoder object = encoder.encodeObject(mapType);
             if (value != null) {
-                java.util.Iterator<Tuple2<String, V>> entries = CollectionConverters.asJava(value.iterator());
+                java.util.Iterator<Tuple2<K, V>> entries = CollectionConverters.asJava(value.iterator());
                 while (entries.hasNext()) {
-                    Tuple2<String, V> entry = entries.next();
+                    Tuple2<K, V> entry = entries.next();
                     object.encodeKey(String.valueOf(entry._1()));
                     valueSerializer.serialize(object, encoderContext, valueType, entry._2());
                 }
