@@ -3027,7 +3027,19 @@ private object ScalaModelExtractor:
     if hasFlag(symbol, Flags.Final) then modifiers.add(ElementModifier.FINAL)
     if symbol.isClass && hasFlag(symbol, Flags.Sealed) then modifiers.add(ElementModifier.SEALED)
     if hasFlag(symbol, Flags.JavaStatic) || hasFlag(symbol, Flags.Module) then modifiers.add(ElementModifier.STATIC)
-    if !modifiers.contains(ElementModifier.PRIVATE) && !modifiers.contains(ElementModifier.PROTECTED) then modifiers.add(ElementModifier.PUBLIC)
+    // The compiler keeps a Java member's `transient`, `volatile` and `native` as annotations
+    // of its own; Scala spells the same three the same way.
+    if symbol.hasAnnotation(Symbols.defn.TransientAnnot) then modifiers.add(ElementModifier.TRANSIENT)
+    if symbol.hasAnnotation(Symbols.defn.VolatileAnnot) then modifiers.add(ElementModifier.VOLATILE)
+    if symbol.hasAnnotation(Symbols.defn.NativeAnnot) then modifiers.add(ElementModifier.NATIVE)
+    // A Java member that is neither public nor private is package-private, which the compiler
+    // records as a private-within of its package; Micronaut reads package-private as none of
+    // the three, and generates reflective access for one it cannot call from another package.
+    // Reporting it public made the generated code call it directly. A Scala `private[pkg]`
+    // compiles to a public member and stays one.
+    val packagePrivate = hasFlag(symbol, Flags.JavaDefined) && symbol.privateWithin != Symbols.NoSymbol
+    if !modifiers.contains(ElementModifier.PRIVATE) && !modifiers.contains(ElementModifier.PROTECTED) && !packagePrivate then
+      modifiers.add(ElementModifier.PUBLIC)
     modifiers.asScala.toSet
 
   private def isAnnotationSymbol(symbol: Symbol)(using Context): Boolean =

@@ -311,6 +311,32 @@ class Uses:
         body.genericReturnType.name == 'io.micronaut.http.MutableHttpRequest'
     }
 
+    void "a Java member's visibility is what the class file says"() {
+        given: '''the compiler records package-private as a private-within of the package rather
+                  than a flag, so reading only the flags reported such a member public -- and
+                  Micronaut then generated a direct call to a method it cannot reach from another
+                  package, where the Java model would have had it use reflection'''
+        ClassElement base = buildClassElement('shelf.Uses', '''
+package shelf
+
+class Uses:
+  def base: io.micronaut.scala.processing.fixtures.ExternalBase = null
+''').getEnclosedElements(ElementQuery.ALL_METHODS.named('base'))[0].returnType
+
+        expect:
+        method(base, 'basePublic').isPublic()
+        method(base, 'baseProtected').isProtected()
+        !method(base, 'basePackagePrivate').isPublic()
+        !method(base, 'basePackagePrivate').isProtected()
+        !method(base, 'basePackagePrivate').isPrivate()
+        method(base, 'basePackagePrivate').isPackagePrivate()
+
+        and: 'fields likewise, the private one included'
+        base.getEnclosedElements(ElementQuery.ALL_FIELDS.named('secret'))[0].isPrivate()
+        base.getEnclosedElements(ElementQuery.ALL_FIELDS.named('shared'))[0].isProtected()
+        base.getEnclosedElements(ElementQuery.ALL_FIELDS.named('open'))[0].isPublic()
+    }
+
     void "a Java class's static members, enum constants and varargs are what the class file says"() {
         given:
         ClassElement uses = buildClassElement('shelf.Uses', '''

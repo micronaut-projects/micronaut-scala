@@ -84,12 +84,23 @@ abstract class AbstractScalaElement implements Element {
 
     @Override
     public boolean isPublic() {
-        return modifiers.contains(ElementModifier.PUBLIC) || (!isPrivate() && !isProtected());
+        // The modifier alone. A Scala member that is neither private nor protected is given
+        // PUBLIC when its modifiers are read, because that is what it compiles to; a Java
+        // member with none of the three is package-private, and reading that as public made
+        // Micronaut call from another package what it cannot reach there.
+        return modifiers.contains(ElementModifier.PUBLIC);
     }
 
     @Override
     public boolean isPrivate() {
         return modifiers.contains(ElementModifier.PRIVATE);
+    }
+
+    @Override
+    public boolean isPackagePrivate() {
+        // Core's default answers false for every element; the Java module overrides it, and
+        // Micronaut's writers ask it to decide between a direct call and reflection.
+        return !isPublic() && !isProtected() && !isPrivate();
     }
 
     @Override
