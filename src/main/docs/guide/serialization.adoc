@@ -14,14 +14,13 @@ Where Scala needs help is its own vocabulary. `Option` is a presence JSON has no
 Scala collections are not `java.util` collections, and a Scala 3 `enum` is not a
 `java.lang.Enum` — so none of the serializers Micronaut Serialization ships apply to any of
 them. `micronaut-runtime-scala` supplies those, so it must be on the runtime classpath for any of
-this chapter to hold — see <<quickStart, Quick Start>> — alongside the serialization
-implementation itself:
+this chapter to hold:
 
-[source,kotlin]
-----
-implementation("io.micronaut.serde:micronaut-serde-jackson")
-runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
-----
+dependency:io.micronaut.scala:micronaut-runtime-scala[scope="runtimeOnly"]
+
+alongside the serialization implementation itself:
+
+dependency:io.micronaut.serde:micronaut-serde-jackson[]
 
 == A worked example
 

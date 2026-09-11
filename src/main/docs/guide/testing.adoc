@@ -7,12 +7,10 @@ application does not need it to test its own beans.
 
 == Adding it
 
-[source,kotlin]
-----
-dependencies {
-    testImplementation("io.micronaut.scala:micronaut-inject-scala-test_3.9.0:1.0.0-SNAPSHOT")
-}
-----
+dependency:io.micronaut.scala:micronaut-inject-scala-test_3.9.0[scope="testImplementation"]
+
+The artifact name carries the full Scala compiler version, as every compiler-side
+artifact here does — see <<dependencies, Artifacts and Dependencies>>.
 
 == Required system properties
 
