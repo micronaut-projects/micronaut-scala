@@ -235,6 +235,50 @@ trait BookRepository extends CrudRepository[Book, java.lang.Long]:
         ]
     }
 
+    void "a generic Scala supertype compiled earlier has its type variables bound by the subtype"() {
+        given: '''the same shape as CrudRepository, in Scala: a library trait parameterized by
+                  the entity, and a repository in the next module binding it'''
+        Path library = precompile(
+            ScalaCompiler.SourceFile.scala('library.Book', BOOK),
+            ScalaCompiler.SourceFile.scala('library.Repo', '''
+package library
+
+trait Repo[E, ID]:
+  def find(id: ID): E
+  def all: List[E]
+  def save[S <: E](entity: S): S
+''')
+        )
+        ClassElement repository = buildClassElementAgainst([library], 'shelf.BookRepo', '''
+package shelf
+
+import library.{Book, Repo}
+
+trait BookRepo extends Repo[Book, java.lang.Long]:
+  def findByTitle(title: String): List[Book]
+''')
+
+        expect:
+        method(repository, 'find').genericReturnType.name == 'library.Book'
+        method(repository, 'find').parameters[0].genericType.name == 'java.lang.Long'
+        method(repository, 'all').genericReturnType.firstTypeArgument.get().name == 'library.Book'
+        method(repository, 'save').genericReturnType.name == 'library.Book'
+
+        and: 'and the same when the trait is reached as a plain parameterized reference'
+        ClassElement reference = buildClassElementAgainst([library], 'shelf.Uses', '''
+package shelf
+
+class Uses:
+  def repo: library.Repo[library.Book, java.lang.Long] = null
+''').getEnclosedElements(ElementQuery.ALL_METHODS.named('repo'))[0].genericReturnType
+        method(reference, 'find').genericReturnType.name == 'library.Book'
+        method(reference, 'all').genericReturnType.firstTypeArgument.get().name == 'library.Book'
+    }
+
+    private static def method(ClassElement element, String name) {
+        element.getEnclosedElements(ElementQuery.ALL_METHODS.named(name))[0]
+    }
+
     private ClassElement returnTypeOfBook(Path library) {
         ClassElement shelf = buildClassElementAgainst([library], 'shelf.Shelf', SHELF)
         shelf.getEnclosedElements(ElementQuery.ALL_METHODS.named('book'))[0].returnType

@@ -16,6 +16,7 @@
 package io.micronaut.scala.processing.visitor;
 
 import io.micronaut.inject.ast.ElementModifier;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.List;
@@ -48,13 +49,13 @@ public record ScalaClassData(
     boolean interfaceType,
     boolean enumType,
     List<ScalaTypeData> typeParameters,
-    ScalaTypeData superType,
+    @Nullable ScalaTypeData superType,
     List<ScalaTypeData> interfaces,
     List<ScalaMethodData> constructors,
     List<ScalaMethodData> methods,
     List<ScalaFieldData> fields,
     List<ScalaPropertyData> properties,
-    String enclosingTypeName,
+    @Nullable String enclosingTypeName,
     Object nativeType
 ) implements ScalaAnnotatedElementData {
 

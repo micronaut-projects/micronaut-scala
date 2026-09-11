@@ -81,6 +81,11 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
     private final ScalaTypeData typeData;
     private final @Nullable ScalaClassData classData;
     private final ScalaElementFactory elementFactory;
+    /**
+     * {@link #classData} with this element's type arguments applied to every member and
+     * supertype; see {@link #data()}.
+     */
+    private @Nullable ScalaClassData substitutedData;
     /** Resolved once by {@link #declaration()}; {@code this} means "no declaration to find". */
     private @Nullable ClassElement declarationElement;
 
@@ -144,6 +149,35 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         this.typeData = typeData;
         this.classData = null;
         this.elementFactory = visitorContext.getElementFactory();
+    }
+
+    /**
+     * The class data as seen through this element's parameterisation.
+     *
+     * <p>An element for {@code Repo[Book, Long]} is the declaration of {@code Repo[E, ID]}
+     * with {@code E} and {@code ID} bound, and everything it reports has to say so: the
+     * methods, the fields, the properties, the constructors, and the supertypes its own walk
+     * continues into. The declaration's data is substituted once, by the names of its type
+     * parameters, and every member is produced from the result. Before this the bindings were
+     * applied only while walking a <em>source</em> supertype from the subtype's side; a
+     * classpath supertype bound the same way answered with its variables still in place, so a
+     * repository extending a library trait reported {@code find} as returning {@code E}.</p>
+     *
+     * @return The data, substituted where this element is parameterised
+     */
+    private @Nullable ScalaClassData data() {
+        if (classData == null || typeData.typeArguments().isEmpty()) {
+            return classData;
+        }
+        if (substitutedData == null) {
+            substitutedData = substitute(classData, typeData.typeArguments());
+        }
+        return substitutedData;
+    }
+
+    /** {@link #data()} where the caller has already established this element declares a class. */
+    private ScalaClassData requiredData() {
+        return Objects.requireNonNull(data(), "Not a class declaration: " + getName());
     }
 
     @Override
@@ -253,7 +287,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
 
     @Override
     public Optional<ClassElement> getSuperType() {
-        ScalaTypeData superType = classData == null ? typeData.superType() : classData.superType();
+        ScalaTypeData superType = classData == null ? typeData.superType() : requiredData().superType();
         if (superType == null) {
             return Optional.empty();
         }
@@ -262,7 +296,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
 
     @Override
     public Collection<ClassElement> getInterfaces() {
-        Collection<ScalaTypeData> interfaces = classData == null ? typeData.interfaces() : classData.interfaces();
+        Collection<ScalaTypeData> interfaces = classData == null ? typeData.interfaces() : requiredData().interfaces();
         return interfaces.stream()
             .map(elementFactory::newClassElement)
             .toList();
@@ -337,7 +371,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             ClassElement declaration = declaration();
             return declaration == null ? List.of() : declaration.getSyntheticBeanProperties();
         }
-        return classData.properties().stream()
+        return requiredData().properties().stream()
             .map(this::propertyElement)
             .map(PropertyElement.class::cast)
             .toList();
@@ -373,7 +407,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             );
         }
         Map<String, PropertyElement> properties = new LinkedHashMap<>();
-        classData.properties().stream()
+        requiredData().properties().stream()
             .map(this::propertyElement)
             .filter(propertyElement -> matches(propertyElementQuery, propertyElement))
             .forEach(propertyElement -> properties.put(propertyElement.getName(), propertyElement));
@@ -407,7 +441,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         PropertyElementQuery propertyElementQuery,
         Map<String, PropertyElement> properties,
         Set<String> visited) {
-        ScalaClassData data = classData;
+        ScalaClassData data = data();
         if (data == null) {
             return;
         }
@@ -479,7 +513,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
      * @return The declared property names
      */
     private Set<String> nativePropertyNames() {
-        ScalaClassData data = classData;
+        ScalaClassData data = data();
         if (data == null || data.properties().isEmpty()) {
             return Collections.emptySet();
         }
@@ -551,7 +585,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             ClassElement declaration = declaration();
             return declaration == null ? Optional.empty() : declaration.getPrimaryConstructor();
         }
-        if (classData.constructors().isEmpty()) {
+        if (requiredData().constructors().isEmpty()) {
             return Optional.empty();
         }
         if (classData.enumType()) {
@@ -564,7 +598,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         if (staticCreator.isPresent()) {
             return staticCreator;
         }
-        List<ScalaMethodData> constructors = classData.constructors();
+        List<ScalaMethodData> constructors = requiredData().constructors();
         if (constructors.size() == 1) {
             return Optional.of(constructorElement(constructors.get(0)));
         }
@@ -595,7 +629,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         if (classData == null) {
             return Optional.empty();
         }
-        return classData.methods().stream()
+        return requiredData().methods().stream()
             .filter(method -> "valueOf".equals(method.name()))
             .filter(method -> method.modifiers().contains(ElementModifier.STATIC))
             .filter(method -> !method.modifiers().contains(ElementModifier.PRIVATE))
@@ -624,7 +658,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         if (classData.enumType()) {
             return Optional.empty();
         }
-        return classData.constructors().stream()
+        return requiredData().constructors().stream()
             .filter(constructor -> constructor.parameters().isEmpty())
             .findFirst()
             .map(this::constructorElement);
@@ -691,27 +725,27 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         List<Element> elements = new ArrayList<>();
         Class<T> elementType = result.getElementType();
         if (elementType == ConstructorElement.class) {
-            classData.constructors().forEach(constructor -> elements.add(constructorElement(constructor)));
+            requiredData().constructors().forEach(constructor -> elements.add(constructorElement(constructor)));
             if (!result.isOnlyDeclared()) {
                 // A constructor is not inherited by the JVM, but `ElementQuery.CONSTRUCTORS` is
                 // defined as `of(ConstructorElement).onlyDeclared()`, so the query without that
                 // flag is asking for the superclass's too. Ignoring the flag made the two
                 // queries answer identically.
-                collectInheritedConstructors(classData.superType(), elements, new HashSet<>(Set.of(getName())));
+                collectInheritedConstructors(requiredData().superType(), elements, new HashSet<>(Set.of(getName())));
             }
         } else if (elementType == MethodElement.class) {
             addMethodElements(result, elements);
         } else if (elementType == FieldElement.class) {
             addFieldElements(result, elements);
         } else if (elementType == PropertyElement.class) {
-            classData.properties().forEach(property -> elements.add(propertyElement(property)));
+            requiredData().properties().forEach(property -> elements.add(propertyElement(property)));
         } else if (elementType == ClassElement.class) {
             elements.addAll(visitorContext.sourceClassElementsEnclosedBy(getName()));
         } else if (elementType == MemberElement.class) {
             addFieldElements(result, elements);
             addMethodElements(result, elements);
             if (!result.isExcludePropertyElements()) {
-                classData.properties().forEach(property -> elements.add(propertyElement(property)));
+                requiredData().properties().forEach(property -> elements.add(propertyElement(property)));
             }
         }
         return elements.stream()
@@ -721,7 +755,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
     }
 
     private <T extends Element> void addMethodElements(ElementQuery.Result<T> result, List<Element> elements) {
-        ScalaClassData data = classData;
+        ScalaClassData data = data();
         if (data == null) {
             return;
         }
@@ -958,7 +992,8 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             method.annotations(),
             method.modifiers(),
             method.constructor(),
-            method.nativeType()
+            method.nativeType(),
+            method.overriddenMethods()
         );
     }
 
@@ -967,7 +1002,10 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             parameter.name(),
             Objects.requireNonNull(substitute(parameter.type(), substitutions)),
             parameter.annotations(),
-            parameter.nativeType()
+            parameter.defaultAccessor(),
+            parameter.defaultAccessorStatic(),
+            parameter.nativeType(),
+            parameter.overriddenParameters()
         );
     }
 
@@ -1047,7 +1085,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
     }
 
     private <T extends Element> void addFieldElements(ElementQuery.Result<T> result, List<Element> elements) {
-        ScalaClassData data = classData;
+        ScalaClassData data = data();
         if (data == null) {
             return;
         }
@@ -1112,9 +1150,10 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
     }
 
     /**
-     * A copy of the supertype's data with its field types resolved against the
-     * parameterisation the subtype used, so an inherited {@code @Inject} field of type
-     * {@code T} reports the concrete type at the injection point.
+     * A copy of a class's data with its type variables resolved against a parameterisation,
+     * so an inherited {@code @Inject} field of type {@code T} reports the concrete type at the
+     * injection point, and a method inherited from {@code Repo[E, ID]} through
+     * {@code Repo[Book, Long]} returns {@code Book}.
      */
     private ScalaClassData substitute(ScalaClassData data, Map<String, ScalaTypeData> substitutions) {
         if (substitutions.isEmpty()) {
@@ -1128,12 +1167,12 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             data.interfaceType(),
             data.enumType(),
             data.typeParameters(),
-            data.superType(),
-            data.interfaces(),
-            data.constructors(),
-            data.methods(),
+            substitute(data.superType(), substitutions),
+            substitute(data.interfaces(), substitutions),
+            data.constructors().stream().map(constructor -> substitute(constructor, substitutions)).toList(),
+            data.methods().stream().map(method -> substitute(method, substitutions)).toList(),
             data.fields().stream().map(field -> substitute(field, substitutions)).toList(),
-            data.properties(),
+            data.properties().stream().map(property -> substitute(property, substitutions)).toList(),
             data.enclosingTypeName(),
             data.nativeType()
         );
