@@ -29,4 +29,7 @@ trait BookRepository extends CrudRepository[Book, Long]:
 
   /** Counts the books longer than the given length. */
   def countByPagesGreaterThan(pages: Int): Long
+
+  /** Finds one book with the given title, if there is one. */
+  def findFirstByTitle(title: String): java.util.Optional[Book]
 // end::clazz[]

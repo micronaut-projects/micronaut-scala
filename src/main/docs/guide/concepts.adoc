@@ -242,16 +242,10 @@ example is worth reading closely:
 * `CrudRepository[Book, Long]` is a parameterized type from a library, and what
   its inherited methods return is what Data generates against.
 
-Both types in the example are Scala's own. `Long` is the primitive, so an unsaved
-entity has `id` of `0` rather than `null` — the same convention a Java entity
-with a `long` identifier uses. And `findByTitle` returns `scala.List`, not
-`java.util.List`: Micronaut Data asks whether the declared return type stands in
-for an `Iterable`, and for a Scala collection `micronaut-runtime-scala`'s
-converters make that true. Write the Scala type and you get the Scala type back.
-
-The dependencies are the ordinary Micronaut Data ones — `micronaut-data-jdbc`
-and a driver at runtime, `micronaut-data-processor` on the compile classpath so
-its compile-time work runs.
+Both types in the example are Scala's own — `Long` for the identifier, `scala.List`
+for the result — and both need a word of explanation, as does the one thing that
+has to be wired differently from a Java build. <<data, Micronaut Data>> is the
+chapter for that.
 
 NOTE: These examples live in `test-suite-scala` and `test-suite-scala-data`, are
 compiled by this repository's build with the plugin, and are executed by its

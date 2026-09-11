@@ -16,6 +16,8 @@ documentation:
   title: Documentation in Generated Files
 serialization:
   title: Serialization
+data:
+  title: Micronaut Data
 dependencies:
   title: Artifacts and Dependencies
 testing:

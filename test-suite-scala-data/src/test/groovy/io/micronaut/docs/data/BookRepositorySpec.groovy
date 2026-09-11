@@ -97,6 +97,19 @@ class BookRepositorySpec extends Specification {
         scala.jdk.javaapi.CollectionConverters.asJavaCollection(found).every { it.title() == 'Dune' }
     }
 
+    void "a query that may find nothing is declared as java.util.Optional"() {
+        given: '''not scala.Option. Micronaut Data recognises the single-result containers from
+                  a list of its own -- Optional, the reactive types -- and rejects any other
+                  return type at compile time as incompatible with the entity, so this is the
+                  declaration a Scala author has to make'''
+        repository.save(new Book(0L, 'Dune', 412))
+
+        expect:
+        repository.findFirstByTitle('Dune').present
+        repository.findFirstByTitle('Dune').get().pages() == 412
+        repository.findFirstByTitle('Emma').empty
+    }
+
     void "derives a projection from a method name"() {
         given:
         repository.saveAll([new Book(0L, 'Dune', 412), new Book(0L, 'Emma', 474), new Book(0L, 'Ulysses', 730)])
