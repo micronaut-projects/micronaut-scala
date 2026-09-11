@@ -62,6 +62,7 @@ public final class ScalaCollectionConverterRegistrar implements TypeConverterReg
         conversionService.addConverter(Collection.class, scala.collection.mutable.Seq.class, this::toMutableSeq);
         conversionService.addConverter(Collection.class, scala.collection.mutable.Set.class, this::toMutableSet);
         conversionService.addConverter(Collection.class, scala.collection.mutable.Buffer.class, this::toMutableBuffer);
+        conversionService.addConverter(Collection.class, scala.collection.mutable.IndexedSeq.class, this::toMutableIndexedSeq);
         conversionService.addConverter(Collection.class, scala.collection.immutable.Iterable.class, this::toImmutableIterable);
         conversionService.addConverter(Collection.class, scala.collection.immutable.Seq.class, this::toImmutableSeq);
         conversionService.addConverter(Collection.class, scala.collection.immutable.Set.class, this::toImmutableSet);
@@ -151,6 +152,20 @@ public final class ScalaCollectionConverterRegistrar implements TypeConverterReg
                                                                              Class<scala.collection.mutable.Buffer> targetType,
                                                                              ConversionContext context) {
         return asMutableBuffer(collection, context).map(buffer -> buffer);
+    }
+
+    /**
+     * {@code mutable.IndexedSeq} had no converter of its own, so a member declared as one was
+     * converted by the nearest registered ancestor -- {@code mutable.Seq}, which produces a
+     * {@code Buffer}, or {@code collection.IndexedSeq}, which produces an immutable
+     * {@code Vector} -- and neither is assignable to it, so the generated constructor's cast
+     * failed. An {@code ArrayBuffer} is both a buffer and an indexed sequence.
+     */
+    private Optional<scala.collection.mutable.IndexedSeq> toMutableIndexedSeq(Collection<?> collection,
+                                                                                    Class<scala.collection.mutable.IndexedSeq> targetType,
+                                                                                    ConversionContext context) {
+        return convertElements(collection, context)
+            .map(elements -> scala.collection.mutable.ArrayBuffer.from(CollectionConverters.asScala(elements)));
     }
 
     private Optional<scala.collection.immutable.List> toImmutableList(Collection<?> collection,

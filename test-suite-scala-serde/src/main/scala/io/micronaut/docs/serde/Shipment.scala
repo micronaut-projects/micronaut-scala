@@ -30,8 +30,18 @@ case class Shipment(
     weights: Vector[Int],
     destinations: Set[String],
     contents: Map[String, Int],
-    tracking: Map[String, Line]
+    tracking: Map[String, Line],
+    slots: scala.collection.mutable.IndexedSeq[Int],
+    byNumber: Map[Int, String]
 )
+
+/** An enum that displays itself differently from how it is declared. */
+enum Priority:
+  case Low, High
+  override def toString: String = s"priority:${productPrefix.toLowerCase}"
+
+@Serdeable
+case class Ticket(priority: Priority)
 
 /** An option holding something that itself needs an introspection, which is a different path
   * through the option serde than an option holding a string.

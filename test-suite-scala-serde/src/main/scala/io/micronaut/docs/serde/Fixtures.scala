@@ -38,8 +38,12 @@ object Fixtures:
     weights = Vector(3, 4),
     destinations = Set("Edinburgh"),
     contents = Map("sku-1" -> 2),
-    tracking = Map("p1" -> Line("sku-1", 2))
+    tracking = Map("p1" -> Line("sku-1", 2)),
+    slots = scala.collection.mutable.ArrayBuffer(7, 8),
+    byNumber = Map(1 -> "first", 2 -> "second")
   )
+
+  def ticket: Ticket = Ticket(Priority.High)
 
   def delivery: Delivery = Delivery("A-1", Some(Line("sku-1", 2)))
 

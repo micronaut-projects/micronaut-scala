@@ -197,6 +197,40 @@ class ScalaSerializationSpec extends Specification {
         mapper.readValue(json, Order).labels().apply('priority') == 'high'
     }
 
+    void "a map keyed by something other than a string is still a JSON object"() {
+        when: '''a JSON key is a string whatever the map's key is. The serializer is declared over
+                 any key type for the same reason java.util.Map's is: a serializer is matched by
+                 the type arguments it declares, and one written for Map[String, V] did not
+                 answer for Map[Int, V]'''
+        def json = mapper.writeValueAsString(Fixtures.shipment())
+
+        then:
+        json.contains('"byNumber":{"1":"first","2":"second"}')
+
+        and: 'and the keys come back as the declared type'
+        def read = mapper.readValue(json, Shipment).byNumber()
+        read.apply(1) == 'first'
+        read.keySet().head().getClass() == Integer
+
+        and: 'a mutable IndexedSeq is read back as one, which needs a converter of its own'
+        def slots = mapper.readValue(json, Shipment).slots()
+        slots instanceof scala.collection.mutable.IndexedSeq
+        slots.apply(0) == 7
+    }
+
+    void "an enum is written by its case name even when it displays itself differently"() {
+        when: '''toString is what an enum shows people; the case name is what its valueOf accepts.
+                 Writing toString made a serializer reject its own output'''
+        def json = mapper.writeValueAsString(Fixtures.ticket())
+
+        then:
+        json == '{"priority":"High"}'
+        Fixtures.ticket().priority().toString() == 'priority:high'
+
+        and:
+        mapper.readValue(json, Ticket) == Fixtures.ticket()
+    }
+
     void "a map holding an introspected type round-trips too"() {
         when:
         def json = mapper.writeValueAsString(Fixtures.shipment())
