@@ -1025,7 +1025,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
                 .map(parameter -> substitute(parameter, substitutions))
                 .toList(),
             method.typeParameters().stream()
-                .map(typeParameter -> substitute(typeParameter, substitutions))
+                .map(typeParameter -> substituteBounds(typeParameter, substitutions))
                 .toList(),
             method.thrownTypes().stream()
                 .map(thrownType -> substitute(thrownType, substitutions))
@@ -1036,6 +1036,40 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             method.nativeType(),
             method.overriddenMethods(),
             substitute(method.resolvedReturnType(), substitutions)
+        );
+    }
+
+    /**
+     * A method's own type variable with the parameterisation applied to its bounds only. The
+     * variable stays a variable -- it is what the method declares -- but `S <: E` is bounded by
+     * `String` once `E` is, and is named for it, as the erasure the JVM sees.
+     */
+    private ScalaTypeData substituteBounds(ScalaTypeData typeParameter, Map<String, ScalaTypeData> substitutions) {
+        if (!typeParameter.genericPlaceholder() || substitutions.isEmpty()) {
+            return typeParameter;
+        }
+        List<ScalaTypeData> bounds = substitute(typeParameter.bounds(), substitutions);
+        if (bounds.equals(typeParameter.bounds())) {
+            return typeParameter;
+        }
+        ScalaTypeData primary = bounds.isEmpty() ? typeParameter : bounds.get(0);
+        return new ScalaTypeData(
+            primary.name(),
+            typeParameter.primitive(),
+            typeParameter.arrayDimensions(),
+            primary.interfaceType(),
+            primary.typeArguments(),
+            primary.superType(),
+            primary.interfaces(),
+            typeParameter.annotations(),
+            typeParameter.annotatedTypeUse(),
+            typeParameter.nativeType(),
+            true,
+            typeParameter.variableName(),
+            bounds,
+            typeParameter.wildcard(),
+            typeParameter.upperBounds(),
+            typeParameter.lowerBounds()
         );
     }
 
