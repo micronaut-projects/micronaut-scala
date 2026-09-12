@@ -23,6 +23,8 @@ import dotty.tools.dotc.core.Constants
 import dotty.tools.dotc.core.Contexts.Context
 import dotty.tools.dotc.core.Flags
 import dotty.tools.dotc.core.NameKinds
+import dotty.tools.dotc.core.NameOps.*
+import dotty.tools.dotc.core.Names
 import dotty.tools.dotc.core.Comments
 import dotty.tools.dotc.core.Symbols
 import dotty.tools.dotc.core.Symbols.ClassSymbol
@@ -3209,10 +3211,34 @@ private object ScalaModelExtractor:
    */
   private def classSymbolForName(name: String)(using Context): Symbol =
     val nested =
-      if name.contains('$') && !name.endsWith("$") then Symbols.getClassIfDefined(name.replace('$', '.'))
+      if name.contains('$') && !name.endsWith("$") then
+        // A member class of its owner, whatever kind of owner: `Outer$Inner` is found in
+        // `Outer`, `Outer$Companion$Deep` in the module class found in `Outer`. A static path
+        // lookup reaches only static members, and for an inner class of a class it produced a
+        // symbol with no type at all.
+        val split = name.lastIndexOf('$')
+        val owner = classSymbolForName(name.substring(0, split))
+        if !isUsableClass(owner) then Symbols.NoSymbol else memberClass(owner, name.substring(split + 1))
       else Symbols.NoSymbol
-    if nested != Symbols.NoSymbol then nested
-    else Symbols.getClassIfDefined(name)
+    if isUsableClass(nested) then nested
+    else
+      val exact = Symbols.getClassIfDefined(name)
+      if isUsableClass(exact) then exact else Symbols.NoSymbol
+
+  private def isUsableClass(symbol: Symbol)(using Context): Boolean =
+    symbol != Symbols.NoSymbol && symbol.isClass && symbol.info.exists
+
+  /** The class named `member` declared in `owner`, on the class itself or on its module class. */
+  private def memberClass(owner: Symbol, member: String)(using Context): Symbol =
+    val typeName =
+      if member.endsWith("$") then Names.typeName(member.stripSuffix("$")).moduleClassName
+      else Names.typeName(member)
+    val own = owner.info.decls.lookup(typeName)
+    if isUsableClass(own) then own
+    else if owner.companionModule != Symbols.NoSymbol then
+      val fromModule = owner.companionModule.moduleClass.info.decls.lookup(typeName)
+      if isUsableClass(fromModule) then fromModule else Symbols.NoSymbol
+    else Symbols.NoSymbol
 
   private def skipClass(symbol: Symbol)(using Context, AnnotationDefaults): Boolean =
     symbol == Symbols.NoSymbol ||
