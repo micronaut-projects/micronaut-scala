@@ -1002,7 +1002,7 @@ private object ScalaModelExtractor:
       if constructor then "<init>" else methodName(symbol.name.toString),
       returnType,
       parameters.asJava,
-      (if constructor then Nil else typeParameters(symbol)).asJava,
+      (if constructor then Nil else methodTypeParameters(symbol)).asJava,
       thrownTypes(symbol).asJava,
       methodAnnotations.asJava,
       modifiers(symbol).asJava,
@@ -1010,6 +1010,13 @@ private object ScalaModelExtractor:
       symbol,
       (if constructor then Nil else overriddenMethods(symbol)).asJava
     )
+
+  /**
+   * The type parameters a method declares. `Symbol.typeParams` answers for a class, not for a
+   * method; a method's are the type symbols in its own parameter lists.
+   */
+  private def methodTypeParameters(symbol: Symbol)(using Context, AnnotationDefaults): List[ScalaTypeData] =
+    symbol.paramSymss.flatten.filter(_.isType).map(typeParameterData(_, Nil, explicitNullable = false, Map.empty))
 
   /** A field read from its symbol; see [[methodData(Symbol, Boolean, Symbol)]]. */
   private def fieldData(symbol: Symbol, fromClassFile: List[ScalaAnnotationData] = Nil)(using Context, AnnotationDefaults): ScalaFieldData =

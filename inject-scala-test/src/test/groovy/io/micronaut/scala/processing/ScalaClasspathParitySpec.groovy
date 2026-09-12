@@ -155,8 +155,8 @@ object Registry:
 
     private static final List<String> TYPES = [
         'library.Book', 'library.Plain', 'library.Base', 'library.Colour', 'library.Planet', 'library.UserId',
-        'library.Shape', 'library.Circle', 'library.Outer', 'library.Outer$Inner', 'library.Annotated',
-        'library.Settings',
+        'library.Generics', 'library.Shape', 'library.Circle', 'library.Outer', 'library.Outer$Inner',
+        'library.Annotated', 'library.Settings',
     ]
 
     @Unroll
