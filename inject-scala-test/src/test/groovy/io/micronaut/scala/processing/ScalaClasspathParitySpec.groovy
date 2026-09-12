@@ -174,6 +174,19 @@ object Registry:
         type << TYPES
     }
 
+    void "an unannotated companion object is a bare reference on both sides"() {
+        given: '''an unannotated object is not modelled from source -- it declares no beans --
+                  and the classpath model has to say the same, or every library's companion
+                  object would arrive as a @Factory @Singleton'''
+        def fromSource = sourceElements()['library.Plain$']
+        def fromClasspath = classpathElements()['library.Plain$']
+
+        expect:
+        fromSource != null
+        fromClasspath != null
+        differences(describe(fromSource), describe(fromClasspath), '') == []
+    }
+
     /** Where two descriptions disagree, as `path: source=... classpath=...` lines. */
     static List<String> differences(Object source, Object classpath, String path) {
         if (source instanceof Map && classpath instanceof Map) {
@@ -199,7 +212,7 @@ object Registry:
             // parameterised reference is compared with a parameterised reference and a module
             // class or inner class -- which are not visited on their own -- can be reached at all.
             def uses = elements.find { it.name == 'probe.Uses' }
-            sourceElementsCache = TYPES.collectEntries { [(it): probeType(uses, it)] }
+            sourceElementsCache = (TYPES + ['library.Plain$']).collectEntries { [(it): probeType(uses, it)] }
         }
         sourceElementsCache
     }
@@ -208,7 +221,7 @@ object Registry:
         if (classpathElementsCache == null) {
             Path library = precompile(*librarySources())
             def uses = buildClassElementAgainst([library], 'probe.Uses', usesSource())
-            classpathElementsCache = TYPES.collectEntries { [(it): probeType(uses, it)] }
+            classpathElementsCache = (TYPES + ['library.Plain$']).collectEntries { [(it): probeType(uses, it)] }
         }
         classpathElementsCache
     }
@@ -219,6 +232,7 @@ object Registry:
 
     /** How each type is written where it is used, when that differs from its binary name. */
     private static final Map<String, String> SPELLING = [
+        'library.Plain$'     : 'library.Plain.type',
         'library.Registry$'  : 'library.Registry.type',
         'library.Outer$Inner': 'library.Outer#Inner',
         'library.Generics'   : 'library.Generics[String]',
@@ -228,14 +242,14 @@ object Registry:
 
     /** One method per type, so every type is reachable as a return type from one probe class. */
     private static String usesSource() {
-        def methods = TYPES.withIndex().collect { name, i ->
+        def methods = (TYPES + ['library.Plain$']).withIndex().collect { name, i ->
             "  def t${i}: ${SPELLING.getOrDefault(name, name)} = ???"
         }
         "package probe\n\nclass Uses:\n${methods.join('\n')}\n"
     }
 
     private static ClassElement probeType(ClassElement uses, String name) {
-        def index = TYPES.indexOf(name)
+        def index = (TYPES + ['library.Plain$']).indexOf(name)
         uses.getEnclosedElements(ElementQuery.ALL_METHODS.named("t${index}".toString()))[0].returnType
     }
 

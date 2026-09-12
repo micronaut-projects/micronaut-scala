@@ -888,6 +888,11 @@ private object ScalaModelExtractor:
     val symbol = classSymbolForName(name)
     if symbol == Symbols.NoSymbol || !symbol.isClass || hasFlag(symbol, Flags.PackageClass) then
       null
+    // The same rule as for a source class: an annotated `object` is a bean factory, and an
+    // unannotated one -- the ordinary companion of a class -- is not modelled at all. Modelling
+    // it made every library's companion object a `@Factory` `@Singleton`.
+    else if hasFlag(symbol, Flags.ModuleClass) && annotations(symbol).isEmpty then
+      null
     else
       classpathClassData(symbol.asClass)
 
