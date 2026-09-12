@@ -218,6 +218,36 @@ class Uses:
         level.getEnclosedElements(ElementQuery.CONSTRUCTORS)[0].parameters*.type*.name == ['int']
     }
 
+    void "a Java record has its components on the constructor, the accessors and the fields"() {
+        given:
+        ClassElement point = fixture('point')
+
+        expect:
+        point.isRecord()
+        point.isFinal()
+
+        and: 'the canonical constructor, with the component annotations javac copies to it'
+        def constructor = point.primaryConstructor.get()
+        constructor.parameters*.type*.name == ['int', 'java.lang.String']
+        tagged(constructor.parameters[0]).intValue('weight').get() == 3
+        constructor.parameters[1].isNullable()
+        !constructor.parameters[0].isNullable()
+
+        and: 'the accessors'
+        method(point, 'x').returnType.name == 'int'
+        method(point, 'label').isNullable()
+        tagged(method(point, 'x')).intValue('weight').get() == 3
+
+        and: 'the private final fields'
+        field(point, 'x').isPrivate()
+        field(point, 'x').isFinal()
+        field(point, 'label').isNullable()
+
+        and: 'and the properties Micronaut reads from them'
+        point.beanProperties*.name.sort() == ['label', 'x']
+        point.beanProperties.find { it.name == 'label' }.isNullable()
+    }
+
     private static AnnotationValue<?> tagged(io.micronaut.inject.ast.Element element) {
         def annotation = element.getAnnotation(TAGGED)
         assert annotation != null: "${element} has no @ExternalTagged, only ${element.annotationNames}"

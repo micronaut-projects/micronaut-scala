@@ -190,6 +190,17 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         return classData != null && classData.enumType();
     }
 
+    /**
+     * A Java record, which is the one kind of class that extends {@code java.lang.Record}:
+     * the language allows no other, and the compiler recognises a record the same way. Scala
+     * has no records, so this is only ever true of a class read from the classpath.
+     */
+    @Override
+    public boolean isRecord() {
+        return classData != null && classData.superType() != null
+            && "java.lang.Record".equals(classData.superType().name());
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public MutableAnnotationMetadataDelegate<AnnotationMetadata> getTypeAnnotationMetadata() {
@@ -398,6 +409,24 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             ClassElement declaration = declaration();
             return declaration == null ? List.of() : declaration.getBeanProperties(propertyElementQuery);
         }
+        if (isRecord()) {
+            // As the Java model does: a record's properties are its components, read through
+            // their accessors, and nothing else the record declares. The components are not in
+            // the model -- the compiler does not read the `Record` attribute -- but a record's
+            // instance fields are exactly its components, and an accessor is the zero-argument
+            // method named for one.
+            return AstBeanPropertiesUtils.resolveBeanProperties(
+                propertyElementQuery,
+                this,
+                this::recordAccessors,
+                this::recordFields,
+                true,
+                Collections.emptySet(),
+                methodElement -> Optional.empty(),
+                methodElement -> Optional.empty(),
+                this::mapBeanPropertyElement
+            );
+        }
         Set<BeanProperties.AccessKind> accessKinds = propertyElementQuery.getAccessKinds();
         if (accessKinds.contains(BeanProperties.AccessKind.FIELD) && !accessKinds.contains(BeanProperties.AccessKind.METHOD)) {
             return AstBeanPropertiesUtils.resolveBeanProperties(
@@ -430,6 +459,17 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             this::mapBeanPropertyElement
         ).forEach(propertyElement -> properties.putIfAbsent(propertyElement.getName(), propertyElement));
         return List.copyOf(properties.values());
+    }
+
+    private List<FieldElement> recordFields() {
+        return getEnclosedElements(ElementQuery.ALL_FIELDS.onlyDeclared().onlyInstance());
+    }
+
+    private List<MethodElement> recordAccessors() {
+        Set<String> components = recordFields().stream().map(FieldElement::getName).collect(Collectors.toSet());
+        return getEnclosedElements(ElementQuery.ALL_METHODS.onlyDeclared().onlyInstance()).stream()
+            .filter(method -> method.getParameters().length == 0 && components.contains(method.getName()))
+            .toList();
     }
 
     /**
