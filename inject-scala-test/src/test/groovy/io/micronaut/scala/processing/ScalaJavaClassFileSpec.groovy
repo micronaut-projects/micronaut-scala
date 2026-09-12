@@ -127,6 +127,32 @@ class Uses:
         field(shapes, 'label').constantValue == null
     }
 
+    void "an inner class's constructor has the parameters written, with their annotations"() {
+        given: '''the class file's constructor takes the enclosing instance first, and its
+                  parameter annotations count from the first written parameter, so the
+                  alignment has to allow for the parameter the compiler does not show'''
+        ClassElement inner = fixture('inner')
+        ClassElement nested = fixture('nested')
+
+        expect:
+        inner.isInner()
+        inner.name == 'io.micronaut.scala.processing.fixtures.ExternalJavaShapes$Inner'
+        def constructor = inner.primaryConstructor.get()
+        constructor.parameters*.type*.name == ['int', 'java.lang.String']
+        tagged(constructor.parameters[0]).intValue('weight').get() == 8
+        constructor.parameters[1].isNullable()
+        !constructor.parameters[0].isNullable()
+
+        and: '''a static nested class is nested too -- `isInner` is javac's `isNested` -- and
+                 both are nested types of the outer class'''
+        nested.isInner()
+        method(nested, 'greeting').returnType.name == 'java.lang.String'
+        fixture('shapes').getEnclosedElements(ElementQuery.of(ClassElement))*.name.sort() == [
+            'io.micronaut.scala.processing.fixtures.ExternalJavaShapes$Inner',
+            'io.micronaut.scala.processing.fixtures.ExternalJavaShapes$Nested',
+        ]
+    }
+
     void "a Java enum has its constants, its own members and its constructor"() {
         given:
         ClassElement level = fixture('level')

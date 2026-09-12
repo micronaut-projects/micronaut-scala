@@ -109,7 +109,11 @@ public final class ClassFileParameterAnnotations {
      * <p>A constructor of an inner class takes the enclosing instance as a leading parameter
      * the language does not show, and the compiler's model of it does not either. When no
      * constructor matches as declared, one whose descriptor has exactly that one extra leading
-     * parameter is accepted and its first parameter ignored.</p>
+     * parameter is accepted. Whether its annotation attributes count that parameter is the
+     * compiler's choice -- the JVM specification leaves it open, javac counts the parameters
+     * written in the source and other compilers have counted the descriptor's -- so each
+     * attribute is read by what it holds: one entry per written parameter is aligned as it
+     * is, and one that runs past the written parameters is aligned from the descriptor.</p>
      *
      * @param name The method name, {@code <init>} for a constructor
      * @param erasedParameterTypes The erased parameter types, as binary names
@@ -131,14 +135,19 @@ public final class ClassFileParameterAnnotations {
             parameters.add(new ArrayList<>());
         }
         for (List<List<java.lang.classfile.Annotation>> perParameter : parameterAnnotations(match)) {
-            for (int i = skip; i < perParameter.size() && i - skip < parameters.size(); i++) {
+            int attributeSkip = perParameter.size() > parameters.size() ? skip : 0;
+            for (int i = attributeSkip; i < perParameter.size() && i - attributeSkip < parameters.size(); i++) {
                 for (java.lang.classfile.Annotation annotation : perParameter.get(i)) {
-                    parameters.get(i - skip).add(annotation(annotation));
+                    parameters.get(i - attributeSkip).add(annotation(annotation));
                 }
             }
         }
+        List<TypeAnnotation> typeAnnotations = typeAnnotations(match);
+        int typeAnnotationSkip = typeAnnotations.stream()
+            .anyMatch(typeAnnotation -> typeAnnotation.targetInfo() instanceof TypeAnnotation.FormalParameterTarget target
+                && target.formalParameterIndex() >= parameters.size()) ? skip : 0;
         List<Annotation> returnType = new ArrayList<>();
-        for (TypeAnnotation typeAnnotation : typeAnnotations(match)) {
+        for (TypeAnnotation typeAnnotation : typeAnnotations) {
             // Only an annotation on the type itself. One on a type argument -- `List<@Nullable
             // String>` -- has a non-empty path and describes the argument, not the parameter.
             if (!typeAnnotation.targetPath().isEmpty()) {
@@ -146,7 +155,7 @@ public final class ClassFileParameterAnnotations {
             }
             switch (typeAnnotation.targetInfo()) {
                 case TypeAnnotation.FormalParameterTarget target -> {
-                    int index = target.formalParameterIndex() - skip;
+                    int index = target.formalParameterIndex() - typeAnnotationSkip;
                     if (index >= 0 && index < parameters.size()) {
                         parameters.get(index).add(annotation(typeAnnotation.annotation()));
                     }
