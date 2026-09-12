@@ -46,6 +46,7 @@ import dotty.tools.dotc.report
 import dotty.tools.dotc.transform.Pickler
 import dotty.tools.dotc.transform.PostTyper
 import dotty.tools.dotc.util.NoSourcePosition
+import dotty.tools.dotc.util.Property
 import dotty.tools.dotc.util.SrcPos
 import io.micronaut.inject.ast.ElementModifier
 import io.micronaut.inject.processing.ProcessingException
@@ -214,6 +215,21 @@ final class MicronautScalaCompilerPluginImpl:
 private final class ProcessingState(options: JMap[String, String]):
 
   private var engine: ScalaProcessingEngine | Null = null
+  /**
+   * The model caches; see [[ScalaModelExtractor.ExtractionCaches]]. One instance for the life
+   * of the plugin, cleared at each run: the engine captures a context carrying it, and a run
+   * must not leave that context pointing at another run's symbols.
+   */
+  private val caches = ScalaModelExtractor.ExtractionCaches()
+
+  /** Forgets what an earlier run modelled: symbols and types do not survive a run. */
+  def startRun(): Unit =
+    caches.clear()
+
+  /** The given context with this plugin's caches attached, for extraction and for the visitors. */
+  def cachingContext(using ctx: Context): Context =
+    if ctx.property(ScalaModelExtractor.ExtractionCachesKey).isDefined then ctx
+    else ctx.fresh.setProperty(ScalaModelExtractor.ExtractionCachesKey, caches)
   private var outputReported = false
   private var outputUsable = true
 
@@ -285,8 +301,8 @@ private final class ProcessingState(options: JMap[String, String]):
         outputDirectory,
         classpath.asJava,
         options,
-        name => ScalaModelExtractor.resolveAnnotationType(name),
-        name => ScalaModelExtractor.resolveClasspathClass(name),
+        name => ScalaModelExtractor.resolveAnnotationType(name)(using cachingContext),
+        name => ScalaModelExtractor.resolveClasspathClass(name)(using cachingContext),
         (message, element) => report.inform(message, sourcePosition(element)),
         (message, element) => report.warning(message, sourcePosition(element)),
         (message, element) => report.error(message, sourcePosition(element))
@@ -368,7 +384,7 @@ private final class TypeVisitorPhase(state: ProcessingState) extends PluginPhase
   private var annotationDefaults: Map[String, Map[String, Object]] = Map.empty
 
   override def run(using Context): Unit =
-    val classes = ScalaModelExtractor.collect(summon[Context].compilationUnit, annotationDefaults)
+    val classes = ScalaModelExtractor.collect(summon[Context].compilationUnit, annotationDefaults)(using state.cachingContext)
     state.addClasses(classes)
     state.addDocumentation(ScalaModelExtractor.documentation(classes))
 
@@ -379,8 +395,9 @@ private final class TypeVisitorPhase(state: ProcessingState) extends PluginPhase
   // the visitor pass actually wants.
   override def runOn(units: List[CompilationUnit])(using Context): List[CompilationUnit] =
     annotationDefaults = ScalaModelExtractor.annotationDefaults(units)
+    state.startRun()
     val processed = super.runOn(units)
-    state.processTypeVisitors()
+    state.processTypeVisitors()(using state.cachingContext)
     processed
 
 private object BeanDefinitionPhase:
@@ -474,7 +491,60 @@ private object ScalaModelExtractor:
       annotationType: Boolean
   )
 
-  private case class AnnotationDefaults(values: Map[String, Map[String, Object]])
+  /**
+   * What one compilation run has already modelled, so that it is modelled once.
+   *
+   * Everything here is keyed by a compiler object -- a symbol or a type -- whose identity is
+   * stable for the run and meaningless after it, which is why a set of caches lives for one
+   * run and is dropped with it. Without them the model was rebuilt at every use: the type of
+   * `String` with its whole supertype chain for every parameter declared as one, the type of
+   * `@Singleton` with its members and meta-annotations for every class carrying it, and the
+   * binary name of a symbol -- a string the compiler assembles on each request -- more often
+   * than anything else. Together those were most of the plugin's compile time.
+   */
+  final class ExtractionCaches:
+    val classNames = java.util.IdentityHashMap[Symbol, String]()
+    val annotationTypes = java.util.IdentityHashMap[Symbol, ScalaAnnotationTypeData | Null]()
+    val topLevelTypes = java.util.IdentityHashMap[Type, ScalaTypeData]()
+    val nestedTypes = java.util.IdentityHashMap[Type, ScalaTypeData]()
+    val classFiles = java.util.IdentityHashMap[Symbol, Option[ClassFileParameterAnnotations]]()
+    /**
+     * The names a recursion guard has cut short, in order. A guard fires when a type's
+     * hierarchy reaches a name already being modelled. If that name was introduced *inside*
+     * the type being cached -- `String` reaching `Comparable[String]` -- the cut happens the
+     * same way from a fresh start and the result is the type. If it came from outside --
+     * `Comparable[String]` reached while `String` itself was already on the stack -- the
+     * result is the shortened form and must not be remembered as the type.
+     */
+    val cuts: scala.collection.mutable.ArrayBuffer[String] = scala.collection.mutable.ArrayBuffer()
+
+    def clear(): Unit =
+      classNames.clear()
+      annotationTypes.clear()
+      topLevelTypes.clear()
+      nestedTypes.clear()
+      classFiles.clear()
+      cuts.clear()
+
+  /**
+   * Where a run's caches travel: as a property of the compiler context the extraction runs
+   * under. The harvest of annotation defaults runs under a context without it, so nothing
+   * modelled before the defaults were known is remembered.
+   */
+  val ExtractionCachesKey: Property.Key[ExtractionCaches] = Property.Key()
+
+  private def caches(using Context): Option[ExtractionCaches] = summon[Context].property(ExtractionCachesKey)
+
+  /**
+   * The context of one extraction: the annotation defaults harvested from this compilation's
+   * trees, and the run's caches, looked up once here rather than from the compiler context at
+   * every type -- a property lookup walks a list, and this is the hottest path there is.
+   */
+  private case class AnnotationDefaults(values: Map[String, Map[String, Object]], runCaches: Option[ExtractionCaches])
+
+  private object AnnotationDefaults:
+    def apply(values: Map[String, Map[String, Object]])(using Context): AnnotationDefaults =
+      AnnotationDefaults(values, caches)
 
   private case class TypeHierarchy(superType: ScalaTypeData | Null, interfaces: List[ScalaTypeData])
 
@@ -1539,11 +1609,17 @@ private object ScalaModelExtractor:
    * by the compiler's own Java parser, which reads parameter annotations itself.
    */
   private def classFileParameterAnnotations(symbol: ClassSymbol)(using Context): Option[ClassFileParameterAnnotations] =
-    val file = symbol.associatedFile
-    if file == null || !file.hasExtension("class") then None
-    else
-      try Some(ClassFileParameterAnnotations.parse(file.toByteArray))
-      catch case _: Exception => None
+    caches match
+      case Some(run) if run.classFiles.containsKey(symbol) => run.classFiles.get(symbol)
+      case other =>
+        val file = symbol.associatedFile
+        val parsed =
+          if file == null || !file.hasExtension("class") then None
+          else
+            try Some(ClassFileParameterAnnotations.parse(file.toByteArray))
+            catch case _: Exception => None
+        other.foreach(_.classFiles.put(symbol, parsed))
+        parsed
 
   /** A method's annotations read from its class file, in the model's terms. */
   private final case class ClassFileAnnotations(returnType: List[ScalaAnnotationData], parameters: List[List[ScalaAnnotationData]])
@@ -2009,10 +2085,46 @@ private object ScalaModelExtractor:
     typeData(tpt, Set.empty)
 
   private def typeData(tpt: tpd.Tree, visitedTypes: Set[String])(using Context, AnnotationDefaults, TypePosition): ScalaTypeData =
-    val (baseTree, treeAnnotations) = annotatedTree(tpt)
-    typeData(baseTree.tpe, visitedTypes, Map.empty, Some(baseTree), treeAnnotations)
+    // The tree matters only for the annotations written on it -- `String @Nullable`, or on a
+    // type argument inside it. A tree with none anywhere says exactly what its type says, and
+    // the type form is the one the run caches; every `x: String` went through here and rebuilt
+    // the hierarchy of String.
+    if !containsAnnotatedType(tpt) then
+      typeData(tpt.tpe, visitedTypes)
+    else
+      val (baseTree, treeAnnotations) = annotatedTree(tpt)
+      typeData(baseTree.tpe, visitedTypes, Map.empty, Some(baseTree), treeAnnotations)
 
   private def typeData(
+      tpe: Type,
+      visitedTypes: Set[String],
+      visitedTypeParameters: Map[String, Int],
+      typeTree: Option[tpd.Tree],
+      extraAnnotations: List[Annotation]
+  )(using Context, AnnotationDefaults, TypePosition): ScalaTypeData =
+    // Cached per run for the plain form -- no type tree, no annotations from outside -- which
+    // is the one every parameter, return type, parent and type argument goes through, and the
+    // same `Type` object comes back for the same type because the compiler interns them. The
+    // result depends on the position, since a value class unboxes at the top level and not
+    // inside a type argument, so each position has its own map. A result is remembered unless
+    // a recursion guard cut it short on a name that was already being modelled when this type
+    // was reached: that form depends on where the walk started, and only the form a fresh
+    // start produces is the type.
+    summon[AnnotationDefaults].runCaches match
+      case Some(run) if typeTree.isEmpty && extraAnnotations.isEmpty =>
+        val table = if summon[TypePosition] == TypePosition.TopLevel then run.topLevelTypes else run.nestedTypes
+        val cached = table.get(tpe)
+        if cached != null then cached
+        else
+          val mark = run.cuts.length
+          val computed = uncachedTypeData(tpe, visitedTypes, visitedTypeParameters, typeTree, extraAnnotations)
+          val cutFromOutside = run.cuts.view.slice(mark, run.cuts.length)
+            .exists(name => visitedTypes.contains(name) || visitedTypeParameters.contains(name))
+          if !cutFromOutside then table.put(tpe, computed)
+          computed
+      case _ => uncachedTypeData(tpe, visitedTypes, visitedTypeParameters, typeTree, extraAnnotations)
+
+  private def uncachedTypeData(
       tpe: Type,
       visitedTypes: Set[String],
       visitedTypeParameters: Map[String, Int],
@@ -2053,6 +2165,15 @@ private object ScalaModelExtractor:
           val interfaceType = isInterfaceSymbol(symbol)
           val hierarchy = typeHierarchy(widened, symbol, name, primitiveName.isDefined, visitedTypes, visitedTypeParameters)
           ScalaTypeData(name, primitiveName.isDefined, 0, interfaceType, java.util.Map.of(), hierarchy.superType, hierarchy.interfaces.asJava, typeAnnotationsFor(symbol, allTypeAnnotations, explicitNullable).asJava, allTypeAnnotations.nonEmpty || explicitNullable, symbol)
+
+  private def containsAnnotatedType(tree: tpd.Tree)(using Context): Boolean =
+    tree match
+      case _: tpd.Annotated => true
+      case _ =>
+        val accumulator = new tpd.TreeAccumulator[Boolean]:
+          def apply(found: Boolean, subtree: tpd.Tree)(using Context): Boolean =
+            found || subtree.isInstanceOf[tpd.Annotated] || foldOver(false, subtree)
+        accumulator.foldOver(false, tree)
 
   private def annotatedTree(tpt: tpd.Tree)(using Context): (tpd.Tree, List[Annotation]) =
     val typeAnnotations = ListBuffer.empty[Annotation]
@@ -2217,6 +2338,7 @@ private object ScalaModelExtractor:
    */
   private def typeHierarchy(tpe: Type, symbol: Symbol, name: String, primitive: Boolean, visitedTypes: Set[String], visitedTypeParameters: Map[String, Int])(using Context, AnnotationDefaults): TypeHierarchy =
     if primitive || symbol == Symbols.NoSymbol || visitedTypes.contains(name) then
+      if visitedTypes.contains(name) then summon[AnnotationDefaults].runCaches.foreach(_.cuts += name)
       TypeHierarchy(null, Nil)
     else
       val nextVisited = visitedTypes + name
@@ -2317,6 +2439,7 @@ private object ScalaModelExtractor:
     val visitedCount = visitedTypeParameters.getOrElse(symbolId, 0)
     val bounds =
       if visitedCount >= 2 then
+        summon[AnnotationDefaults].runCaches.foreach(_.cuts += symbolId)
         List(objectTypeData)
       else
         typeParameterBounds(symbol, visitedTypeParameters.updated(symbolId, visitedCount + 1))
@@ -2448,6 +2571,19 @@ private object ScalaModelExtractor:
       tpe.show
 
   private def className(symbol: Symbol)(using Context): String =
+    // Called more than anything else here, and the compiler assembles the binary name anew each
+    // time. Cached where a run's caches are in scope; the few callers without them pay the price.
+    caches match
+      case Some(run) =>
+        val cached = run.classNames.get(symbol)
+        if cached != null then cached
+        else
+          val computed = uncachedClassName(symbol)
+          run.classNames.put(symbol, computed)
+          computed
+      case None => uncachedClassName(symbol)
+
+  private def uncachedClassName(symbol: Symbol)(using Context): String =
     if hasFlag(symbol, Flags.JavaDefined) &&
         symbol.owner != Symbols.NoSymbol &&
         symbol.owner.isClass &&
@@ -2524,6 +2660,18 @@ private object ScalaModelExtractor:
     if isAnnotationSymbol(symbol) then annotationTypeData(symbol, Set.empty) else null
 
   private def annotationTypeData(symbol: Symbol, visitedAnnotationTypes: Set[String])(using Context, AnnotationDefaults): ScalaAnnotationTypeData | Null =
+    // Cached per run, for the complete build only: a type reached while already inside itself
+    // is cut short, and that shorter form must not be what every later use sees.
+    summon[AnnotationDefaults].runCaches match
+      case Some(run) if visitedAnnotationTypes.isEmpty =>
+        if run.annotationTypes.containsKey(symbol) then run.annotationTypes.get(symbol)
+        else
+          val built = uncachedAnnotationTypeData(symbol, visitedAnnotationTypes)
+          run.annotationTypes.put(symbol, built)
+          built
+      case _ => uncachedAnnotationTypeData(symbol, visitedAnnotationTypes)
+
+  private def uncachedAnnotationTypeData(symbol: Symbol, visitedAnnotationTypes: Set[String])(using Context, AnnotationDefaults): ScalaAnnotationTypeData | Null =
     if !isAnnotationSymbol(symbol) then
       null
     else

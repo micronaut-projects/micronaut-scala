@@ -859,15 +859,50 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
         return null;
     }
 
+    /**
+     * An annotation type as a mirror; equal by name. Core keys maps on these, and record
+     * equality would hash the whole type model on every lookup.
+     *
+     * @param name The annotation type name
+     * @param nativeType The extracted type, when it has been resolved
+     */
     private record AnnotationTypeElement(String name, @Nullable ScalaAnnotationTypeData nativeType) {
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof AnnotationTypeElement that && name.equals(that.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return name.hashCode();
+        }
     }
 
+    /**
+     * An annotation member as a mirror; equal by its type's name and its own.
+     *
+     * @param annotationType The annotation type declaring the member
+     * @param nativeMember The extracted member
+     */
     private record AnnotationMemberElement(
         AnnotationTypeElement annotationType,
         @Nullable ScalaAnnotationMemberData nativeMember) {
 
         String name() {
             return Objects.requireNonNull(nativeMember).name();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof AnnotationMemberElement that
+                && annotationType.equals(that.annotationType)
+                && name().equals(that.name());
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * annotationType.hashCode() + name().hashCode();
         }
     }
 

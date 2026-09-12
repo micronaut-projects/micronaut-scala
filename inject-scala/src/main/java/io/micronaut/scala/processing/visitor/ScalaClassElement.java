@@ -241,10 +241,16 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         if (getName().equals(type) || Object.class.getName().equals(type)) {
             return true;
         }
-        if (classData != null) {
-            return isAssignableTo(type, classData, Set.of(getName()));
-        }
-        return isTypeAssignable(type, typeData, Set.of());
+        // Whether one class is assignable to another is a fact about the two types for the
+        // run, not about the element asking, and Micronaut asks it constantly -- for every
+        // container check, every injection point, every bean type. Walking the hierarchy each
+        // time was the single largest cost in the plugin once the model itself was cached.
+        return visitorContext.assignable(getName(), type, () -> {
+            if (classData != null) {
+                return isAssignableTo(type, classData, Set.of(getName()));
+            }
+            return isTypeAssignable(type, typeData, Set.of());
+        });
     }
 
     private boolean isAssignableTo(String type, ScalaClassData data, Set<String> visited) {

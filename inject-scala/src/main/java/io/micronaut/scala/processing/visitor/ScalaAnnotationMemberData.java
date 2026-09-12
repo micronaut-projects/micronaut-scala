@@ -48,4 +48,19 @@ public record ScalaAnnotationMemberData(
     public ScalaAnnotationMemberData {
         annotations = annotations == null ? Collections.emptyList() : List.copyOf(annotations);
     }
+
+    /**
+     * A declaration is itself: two are equal only when they are the same object. Record
+     * equality would compare every member, type and annotation beneath, and core keeps these
+     * as keys of a hash map -- so every lookup was hashing the whole model of the class.
+     */
+    @Override
+    public boolean equals(Object other) {
+        return this == other;
+    }
+
+    @Override
+    public int hashCode() {
+        return System.identityHashCode(this);
+    }
 }

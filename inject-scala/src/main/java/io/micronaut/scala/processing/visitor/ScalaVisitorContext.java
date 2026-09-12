@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 /**
@@ -70,6 +71,8 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
     private final ExpressionCompilationContextFactory expressionCompilationContextFactory = new DefaultExpressionCompilationContextFactory(this);
     private final Map<String, ScalaClassData> sourceClasses = new LinkedHashMap<>();
     private final Map<String, ScalaClassElement> sourceElements = new LinkedHashMap<>();
+    /** Assignability by (from, to) class name; see {@link #assignable}. */
+    private final Map<String, Map<String, Boolean>> assignability = new HashMap<>();
     /**
      * Scala classes the compiler read from the classpath, once modelled. Keyed by name like the
      * source elements, and for the same reason: an element is identity, and the same type
@@ -390,6 +393,26 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         // described it by Java's conventions, which a Scala class does not follow, and could
         // find a stale class file in the output directory from an earlier build.
         return classpathClassElement(name).map(ClassElement.class::cast);
+    }
+
+    /**
+     * Whether the class named {@code from} is assignable to the class named {@code to},
+     * computed once per pair for the compilation. The answer is a property of the two types,
+     * and every element for either type would otherwise walk the same hierarchy again.
+     *
+     * @param from The assigning class name
+     * @param to The assigned-to class name
+     * @param compute Walks the hierarchy, the first time the pair is asked about
+     * @return Whether it is assignable
+     */
+    boolean assignable(String from, String to, BooleanSupplier compute) {
+        Map<String, Boolean> targets = assignability.computeIfAbsent(from, ignored -> new HashMap<>());
+        Boolean known = targets.get(to);
+        if (known == null) {
+            known = compute.getAsBoolean();
+            targets.put(to, known);
+        }
+        return known;
     }
 
     /**
