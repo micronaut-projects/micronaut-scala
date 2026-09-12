@@ -2543,7 +2543,11 @@ private object ScalaModelExtractor:
     tpe.widenDealias match
       case andType: AndType =>
         intersectionTypes(andType.tp1) ++ intersectionTypes(andType.tp2)
-      case widened if typeName(widened) == "scala.Any" =>
+      // Only `Any` itself is no bound. Asking for the *class* of the bound erased a bound that
+      // is another type parameter -- `S <: E`, with `E` unbounded -- to its class `Any`, and
+      // `S` was recorded as bounded by `Object`, with no way back to `E` once `E` was bound:
+      // `save[S <: E]` inherited through `Repo[String]` still returned `Object`.
+      case widened if widened.typeSymbol == Symbols.defn.AnyClass =>
         Nil
       case widened =>
         List(widened)
