@@ -126,11 +126,45 @@ val functionalTest = tasks.register<Test>("functionalTest") {
     }
 }
 
+// Compiles representative Scala sources in-process, with and without the plugin, and
+// reports the plugin's share of the compile time along with a profile of where it goes.
+// A separate task because a benchmark wants a quiet machine and several minutes, and
+// its numbers are for reading, not for passing.
+val compilerBenchmark = tasks.register<Test>("compilerBenchmark") {
+    description = "Measures the compile-time overhead of the Scala compiler plugin"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform()
+    filter {
+        includeTestsMatching("*CompilerBenchmark")
+    }
+    outputs.upToDateWhen { false }
+    maxHeapSize = "6g"
+    testLogging {
+        showStandardStreams = true
+    }
+    dependsOn(scalaPluginProject.tasks.named("jar"))
+    doFirst {
+        systemProperty(
+            "micronaut.scala.plugin.jar",
+            scalaPluginProject.tasks.named<Jar>("jar").get().archiveFile.get().asFile.absolutePath
+        )
+        systemProperty("micronaut.scala.test.classpath", sourceSets.test.get().runtimeClasspath.asPath)
+        systemProperty("micronaut.scala.benchmark.examples", rootProject.file("test-suite-scala/src/main/scala").absolutePath)
+        systemProperty("micronaut.scala.benchmark.output", layout.buildDirectory.dir("reports/compiler-benchmark").get().asFile.absolutePath)
+        System.getProperty("micronaut.scala.benchmark.iterations")?.let { systemProperty("micronaut.scala.benchmark.iterations", it) }
+    }
+}
+
 tasks.withType<Test>().configureEach {
-    // The compiler tests and the functional test share a source set, so each excludes the
-    // other's classes rather than running them twice.
+    // The compiler tests, the functional test and the benchmark share a source set, so each
+    // excludes the others' classes rather than running them twice.
     if (name != "functionalTest") {
         filter { excludeTestsMatching("*FunctionalSpec") }
+    }
+    if (name != "compilerBenchmark") {
+        filter { excludeTestsMatching("*CompilerBenchmark") }
     }
 }
 
