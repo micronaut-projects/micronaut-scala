@@ -708,6 +708,9 @@ private object ScalaModelExtractor:
   private val BeanAnnotationName = "io.micronaut.context.annotation.Bean"
   private val ModuleInstanceFieldName = "MODULE$"
 
+  /** The native identity of an object's synthetic instance field; see `moduleClassData`. */
+  private final case class ModuleInstance(module: Symbol)
+
   private def syntheticAnnotation(name: String)(using Context, AnnotationDefaults): ScalaAnnotationData =
     val symbol = classSymbolForName(name)
     val annotationType = if isAnnotationSymbol(symbol) then annotationTypeData(symbol, Set.empty) else null
@@ -730,7 +733,11 @@ private object ScalaModelExtractor:
       java.util.Set.of(ElementModifier.PUBLIC, ElementModifier.STATIC, ElementModifier.FINAL),
       false,
       null,
-      symbol
+      // Its own identity, not the class's symbol. Annotation metadata is cached by the native
+      // object an element was built from, and a classpath class is itself keyed by its symbol,
+      // so the field shared the class's metadata and reported `@Factory` instead of its own
+      // `@Bean`; a source class is keyed by its tree, which is why it never showed there.
+      ModuleInstance(symbol)
     )
     ScalaClassData(
       data.name(),
