@@ -105,6 +105,14 @@ abstract class AbstractScalaTypeElementSpec extends Specification {
     }
 
     /**
+     * Compiles the source against earlier {@link #precompile} output and starts a context over
+     * the beans of both; see {@link ScalaCompiler#buildContext(List, String, boolean, Map, List)}.
+     */
+    protected ApplicationContext buildContextAgainst(List<Path> precompiled, String source, Map<String, Object> config = [:]) {
+        ScalaCompiler.buildContext(precompiled, source, false, config, List.of())
+    }
+
+    /**
      * Compiles several sources in one compiler run and returns a classloader over the output.
      */
     protected ClassLoader buildClassLoader(List<ScalaCompiler.SourceFile> sources) {
