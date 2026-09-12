@@ -30,8 +30,9 @@ import java.nio.file.Path
  * <p>The element-level parity in {@link ScalaClasspathParitySpec} says the two models agree;
  * this is the same question asked of the running application, one bean feature at a time,
  * with the feature's declaration always on the far side of the boundary: the injected field
- * and lifecycle method on a library base class, the executable and advised methods on a
- * library trait, the advice annotation and its interceptor in the library. This is the shape of every incremental build and of every
+ * and lifecycle method on a library base class, the property on a library configuration
+ * class, the executable and advised methods on a library trait, the advice annotation and
+ * its interceptor in the library. This is the shape of every incremental build and of every
  * multi-module project, and the one the clean build never exercises.</p>
  */
 class ScalaIncrementalBuildSpec extends AbstractScalaTypeElementSpec {
@@ -150,6 +151,31 @@ class Service extends library.Component:
 
         and: 'the inherited @PostConstruct method has run'
         service.started()
+
+        cleanup:
+        context?.close()
+    }
+
+    void "a property inherited from a library configuration class binds under that class's prefix"() {
+        given:
+        def context = buildContextAgainst([library()], '''
+package test
+
+import io.micronaut.context.annotation.ConfigurationProperties
+
+@ConfigurationProperties("child")
+class ChildConfig extends library.ParentConfig:
+  var own: String = ""
+''', ['parent.shared': 'from-parent', 'parent.child.shared': 'from-child', 'parent.child.own': 'own-value'])
+
+        when:
+        def child = getBean(context, 'test.ChildConfig')
+
+        then: 'the subclass prefix nests under the library prefix'
+        child.own() == 'own-value'
+
+        and: 'the inherited property keeps the declaring class prefix, as it does from source'
+        child.shared() == 'from-parent'
 
         cleanup:
         context?.close()

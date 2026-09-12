@@ -439,6 +439,10 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
      * way the Java implementation does. Without this, a property declared on a Scala superclass or
      * on a trait (including a Scala 3 trait parameter) is invisible on the implementing class.
      *
+     * <p>A Scala supertype read from the classpath has the same property data as one being
+     * compiled, and is walked the same way: a `var` on a library's base class is a property of
+     * the subclass on the incremental build exactly as on the clean one.</p>
+     *
      * @param propertyElementQuery The query
      * @param properties The properties collected so far, keyed by name; declared properties win
      * @param visited Guards against cycles in the type hierarchy
@@ -460,11 +464,14 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             if (!visited.add(supertype.name())) {
                 continue;
             }
-            Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(supertype.name());
-            if (sourceElement.isEmpty()) {
+            Optional<ScalaClassElement> supertypeElement = visitorContext.sourceClassElement(supertype.name())
+                .or(() -> classpathElement(supertype.name())
+                    .filter(ScalaClassElement.class::isInstance)
+                    .map(ScalaClassElement.class::cast));
+            if (supertypeElement.isEmpty()) {
                 continue;
             }
-            ScalaClassElement inherited = sourceElement.get();
+            ScalaClassElement inherited = supertypeElement.get();
             ScalaClassData inheritedData = inherited.classData;
             if (inheritedData == null) {
                 continue;
