@@ -38,6 +38,7 @@ import dotty.tools.dotc.core.Types.ConstantType
 import dotty.tools.dotc.core.Types.ExprType
 import dotty.tools.dotc.core.Types.JavaArrayType
 import dotty.tools.dotc.core.Types.MethodType
+import dotty.tools.dotc.core.Types.NoType
 import dotty.tools.dotc.core.Types.OrType
 import dotty.tools.dotc.core.Types.Type
 import dotty.tools.dotc.core.Types.TypeBounds
@@ -1738,13 +1739,12 @@ private object ScalaModelExtractor:
   private def javaPrivateMethods(symbol: ClassSymbol, reader: ClassFileParameterAnnotations)(using Context, AnnotationDefaults): List[ScalaMethodData] =
     reader.privateMethods.asScala.toList.map { method =>
       val signature = method.signature
-      val methodTypeVariables = signature.typeParameters.asScala.toList.map { parameter =>
-        val bound = parameter.classBound.toScala
-          .orElse(parameter.interfaceBounds.asScala.headOption)
-          .map(bound => signatureType(bound, symbol, Map.empty))
-          .getOrElse(Symbols.defn.ObjectType)
-        parameter.identifier -> bound
-      }.toMap
+      // The method's type parameters as symbols of their own, so that a parameter of type `K`
+      // is modelled as the type variable it is -- not as its bound, which lost the variable and
+      // left the method declaring none. The compiler never made these symbols, since it never
+      // read the method; they are owned by a stand-in for the method and entered nowhere.
+      val methodTypeParameters = javaMethodTypeParameters(symbol, method.name, signature.typeParameters.asScala.toList)
+      val methodTypeVariables = methodTypeParameters.map(parameter => parameter.name.toString -> parameter.typeRef).toMap
       val owner = className(symbol)
       val parameters = signature.arguments.asScala.toList.zipWithIndex.map { (argument, index) =>
         val parameterType = typeData(signatureType(argument, symbol, methodTypeVariables))
@@ -1769,7 +1769,7 @@ private object ScalaModelExtractor:
         method.name,
         returnType,
         parameters.asJava,
-        Nil.asJava,
+        methodTypeParameters.map(typeParameterData(_, Nil, explicitNullable = false, Map.empty)).asJava,
         signature.throwableSignatures.asScala.toList.map(thrown => typeData(signatureType(thrown, symbol, methodTypeVariables))).asJava,
         (declared ++ newAnnotations(declared, typeUseNullabilityAnnotations(returnType))).asJava,
         modifiers,
@@ -1777,6 +1777,39 @@ private object ScalaModelExtractor:
         ClassFileMember(owner, method.name, signature.signatureString)
       )
     }
+
+  /**
+   * Type-parameter symbols for a method read from a class file, bounded as its signature says.
+   * A bound may name the parameter itself -- `<T extends Comparable<T>>` -- so the symbols
+   * exist before their bounds are computed, which is what `newTypeParams` arranges.
+   */
+  private def javaMethodTypeParameters(
+      owner: ClassSymbol,
+      methodName: String,
+      typeParameters: List[java.lang.classfile.Signature.TypeParam]
+  )(using Context): List[Symbol] =
+    if typeParameters.isEmpty then Nil
+    else
+      val method = Symbols.newSymbol(
+        owner,
+        Names.termName(methodName),
+        Flags.Method | Flags.Private | Flags.JavaDefined | Flags.Synthetic,
+        NoType
+      )
+      Symbols.newTypeParams(
+        method,
+        typeParameters.map(parameter => Names.typeName(parameter.identifier)),
+        Flags.JavaDefined,
+        references =>
+          val variables = typeParameters.map(_.identifier).zip(references).toMap[String, Type]
+          typeParameters.map { parameter =>
+            val bounds = parameter.classBound.toScala.toList ++ parameter.interfaceBounds.asScala.toList
+            bounds.map(bound => signatureType(bound, owner, variables)) match
+              case Nil => TypeBounds.empty
+              case single :: Nil => TypeBounds.upper(single)
+              case first :: rest => TypeBounds.upper(rest.foldLeft(first)(AndType.apply))
+          }
+      )
 
   /**
    * A JVM signature as the compiler's type, so that the model built from it is the model

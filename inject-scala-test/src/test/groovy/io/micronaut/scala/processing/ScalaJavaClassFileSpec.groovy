@@ -115,6 +115,42 @@ class Uses:
         method(shapes, 'wrap').declaredTypeVariables*.variableName == ['T']
     }
 
+    void "private members are present, with their generic signatures and annotations"() {
+        given: '''the compiler drops a Java class's private members on reading, and Micronaut
+                  needs them: a private field is an injection point and a private method is
+                  still a member for the walk that finds overrides'''
+        ClassElement shapes = fixture('shapes')
+
+        expect: 'a private generic field'
+        FieldElement index = field(shapes, 'index')
+        index.isPrivate()
+        index.isFinal()
+        index.type.name == 'java.util.Map'
+        index.genericType.typeArguments.keySet() as List == ['K', 'V']
+        index.genericType.typeArguments['V'].name == 'java.util.List'
+        index.genericType.typeArguments['V'].firstTypeArgument.get().name == 'java.lang.Integer'
+
+        and: 'a private annotated field, and a private static one'
+        tagged(field(shapes, 'tagged')).intValue('weight').get() == 1
+        field(shapes, 'counter').isPrivate()
+        field(shapes, 'counter').isStatic()
+        field(shapes, 'counter').type.name == 'int'
+
+        and: 'a private generic method with a parameter annotation'
+        MethodElement privateGeneric = method(shapes, 'privateGeneric')
+        privateGeneric.isPrivate()
+        privateGeneric.declaredTypeVariables*.variableName == ['K']
+        privateGeneric.parameters.size() == 2
+        privateGeneric.parameters[0].genericType.isTypeVariable()
+        privateGeneric.parameters[1].type.name == 'int'
+        tagged(privateGeneric.parameters[1]).intValue('weight').get() == 6
+        privateGeneric.genericReturnType.name == 'java.util.Map'
+
+        and: 'a private static method'
+        method(shapes, 'privateStatic').isPrivate()
+        method(shapes, 'privateStatic').isStatic()
+    }
+
     void "a constant field has its value"() {
         given:
         ClassElement shapes = fixture('shapes')
