@@ -1,0 +1,396 @@
+/*
+ * Copyright 2017-2026 original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.micronaut.scala.processing.visitor;
+
+import io.micronaut.context.annotation.ConfigurationReader;
+import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.AnnotationValue;
+import io.micronaut.core.bind.annotation.Bindable;
+import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
+import io.micronaut.inject.ast.ClassElement;
+import io.micronaut.inject.ast.ConstructorElement;
+import io.micronaut.inject.ast.GenericPlaceholderElement;
+import io.micronaut.inject.ast.MethodElement;
+import io.micronaut.inject.ast.ParameterElement;
+import io.micronaut.inject.ast.annotation.ElementAnnotationMetadata;
+import io.micronaut.inject.ast.annotation.MethodElementAnnotationMetadata;
+import io.micronaut.inject.ast.annotation.MutatedMethodElementAnnotationMetadata;
+import io.micronaut.inject.ast.annotation.MutableAnnotationMetadataDelegate;
+import io.micronaut.inject.ast.beans.BeanElementBuilder;
+import org.jspecify.annotations.Nullable;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+/**
+ * Scala method element.
+ */
+public class ScalaMethodElement extends AbstractScalaMemberElement implements MethodElement {
+
+    private static final String SCALA_OPTION = "scala.Option";
+
+    protected final ScalaClassElement declaringType;
+    protected final ScalaVisitorContext visitorContext;
+    protected final ScalaMethodData methodData;
+    private final ClassElement owningType;
+    @Nullable
+    private final AnnotationMetadata presetAnnotationMetadata;
+    @Nullable
+    private ElementAnnotationMetadata methodAnnotationMetadata;
+    @Nullable
+    private AnnotationMetadata annotationMetadata;
+    @Nullable
+    private ClassElement returnType;
+    @Nullable
+    private ClassElement genericReturnType;
+    private ParameterElement[] parameters;
+
+    ScalaMethodElement(ScalaClassElement declaringType, ScalaMethodData methodData, ScalaVisitorContext visitorContext) {
+        this(declaringType, methodData, visitorContext, null);
+    }
+
+    ScalaMethodElement(
+        ScalaClassElement declaringType,
+        ScalaMethodData methodData,
+        ScalaVisitorContext visitorContext,
+        @Nullable
+        AnnotationMetadata presetAnnotationMetadata) {
+        this(declaringType, declaringType, methodData, visitorContext, presetAnnotationMetadata);
+    }
+
+    private ScalaMethodElement(
+        ScalaClassElement declaringType,
+        ClassElement owningType,
+        ScalaMethodData methodData,
+        ScalaVisitorContext visitorContext,
+        @Nullable
+        AnnotationMetadata presetAnnotationMetadata) {
+        this(declaringType, owningType, methodData, visitorContext, presetAnnotationMetadata, null);
+    }
+
+    private ScalaMethodElement(
+        ScalaClassElement declaringType,
+        ClassElement owningType,
+        ScalaMethodData methodData,
+        ScalaVisitorContext visitorContext,
+        @Nullable
+        AnnotationMetadata presetAnnotationMetadata,
+        @Nullable
+        ElementAnnotationMetadata sharedMethodAnnotationMetadata) {
+        super(
+            declaringType,
+            methodData.name(),
+            methodData.nativeType(),
+            methodData.modifiers(),
+            visitorContext.annotationMetadata(methodData),
+            visitorContext.getScalaAnnotationMetadataBuilder()
+        );
+        this.declaringType = declaringType;
+        this.owningType = owningType;
+        this.visitorContext = visitorContext;
+        this.methodData = methodData;
+        this.presetAnnotationMetadata = presetAnnotationMetadata;
+        this.methodAnnotationMetadata = sharedMethodAnnotationMetadata;
+        this.parameters = methodData.parameters().stream()
+            .map(parameter -> new ScalaParameterElement(this, parameter, visitorContext))
+            .toArray(ParameterElement[]::new);
+    }
+
+    @Override
+    public AnnotationMetadata getAnnotationMetadata() {
+        if (annotationMetadata == null) {
+            if (this instanceof ConstructorElement) {
+                annotationMetadata = getMethodAnnotationMetadata();
+            } else if (presetAnnotationMetadata instanceof AnnotationMetadataHierarchy annotationMetadataHierarchy) {
+                annotationMetadata = new AnnotationMetadataHierarchy(
+                    annotationMetadataHierarchy.getRootMetadata(),
+                    getMethodAnnotationMetadata()
+                );
+            } else if (presetAnnotationMetadata != null) {
+                annotationMetadata = new MutatedMethodElementAnnotationMetadata(this, getMethodAnnotationMetadata());
+            } else {
+                annotationMetadata = new MethodElementAnnotationMetadata(this);
+            }
+        }
+        return annotationMetadata;
+    }
+
+    @Override
+    protected MutableAnnotationMetadataDelegate<?> getAnnotationMetadataToWrite() {
+        return getMethodAnnotationMetadata();
+    }
+
+    @Override
+    public MutableAnnotationMetadataDelegate<AnnotationMetadata> getMethodAnnotationMetadata() {
+        if (methodAnnotationMetadata == null) {
+            if (presetAnnotationMetadata instanceof AnnotationMetadataHierarchy annotationMetadataHierarchy) {
+                methodAnnotationMetadata = mutableAnnotationMetadata(annotationMetadataHierarchy.getDeclaredMetadata());
+            } else if (presetAnnotationMetadata != null) {
+                methodAnnotationMetadata = mutableAnnotationMetadata(presetAnnotationMetadata);
+            } else {
+                methodAnnotationMetadata = getElementAnnotationMetadata();
+            }
+            addOptionalConfigurationDefault(methodAnnotationMetadata);
+        }
+        return methodAnnotationMetadata;
+    }
+
+    /**
+     * Gives an {@code Option}-returning configuration accessor an empty {@code @Bindable}
+     * default, so that an absent property arrives as {@code None}.
+     *
+     * <p>The same core limitation {@code ScalaConstructorElement} works around, reached by the
+     * other path. {@code @ConfigurationProperties} on a trait has nothing to bind into, so each
+     * accessor becomes introduction advice that reads its own property, and
+     * {@code ConfigurationIntroductionAdvice} decides optionality with
+     * {@code ReturnType.isOptional()} -- which is {@code type == java.util.Optional}. A
+     * {@code scala.Option} return therefore read as required, and an absent property threw
+     * {@code PropertyNotFoundException} rather than yielding {@code None}. A {@code @Bindable}
+     * default is the one branch of that resolution which avoids the throw, and the converter
+     * maps the empty marker to {@code None}.</p>
+     *
+     * <p>Applied when the metadata is first built rather than in {@code annotate}, because core
+     * annotates a configuration accessor through {@code getMethodAnnotationMetadata()} directly
+     * and never passes through {@code Element.annotate}. An accessor that declares its own
+     * default keeps it.</p>
+     */
+    private void addOptionalConfigurationDefault(MutableAnnotationMetadataDelegate<AnnotationMetadata> metadata) {
+        if (!isAbstract()
+            || !SCALA_OPTION.equals(getReturnType().getName())
+            || !declaringType.hasStereotype(ConfigurationReader.class)
+            || metadata.getAnnotationMetadata().stringValue(Bindable.class, "defaultValue").isPresent()) {
+            return;
+        }
+        metadata.annotate(AnnotationValue.builder(Bindable.class).member("defaultValue", "").build());
+    }
+
+    private ElementAnnotationMetadata mutableAnnotationMetadata(AnnotationMetadata annotationMetadata) {
+        return visitorContext.getElementAnnotationMetadataFactory().buildMutable(annotationMetadata);
+    }
+
+    @Override
+    public ClassElement getReturnType() {
+        if (returnType == null) {
+            returnType = visitorContext.getElementFactory().newClassElement(methodData.returnType());
+        }
+        return returnType;
+    }
+
+    /**
+     * The return type with the declaring type's variables bound as they were where the method
+     * was reached; {@link #getReturnType()} stays the declared type, the JVM signature.
+     */
+    @Override
+    public ClassElement getGenericReturnType() {
+        if (methodData.genericReturnType() == null) {
+            return getReturnType();
+        }
+        if (genericReturnType == null) {
+            genericReturnType = visitorContext.getElementFactory().newClassElement(methodData.resolvedReturnType());
+        }
+        return genericReturnType;
+    }
+
+    @Override
+    public List<? extends GenericPlaceholderElement> getDeclaredTypeVariables() {
+        return methodData.typeParameters().stream()
+            .map(visitorContext.getElementFactory()::newClassElement)
+            .map(GenericPlaceholderElement.class::cast)
+            .toList();
+    }
+
+    @Override
+    public Map<String, ClassElement> getDeclaredTypeArguments() {
+        return getDeclaredTypeVariables().stream()
+            .collect(Collectors.toMap(
+                GenericPlaceholderElement::getVariableName,
+                Function.identity(),
+                (left, right) -> left,
+                java.util.LinkedHashMap::new
+            ));
+    }
+
+    @Override
+    public ClassElement[] getThrownTypes() {
+        return methodData.thrownTypes().stream()
+            .map(visitorContext.getElementFactory()::newClassElement)
+            .toArray(ClassElement[]::new);
+    }
+
+    @Override
+    public ParameterElement[] getParameters() {
+        return parameters;
+    }
+
+    protected final void replaceParameters(ParameterElement[] parameters) {
+        this.parameters = parameters;
+    }
+
+    @Override
+    public MethodElement withParameters(ParameterElement... newParameters) {
+        ScalaMethodElement methodElement = new ScalaMethodElement(declaringType, owningType, methodData, visitorContext, getAnnotationMetadata());
+        methodElement.replaceParameters(newParameters);
+        return methodElement;
+    }
+
+    @Override
+    public MethodElement withNewOwningType(ClassElement owningType) {
+        // The copy shares this method's own mutable metadata rather than a snapshot of it. An
+        // inherited method is reached through a fresh copy every time its owner is asked for
+        // its members, and Micronaut Data records the query it derived by annotating whichever
+        // copy the visitor was handed; a snapshot per copy left the definition writer reading a
+        // later copy that knew nothing of it, and the repository failed at runtime for want of
+        // the query it had already computed. Sharing the delegate is also what keeps the class's
+        // annotations out of the method's own surface -- the composed view is built afresh on
+        // the copy, from its declaring type and the shared method metadata.
+        getMethodAnnotationMetadata();
+        ScalaMethodElement methodElement = new ScalaMethodElement(
+            declaringType, owningType, methodData, visitorContext, presetAnnotationMetadata, methodAnnotationMetadata);
+        methodElement.replaceParameters(parameters);
+        return methodElement;
+    }
+
+    @Override
+    public MethodElement withAnnotationMetadata(AnnotationMetadata annotationMetadata) {
+        return new ScalaMethodElement(declaringType, owningType, methodData, visitorContext, annotationMetadata);
+    }
+
+    @Override
+    public BeanElementBuilder addAssociatedBean(ClassElement type) {
+        return new ScalaBeanDefinitionBuilder(
+            this,
+            type,
+            visitorContext.getElementAnnotationMetadataFactory(),
+            visitorContext
+        );
+    }
+
+    @Override
+    public boolean isDefault() {
+        return !methodData.constructor() && declaringType.isInterface() && !isAbstract();
+    }
+
+    /**
+     * The class this method was reached through.
+     *
+     * <p>This used to answer {@code declaringType} for a default method, which is every
+     * concrete trait method, so {@code withNewOwningType} was a no-op for exactly the case it
+     * exists for. Class-level AOP advice reaches a method through the owning type's metadata,
+     * so a method inherited from a trait and not overridden was never advised: the bean was
+     * proxied, the proxy declared the method, and the interceptor chain for it was empty --
+     * {@code @Transactional} or {@code @Cacheable} on such a method did nothing, silently.</p>
+     */
+    @Override
+    public ClassElement getOwningType() {
+        return owningType;
+    }
+
+    @Override
+    public boolean overrides(MethodElement overridden) {
+        // `BeanDefinitionCreatorFactory` uses this to merge annotation metadata from the
+        // overridden parent method, to avoid emitting a second injection point, and to make
+        // interception decisions. Answering false unconditionally made an `@Inject`,
+        // `@PostConstruct` or `@Executable` method overridden in a subclass look like two
+        // unrelated methods.
+        if (overridden == this || isStatic() || overridden.isStatic()) {
+            return false;
+        }
+        // A private method is never virtual, so it can only ever hide.
+        if (isPrivate() || overridden.isPrivate()) {
+            return false;
+        }
+        return overridesSignatureOf(overridden) && declaringTypeIsBelow(overridden);
+    }
+
+    @Override
+    public boolean hides(MethodElement hiddenMethod) {
+        // Hiding is the static counterpart of overriding: same signature, but resolved on
+        // the declared type rather than the runtime one.
+        if (hiddenMethod == this || !isStatic() || !hiddenMethod.isStatic()) {
+            return false;
+        }
+        if (isPrivate() || hiddenMethod.isPrivate()) {
+            return false;
+        }
+        return overridesSignatureOf(hiddenMethod) && declaringTypeIsBelow(hiddenMethod);
+    }
+
+    /**
+     * Name plus erased parameter signature. Erasure is the right comparison because that is
+     * what decides overriding on the JVM, and it is what the generated bytecode will use.
+     */
+    private boolean overridesSignatureOf(MethodElement other) {
+        if (!getName().equals(other.getName())) {
+            return false;
+        }
+        ParameterElement[] parameters = getParameters();
+        ParameterElement[] otherParameters = other.getParameters();
+        if (parameters.length != otherParameters.length) {
+            return false;
+        }
+        for (int i = 0; i < parameters.length; i++) {
+            ClassElement type = parameters[i].getType();
+            ClassElement otherType = otherParameters[i].getType();
+            if (type.getArrayDimensions() != otherType.getArrayDimensions()
+                || !type.getName().equals(otherType.getName())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Overriding is directional: this method must be declared on a subtype of the other's
+     * declaring type, and not on the same type, or two unrelated classes that happen to
+     * share a signature would be reported as overriding each other.
+     */
+    private boolean declaringTypeIsBelow(MethodElement other) {
+        ClassElement otherDeclaringType = other.getDeclaringType();
+        if (declaringType.getName().equals(otherDeclaringType.getName())) {
+            return false;
+        }
+        return declaringType.isAssignable(otherDeclaringType);
+    }
+
+    @Override
+    protected Object equalityKey() {
+        return new MethodElementKey(
+            declaringType,
+            methodData.name(),
+            methodData.constructor(),
+            methodData.parameters().stream()
+                .map(parameter -> typeKey(parameter.type()))
+                .toList()
+        );
+    }
+
+    private static TypeKey typeKey(ScalaTypeData typeData) {
+        return new TypeKey(typeData.name(), typeData.arrayDimensions());
+    }
+
+    private record MethodElementKey(
+        ClassElement declaringType,
+        String name,
+        boolean constructor,
+        List<TypeKey> parameterTypes
+    ) {
+    }
+
+    private record TypeKey(String name, int arrayDimensions) {
+    }
+}

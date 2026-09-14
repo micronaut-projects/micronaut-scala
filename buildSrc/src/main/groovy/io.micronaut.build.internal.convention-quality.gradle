@@ -1,0 +1,40 @@
+plugins {
+    id 'test-report-aggregation'
+    id "org.aim42.htmlSanityCheck"
+}
+
+tasks.named("htmlSanityCheck") {
+    enabled = false
+    sourceDir = rootProject.layout.buildDirectory.dir("docs/guide").get().asFile
+    sourceDocuments = fileTree(sourceDir) {
+        include "index.html"
+    }
+}
+
+tasks.named("docs") {
+    finalizedBy(htmlSanityCheck)
+}
+
+reporting {
+    reports {
+        testAggregateTestReport(AggregateTestReport) {
+            testSuiteName = "test"
+        }
+    }
+}
+
+def root = project
+
+project.afterEvaluate {
+    allprojects { p ->
+        p.plugins.withId('java') {
+            root.dependencies {
+                testReportAggregation p
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('testAggregateTestReport')
+}

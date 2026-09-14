@@ -1,0 +1,198 @@
+/*
+ * Copyright 2017-2026 original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.micronaut.scala.processing.visitor;
+
+import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.AnnotationValue;
+import io.micronaut.core.annotation.AnnotationValueBuilder;
+import io.micronaut.inject.annotation.MutableAnnotationMetadata;
+import io.micronaut.inject.ast.annotation.MutableAnnotationMetadataDelegate;
+import io.micronaut.inject.ast.Element;
+import io.micronaut.inject.ast.ElementModifier;
+
+import java.lang.annotation.Annotation;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+
+abstract class AbstractScalaElement implements Element {
+
+    private final String name;
+    private final Object nativeType;
+    private final Set<ElementModifier> modifiers;
+    private final MutableAnnotationMetadata annotationMetadata;
+    private final SimpleElementAnnotationMetadata elementAnnotationMetadata;
+    private final ScalaAnnotationMetadataBuilder annotationMetadataBuilder;
+
+    AbstractScalaElement(
+        String name,
+        Object nativeType,
+        Set<ElementModifier> modifiers,
+        MutableAnnotationMetadata annotationMetadata,
+        ScalaAnnotationMetadataBuilder annotationMetadataBuilder) {
+        this.name = name;
+        this.nativeType = nativeType;
+        this.modifiers = modifiers == null ? Set.of() : Set.copyOf(modifiers);
+        this.annotationMetadata = annotationMetadata == null ? new MutableAnnotationMetadata() : annotationMetadata;
+        this.elementAnnotationMetadata = new SimpleElementAnnotationMetadata(this.annotationMetadata, false, annotationMetadataBuilder);
+        this.annotationMetadataBuilder = annotationMetadataBuilder;
+    }
+
+    /**
+     * @return The raw Scaladoc comment written on this element, if any
+     */
+    protected Optional<String> rawDocumentation() {
+        if (annotationMetadataBuilder == null) {
+            return Optional.empty();
+        }
+        return annotationMetadataBuilder.documentation(getNativeType());
+    }
+
+    @Override
+    public Optional<String> getDocumentation(boolean parse) {
+        Optional<String> raw = rawDocumentation();
+        if (raw.isEmpty()) {
+            return raw;
+        }
+        return parse ? ScalaDocParser.description(raw.get()) : ScalaDocParser.content(raw.get());
+    }
+
+    @Override
+    public String getName() {
+        return name;
+    }
+
+    @Override
+    public boolean isProtected() {
+        return modifiers.contains(ElementModifier.PROTECTED);
+    }
+
+    @Override
+    public boolean isPublic() {
+        // The modifier alone. A Scala member that is neither private nor protected is given
+        // PUBLIC when its modifiers are read, because that is what it compiles to; a Java
+        // member with none of the three is package-private, and reading that as public made
+        // Micronaut call from another package what it cannot reach there.
+        return modifiers.contains(ElementModifier.PUBLIC);
+    }
+
+    @Override
+    public boolean isPrivate() {
+        return modifiers.contains(ElementModifier.PRIVATE);
+    }
+
+    @Override
+    public boolean isPackagePrivate() {
+        // Core's default answers false for every element; the Java module overrides it, and
+        // Micronaut's writers ask it to decide between a direct call and reflection.
+        return !isPublic() && !isProtected() && !isPrivate();
+    }
+
+    @Override
+    public boolean isAbstract() {
+        return modifiers.contains(ElementModifier.ABSTRACT);
+    }
+
+    @Override
+    public boolean isStatic() {
+        return modifiers.contains(ElementModifier.STATIC);
+    }
+
+    @Override
+    public boolean isFinal() {
+        return modifiers.contains(ElementModifier.FINAL);
+    }
+
+    @Override
+    public Set<ElementModifier> getModifiers() {
+        return modifiers;
+    }
+
+    @Override
+    public Object getNativeType() {
+        return nativeType;
+    }
+
+    @Override
+    public AnnotationMetadata getAnnotationMetadata() {
+        return elementAnnotationMetadata.getAnnotationMetadata();
+    }
+
+    protected SimpleElementAnnotationMetadata getElementAnnotationMetadata() {
+        return elementAnnotationMetadata;
+    }
+
+    protected MutableAnnotationMetadataDelegate<?> getAnnotationMetadataToWrite() {
+        return elementAnnotationMetadata;
+    }
+
+    @Override
+    public <T extends Annotation> Element annotate(String annotationType, Consumer<AnnotationValueBuilder<T>> consumer) {
+        getAnnotationMetadataToWrite().annotate(annotationType, consumer);
+        return this;
+    }
+
+    @Override
+    public <T extends Annotation> Element annotate(AnnotationValue<T> annotationValue) {
+        getAnnotationMetadataToWrite().annotate(annotationValue);
+        return this;
+    }
+
+    @Override
+    public Element removeAnnotation(String annotationType) {
+        getAnnotationMetadataToWrite().removeAnnotation(annotationType);
+        return this;
+    }
+
+    @Override
+    public <T extends Annotation> Element removeAnnotationIf(Predicate<AnnotationValue<T>> predicate) {
+        getAnnotationMetadataToWrite().removeAnnotationIf(predicate);
+        return this;
+    }
+
+    @Override
+    public Element removeStereotype(String annotationType) {
+        getAnnotationMetadataToWrite().removeStereotype(annotationType);
+        return this;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof AbstractScalaElement that)) {
+            return false;
+        }
+        return equalityType().equals(that.equalityType())
+            && Objects.equals(equalityKey(), that.equalityKey());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(equalityType(), equalityKey());
+    }
+
+    protected Class<?> equalityType() {
+        return getClass();
+    }
+
+    protected Object equalityKey() {
+        return nativeType == null ? name : nativeType;
+    }
+}

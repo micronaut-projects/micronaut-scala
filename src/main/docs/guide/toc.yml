@@ -2,5 +2,29 @@ introduction:
   title: Introduction
 quickStart:
   title: Quick Start
+concepts:
+  title: Micronaut for Scala Developers
+idiomatic:
+  title: Idiomatic Scala
+buildTools:
+  title: Build Tools
+configuration:
+  title: Configuration Options
+annotations:
+  title: Annotations
+documentation:
+  title: Documentation in Generated Files
+serialization:
+  title: Serialization
+data:
+  title: Micronaut Data
+dependencies:
+  title: Artifacts and Dependencies
+testing:
+  title: Testing
+limitations:
+  title: Limitations
+troubleshooting:
+  title: Troubleshooting
 repository: Repository
 releaseHistory: Release History

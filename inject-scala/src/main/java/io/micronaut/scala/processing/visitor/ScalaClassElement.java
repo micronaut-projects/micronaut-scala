@@ -1,0 +1,1617 @@
+/*
+ * Copyright 2017-2026 original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.micronaut.scala.processing.visitor;
+
+import io.micronaut.context.annotation.BeanProperties;
+import io.micronaut.core.annotation.AnnotationMetadata;
+import io.micronaut.core.annotation.AnnotationUtil;
+import io.micronaut.core.annotation.Creator;
+import io.micronaut.core.naming.NameUtils;
+import io.micronaut.inject.annotation.MutableAnnotationMetadata;
+import io.micronaut.inject.ast.ArrayableClassElement;
+import io.micronaut.inject.ast.ClassElement;
+import io.micronaut.inject.ast.ConstructorElement;
+import io.micronaut.inject.ast.Element;
+import io.micronaut.inject.ast.ElementModifier;
+import io.micronaut.inject.ast.ElementQuery;
+import io.micronaut.inject.ast.FieldElement;
+import io.micronaut.inject.ast.GenericPlaceholderElement;
+import io.micronaut.inject.ast.MemberElement;
+import io.micronaut.inject.ast.MethodElement;
+import io.micronaut.inject.ast.PackageElement;
+import io.micronaut.inject.ast.PropertyElement;
+import io.micronaut.inject.ast.PropertyElementQuery;
+import io.micronaut.inject.ast.annotation.MutableAnnotationMetadataDelegate;
+import io.micronaut.inject.ast.beans.BeanElementBuilder;
+import io.micronaut.inject.ast.utils.AstBeanPropertiesUtils;
+import org.jspecify.annotations.Nullable;
+
+import java.io.Serializable;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
+/**
+ * Scala class element backed by compiler plugin model data.
+ */
+public class ScalaClassElement extends AbstractScalaElement implements ArrayableClassElement {
+
+    /**
+     * Supertypes every Scala or Java class has, whose members the source path never produces
+     * and which can carry no Micronaut metadata.
+     */
+    private static final Set<String> UNIVERSAL_SUPERTYPES = Set.of(
+        Object.class.getName(),
+        Enum.class.getName(),
+        "java.io.Serializable",
+        "scala.Any",
+        "scala.AnyRef",
+        "scala.Equals",
+        "scala.Product",
+        "scala.Serializable"
+    );
+
+    private final ScalaVisitorContext visitorContext;
+    private final ScalaTypeData typeData;
+    private final @Nullable ScalaClassData classData;
+    private final ScalaElementFactory elementFactory;
+    /**
+     * {@link #classData} with this element's type arguments applied to every member and
+     * supertype; see {@link #data()}.
+     */
+    private @Nullable ScalaClassData substitutedData;
+    /** Resolved once by {@link #declaration()}; {@code this} means "no declaration to find". */
+    private @Nullable ClassElement declarationElement;
+
+    private final IdentityHashMap<ScalaMethodData, ScalaConstructorElement> constructorElements = new IdentityHashMap<>();
+    private final IdentityHashMap<ScalaMethodData, ScalaMethodElement> methodElements = new IdentityHashMap<>();
+    private final IdentityHashMap<ScalaFieldData, ScalaFieldElement> fieldElements = new IdentityHashMap<>();
+    private final IdentityHashMap<ScalaFieldData, ScalaEnumConstantElement> enumConstantElements = new IdentityHashMap<>();
+    private final IdentityHashMap<ScalaPropertyData, ScalaPropertyElement> propertyElements = new IdentityHashMap<>();
+    private @Nullable Map<String, ClassElement> typeArgumentElements;
+
+    ScalaClassElement(ScalaClassData classData, ScalaVisitorContext visitorContext) {
+        this(classData, visitorContext, visitorContext.annotationMetadata(classData));
+    }
+
+    ScalaClassElement(ScalaClassData classData, ScalaVisitorContext visitorContext, AnnotationMetadata annotationMetadata) {
+        super(
+            classData.name(),
+            classData.nativeType(),
+            classData.modifiers(),
+            MutableAnnotationMetadata.of(annotationMetadata),
+            visitorContext.getScalaAnnotationMetadataBuilder()
+        );
+        this.visitorContext = visitorContext;
+        this.classData = classData;
+        this.typeData = new ScalaTypeData(classData.name(), false, 0, classData.interfaceType(), Map.of());
+        this.elementFactory = visitorContext.getElementFactory();
+    }
+
+    /**
+     * A source class element re-parameterised, or re-dimensioned, without losing its
+     * members. Copying through the {@code typeData}-only constructor drops
+     * {@code classData}, and with it every method, field and property.
+     */
+    ScalaClassElement(
+        ScalaClassData classData,
+        ScalaTypeData typeData,
+        ScalaVisitorContext visitorContext,
+        AnnotationMetadata annotationMetadata) {
+        super(
+            classData.name(),
+            classData.nativeType(),
+            classData.modifiers(),
+            MutableAnnotationMetadata.of(annotationMetadata),
+            visitorContext.getScalaAnnotationMetadataBuilder()
+        );
+        this.visitorContext = visitorContext;
+        this.classData = classData;
+        this.typeData = typeData;
+        this.elementFactory = visitorContext.getElementFactory();
+    }
+
+    ScalaClassElement(ScalaTypeData typeData, ScalaVisitorContext visitorContext, AnnotationMetadata annotationMetadata) {
+        super(
+            typeData.name(),
+            typeData.name(),
+            Set.of(ElementModifier.PUBLIC),
+            MutableAnnotationMetadata.of(annotationMetadata),
+            visitorContext.getScalaAnnotationMetadataBuilder()
+        );
+        this.visitorContext = visitorContext;
+        this.typeData = typeData;
+        this.classData = null;
+        this.elementFactory = visitorContext.getElementFactory();
+    }
+
+    /**
+     * The class data as seen through this element's parameterisation.
+     *
+     * <p>An element for {@code Repo[Book, Long]} is the declaration of {@code Repo[E, ID]}
+     * with {@code E} and {@code ID} bound, and everything it reports has to say so: the
+     * methods, the fields, the properties, the constructors, and the supertypes its own walk
+     * continues into. The declaration's data is substituted once, by the names of its type
+     * parameters, and every member is produced from the result. Before this the bindings were
+     * applied only while walking a <em>source</em> supertype from the subtype's side; a
+     * classpath supertype bound the same way answered with its variables still in place, so a
+     * repository extending a library trait reported {@code find} as returning {@code E}.</p>
+     *
+     * @return The data, substituted where this element is parameterised
+     */
+    private @Nullable ScalaClassData data() {
+        if (classData == null || typeData.typeArguments().isEmpty()) {
+            return classData;
+        }
+        if (substitutedData == null) {
+            substitutedData = substitute(classData, typeData.typeArguments());
+        }
+        return substitutedData;
+    }
+
+    /** {@link #data()} where the caller has already established this element declares a class. */
+    private ScalaClassData requiredData() {
+        return Objects.requireNonNull(data(), "Not a class declaration: " + getName());
+    }
+
+    @Override
+    public boolean isInterface() {
+        return classData == null ? typeData.interfaceType() : classData.interfaceType();
+    }
+
+    @Override
+    public boolean isEnum() {
+        return classData != null && classData.enumType();
+    }
+
+    /**
+     * A Java record, which is the one kind of class that extends {@code java.lang.Record}:
+     * the language allows no other, and the compiler recognises a record the same way. Scala
+     * has no records, so this is only ever true of a class read from the classpath.
+     */
+    @Override
+    public boolean isRecord() {
+        return classData != null && classData.superType() != null
+            && "java.lang.Record".equals(classData.superType().name());
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public MutableAnnotationMetadataDelegate<AnnotationMetadata> getTypeAnnotationMetadata() {
+        if (typeData.annotatedTypeUse()) {
+            return getElementAnnotationMetadata();
+        }
+        return (MutableAnnotationMetadataDelegate<AnnotationMetadata>) MutableAnnotationMetadataDelegate.EMPTY;
+    }
+
+    /**
+     * Whether this element is assignable to the named type.
+     *
+     * <p>A type name carries no array dimensions -- an element for {@code Array[String]} is
+     * named {@code java.lang.String} and reports one dimension separately -- so this used to
+     * answer for the component type and call {@code Array[String]} assignable to
+     * {@code String}, and {@code Array[Array[String]]} assignable to {@code Array[String]}.
+     * Micronaut matches bean types, {@code @Requires} conditions and executable handlers
+     * through this method, so an array bean satisfied an injection point for its component
+     * type. An array is assignable by name only to the three types every array really is.</p>
+     */
+    @Override
+    public boolean isAssignable(String type) {
+        if (getArrayDimensions() > 0) {
+            return Object.class.getName().equals(type)
+                || Cloneable.class.getName().equals(type)
+                || Serializable.class.getName().equals(type);
+        }
+        if (ScalaContainerTypes.isAssignableToIterable(this, type)) {
+            return true;
+        }
+        return isNameAssignable(type);
+    }
+
+    /**
+     * Whether this element is assignable to the given element, which unlike a name can be an
+     * array. Core's default delegates to {@link #isAssignable(String)}, which discards the
+     * dimensions of both sides.
+     */
+    @Override
+    public boolean isAssignable(ClassElement type) {
+        int dimensions = type.getArrayDimensions();
+        if (dimensions == 0) {
+            return isAssignable(type.getName());
+        }
+        return dimensions == getArrayDimensions() && isNameAssignable(type.getName());
+    }
+
+    private boolean isNameAssignable(String type) {
+        if (getName().equals(type) || Object.class.getName().equals(type)) {
+            return true;
+        }
+        // Whether one class is assignable to another is a fact about the two types for the
+        // run, not about the element asking, and Micronaut asks it constantly -- for every
+        // container check, every injection point, every bean type. Walking the hierarchy each
+        // time was the single largest cost in the plugin once the model itself was cached.
+        return visitorContext.assignable(getName(), type, () -> {
+            if (classData != null) {
+                return isAssignableTo(type, classData, Set.of(getName()));
+            }
+            return isTypeAssignable(type, typeData, Set.of());
+        });
+    }
+
+    private boolean isAssignableTo(String type, ScalaClassData data, Set<String> visited) {
+        if (data.superType() != null && isTypeAssignable(type, data.superType(), visited)) {
+            return true;
+        }
+        for (ScalaTypeData interfaceType : data.interfaces()) {
+            if (isTypeAssignable(type, interfaceType, visited)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isTypeAssignable(String type, ScalaTypeData candidate, Set<String> visited) {
+        if (type.equals(candidate.name()) || Object.class.getName().equals(type)) {
+            return true;
+        }
+        if (!visited.contains(candidate.name())) {
+            Set<String> nextVisited = new java.util.HashSet<>(visited);
+            nextVisited.add(candidate.name());
+            Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(candidate.name());
+            if (sourceElement.isPresent() && sourceElement.get().classData != null) {
+                return isAssignableTo(type, sourceElement.get().classData, nextVisited);
+            }
+            if (sourceElement.isPresent()) {
+                return false;
+            }
+            if (candidate.superType() != null && isTypeAssignable(type, candidate.superType(), nextVisited)) {
+                return true;
+            }
+            for (ScalaTypeData interfaceType : candidate.interfaces()) {
+                if (isTypeAssignable(type, interfaceType, nextVisited)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public Optional<ClassElement> getSuperType() {
+        ScalaTypeData superType = classData == null ? typeData.superType() : requiredData().superType();
+        if (superType == null) {
+            return Optional.empty();
+        }
+        return Optional.of(elementFactory.newClassElement(superType));
+    }
+
+    @Override
+    public Collection<ClassElement> getInterfaces() {
+        Collection<ScalaTypeData> interfaces = classData == null ? typeData.interfaces() : requiredData().interfaces();
+        return interfaces.stream()
+            .map(elementFactory::newClassElement)
+            .toList();
+    }
+
+    @Override
+    public boolean isInner() {
+        return classData != null && classData.enclosingTypeName() != null;
+    }
+
+    @Override
+    public Optional<ClassElement> getEnclosingType() {
+        if (classData == null || classData.enclosingTypeName() == null) {
+            return Optional.empty();
+        }
+        return visitorContext.sourceClassElement(classData.enclosingTypeName())
+            .map(ClassElement.class::cast);
+    }
+
+    @Override
+    public BeanElementBuilder addAssociatedBean(ClassElement type) {
+        if (classData == null) {
+            throw new UnsupportedOperationException("Element of type [" + getClass() + "] does not support adding associated beans at compilation time");
+        }
+        return new ScalaBeanDefinitionBuilder(
+            this,
+            type,
+            visitorContext.getElementAnnotationMetadataFactory(),
+            visitorContext
+        );
+    }
+
+    @Override
+    public Map<String, ClassElement> getTypeArguments() {
+        if (typeArgumentElements != null) {
+            return typeArgumentElements;
+        }
+        if (classData != null && typeData.typeArguments().isEmpty() && !classData.typeParameters().isEmpty()) {
+            Map<String, ClassElement> declaredTypeArguments = new LinkedHashMap<>();
+            for (ScalaTypeData typeParameter : classData.typeParameters()) {
+                ClassElement typeParameterElement = elementFactory.newClassElement(typeParameter);
+                if (typeParameterElement instanceof GenericPlaceholderElement placeholderElement) {
+                    declaredTypeArguments.put(placeholderElement.getVariableName(), typeParameterElement);
+                }
+            }
+            typeArgumentElements = declaredTypeArguments;
+        } else {
+            typeArgumentElements = elementFactory.typeArguments(typeData);
+        }
+        return typeArgumentElements;
+    }
+
+    @Override
+    public List<? extends GenericPlaceholderElement> getDeclaredGenericPlaceholders() {
+        if (classData == null) {
+            return List.of();
+        }
+        return classData.typeParameters().stream()
+            .map(elementFactory::newClassElement)
+            .map(GenericPlaceholderElement.class::cast)
+            .toList();
+    }
+
+    @Override
+    public List<PropertyElement> getBeanProperties() {
+        return getBeanProperties(PropertyElementQuery.of(getAnnotationMetadata()));
+    }
+
+    @Override
+    public List<PropertyElement> getSyntheticBeanProperties() {
+        if (classData == null) {
+            ClassElement declaration = declaration();
+            return declaration == null ? List.of() : declaration.getSyntheticBeanProperties();
+        }
+        return requiredData().properties().stream()
+            .map(this::propertyElement)
+            .map(PropertyElement.class::cast)
+            .toList();
+    }
+
+    /**
+     * @return The extracted compiler data for this class, or {@code null} when it is a
+     *     classpath type rather than one being compiled
+     */
+    @Nullable
+    ScalaClassData classData() {
+        return classData;
+    }
+
+    @Override
+    public List<PropertyElement> getBeanProperties(PropertyElementQuery propertyElementQuery) {
+        if (classData == null) {
+            ClassElement declaration = declaration();
+            return declaration == null ? List.of() : declaration.getBeanProperties(propertyElementQuery);
+        }
+        if (isRecord()) {
+            // As the Java model does: a record's properties are its components, read through
+            // their accessors, and nothing else the record declares. The components are not in
+            // the model -- the compiler does not read the `Record` attribute -- but a record's
+            // instance fields are exactly its components, and an accessor is the zero-argument
+            // method named for one.
+            return AstBeanPropertiesUtils.resolveBeanProperties(
+                propertyElementQuery,
+                this,
+                this::recordAccessors,
+                this::recordFields,
+                true,
+                Collections.emptySet(),
+                methodElement -> Optional.empty(),
+                methodElement -> Optional.empty(),
+                this::mapBeanPropertyElement
+            );
+        }
+        Set<BeanProperties.AccessKind> accessKinds = propertyElementQuery.getAccessKinds();
+        if (accessKinds.contains(BeanProperties.AccessKind.FIELD) && !accessKinds.contains(BeanProperties.AccessKind.METHOD)) {
+            return AstBeanPropertiesUtils.resolveBeanProperties(
+                propertyElementQuery,
+                this,
+                () -> List.of(),
+                () -> getEnclosedElements(ElementQuery.ALL_FIELDS),
+                false,
+                Collections.emptySet(),
+                methodElement -> Optional.empty(),
+                methodElement -> Optional.empty(),
+                this::mapBeanPropertyElement
+            );
+        }
+        Map<String, PropertyElement> properties = new LinkedHashMap<>();
+        requiredData().properties().stream()
+            .map(this::propertyElement)
+            .filter(propertyElement -> matches(propertyElementQuery, propertyElement))
+            .forEach(propertyElement -> properties.put(propertyElement.getName(), propertyElement));
+        collectInheritedProperties(propertyElementQuery, properties, new HashSet<>());
+        AstBeanPropertiesUtils.resolveBeanProperties(
+            propertyElementQuery,
+            this,
+            () -> getEnclosedElements(ElementQuery.ALL_METHODS),
+            this::beanPropertyFields,
+            false,
+            nativePropertyNames(),
+            methodElement -> Optional.empty(),
+            methodElement -> Optional.empty(),
+            this::mapBeanPropertyElement
+        ).forEach(propertyElement -> properties.putIfAbsent(propertyElement.getName(), propertyElement));
+        return List.copyOf(properties.values());
+    }
+
+    private List<FieldElement> recordFields() {
+        return getEnclosedElements(ElementQuery.ALL_FIELDS.onlyDeclared().onlyInstance());
+    }
+
+    private List<MethodElement> recordAccessors() {
+        Set<String> components = recordFields().stream().map(FieldElement::getName).collect(Collectors.toSet());
+        return getEnclosedElements(ElementQuery.ALL_METHODS.onlyDeclared().onlyInstance()).stream()
+            .filter(method -> method.getParameters().length == 0 && components.contains(method.getName()))
+            .toList();
+    }
+
+    /**
+     * Merges bean properties declared by source supertypes. Scala property accessors are filtered
+     * out of the extracted method list and re-attached as {@link ScalaPropertyData}, so
+     * {@link AstBeanPropertiesUtils} cannot rediscover an inherited property from its getter the
+     * way the Java implementation does. Without this, a property declared on a Scala superclass or
+     * on a trait (including a Scala 3 trait parameter) is invisible on the implementing class.
+     *
+     * <p>A Scala supertype read from the classpath has the same property data as one being
+     * compiled, and is walked the same way: a `var` on a library's base class is a property of
+     * the subclass on the incremental build exactly as on the clean one.</p>
+     *
+     * @param propertyElementQuery The query
+     * @param properties The properties collected so far, keyed by name; declared properties win
+     * @param visited Guards against cycles in the type hierarchy
+     */
+    private void collectInheritedProperties(
+        PropertyElementQuery propertyElementQuery,
+        Map<String, PropertyElement> properties,
+        Set<String> visited) {
+        collectInheritedProperties(propertyElementQuery, properties, visited, this, Map.of());
+    }
+
+    /**
+     * @param element The element whose supertypes are walked
+     * @param substitutions The type arguments bound so far on the way down to `element`, so
+     *     that a property `Base[T]` declares is reported as `String` through
+     *     `Mid[T] extends Base[T]` and `Child extends Mid[String]`, not only when `Base` is
+     *     the immediate parent
+     */
+    private void collectInheritedProperties(
+        PropertyElementQuery propertyElementQuery,
+        Map<String, PropertyElement> properties,
+        Set<String> visited,
+        ScalaClassElement element,
+        Map<String, ScalaTypeData> substitutions) {
+        ScalaClassData data = element.data();
+        if (data == null) {
+            return;
+        }
+        List<ScalaTypeData> supertypes = new ArrayList<>();
+        if (data.superType() != null) {
+            supertypes.add(substitute(data.superType(), substitutions));
+        }
+        for (ScalaTypeData interfaceType : data.interfaces()) {
+            supertypes.add(substitute(interfaceType, substitutions));
+        }
+        for (ScalaTypeData supertype : supertypes) {
+            if (supertype == null || !visited.add(supertype.name())) {
+                continue;
+            }
+            Optional<ScalaClassElement> supertypeElement = visitorContext.sourceClassElement(supertype.name())
+                .or(() -> classpathElement(supertype.name())
+                    .filter(ScalaClassElement.class::isInstance)
+                    .map(ScalaClassElement.class::cast));
+            if (supertypeElement.isEmpty()) {
+                continue;
+            }
+            ScalaClassElement inherited = supertypeElement.get();
+            ScalaClassData inheritedData = inherited.classData;
+            if (inheritedData == null) {
+                continue;
+            }
+            Map<String, ScalaTypeData> inheritedSubstitutions = supertype.typeArguments();
+            inheritedData.properties().stream()
+                .map(property -> inherited.propertyElement(substitute(property, inheritedSubstitutions)))
+                .filter(propertyElement -> matches(propertyElementQuery, propertyElement))
+                .forEach(propertyElement -> properties.putIfAbsent(propertyElement.getName(), propertyElement));
+            collectInheritedProperties(propertyElementQuery, properties, visited, inherited, inheritedSubstitutions);
+        }
+    }
+
+    /**
+     * Resolves a supertype's declared property against that supertype's type arguments, so a
+     * property declared as {@code T} on a generic parent is reported with the argument the subclass
+     * supplies. Only the property type is substituted: the accessor methods are re-resolved through
+     * the declaring element, which already substitutes them on the method path.
+     *
+     * @param property The inherited property
+     * @param substitutions The supertype's type arguments
+     * @return The resolved property
+     */
+    private ScalaPropertyData substitute(ScalaPropertyData property, Map<String, ScalaTypeData> substitutions) {
+        ScalaTypeData resolvedType = substitute(property.type(), substitutions);
+        if (substitutions.isEmpty() || resolvedType == null || resolvedType.equals(property.type())) {
+            return property;
+        }
+        return new ScalaPropertyData(
+            property.name(),
+            resolvedType,
+            property.readMethod(),
+            property.writeMethod(),
+            property.field(),
+            property.annotations(),
+            property.modifiers(),
+            property.nativeType()
+        );
+    }
+
+    /**
+     * The names of the fields that are Scala properties in their own right.
+     *
+     * <p>A {@code val} or {@code var} is one declaration that the compiler expands into a private
+     * field and a pair of accessors, so the field is never reachable and the accessors are not in
+     * the extracted method list -- they are re-attached as {@link ScalaPropertyData} instead. To
+     * core, reading only what we hand it, such a field looks like a private field nothing can get
+     * at, which is what {@code @Introspected.Property} on a plain {@code var} was rejected for.
+     * Naming them is how the Groovy implementation says the same thing about its own property
+     * nodes: the field carries generated accessors, so it can be read and written after all.</p>
+     *
+     * @return The declared property names
+     */
+    private Set<String> nativePropertyNames() {
+        ScalaClassData data = data();
+        if (data == null || data.properties().isEmpty()) {
+            return Collections.emptySet();
+        }
+        return data.properties().stream()
+            .map(ScalaPropertyData::name)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * The fields handed to {@link AstBeanPropertiesUtils}, which is every field.
+     *
+     * <p>Withholding them unless the query asked for field access looked like an optimisation and
+     * was a behaviour change: core decides for itself whether a field can back a property, and it
+     * also validates the ones carrying {@code @Introspected.Property} on the way past. A field the
+     * introspection cannot reach was therefore dropped in silence rather than reported, where Java
+     * -- which passes every field and lets core filter -- says the field is not accessible.</p>
+     *
+     * @return every declared and inherited field
+     */
+    private List<FieldElement> beanPropertyFields() {
+        return getEnclosedElements(ElementQuery.ALL_FIELDS);
+    }
+
+    private static boolean matches(PropertyElementQuery propertyElementQuery, PropertyElement propertyElement) {
+        Set<String> includes = propertyElementQuery.getIncludes();
+        if (!includes.isEmpty() && !includes.contains(propertyElement.getName())) {
+            return false;
+        }
+        if (propertyElementQuery.getExcludes().contains(propertyElement.getName())) {
+            return false;
+        }
+        if (!propertyElementQuery.isAllowStaticProperties() && propertyElement.isStatic()) {
+            return false;
+        }
+        if (propertyElementQuery.getVisibility() == BeanProperties.Visibility.PUBLIC && !propertyElement.isPublic()) {
+            return false;
+        }
+        return propertyElementQuery.getExcludedAnnotations().stream().noneMatch(propertyElement::hasAnnotation);
+    }
+
+    private @Nullable PropertyElement mapBeanPropertyElement(AstBeanPropertiesUtils.BeanPropertyData value) {
+        if (value.isExcluded) {
+            return null;
+        }
+        return new ScalaPropertyElement(
+            this,
+            value.type,
+            value.propertyName,
+            value.getter,
+            value.setter,
+            value.field,
+            accessKind(value.readAccessKind),
+            accessKind(value.writeAccessKind),
+            false,
+            visitorContext
+        );
+    }
+
+    private static PropertyElement.AccessKind accessKind(BeanProperties.AccessKind accessKind) {
+        if (accessKind == BeanProperties.AccessKind.FIELD) {
+            return PropertyElement.AccessKind.FIELD;
+        }
+        return PropertyElement.AccessKind.METHOD;
+    }
+
+    @Override
+    public Optional<MethodElement> getPrimaryConstructor() {
+        if (classData == null) {
+            ClassElement declaration = declaration();
+            return declaration == null ? Optional.empty() : declaration.getPrimaryConstructor();
+        }
+        if (requiredData().constructors().isEmpty()) {
+            return Optional.empty();
+        }
+        if (classData.enumType()) {
+            return enumValueOfMethod();
+        }
+        // As in core's own default: a static `@Creator` wins over any constructor. For Scala
+        // that is the companion object's factory method, surfaced as a static method of this
+        // class because the backend emits a static forwarder for it.
+        Optional<MethodElement> staticCreator = findStaticCreator();
+        if (staticCreator.isPresent()) {
+            return staticCreator;
+        }
+        List<ScalaMethodData> constructors = requiredData().constructors();
+        if (constructors.size() == 1) {
+            return Optional.of(constructorElement(constructors.get(0)));
+        }
+        // Scala's primary constructor is first, but it is not automatically the one Micronaut
+        // should call: an `@Inject` or `@Creator` secondary constructor wins, as it does in
+        // core's own default. Taking the first unconditionally meant such an annotation was
+        // read into the model and then ignored, and a bean or introspection was built through
+        // the wrong constructor.
+        return constructors.stream()
+            .map(this::constructorElement)
+            .filter(constructor -> constructor.hasStereotype(AnnotationUtil.INJECT)
+                || constructor.hasStereotype(Creator.class))
+            .findFirst()
+            .map(MethodElement.class::cast)
+            .or(() -> Optional.of(constructorElement(constructors.get(0))));
+    }
+
+    /**
+     * The enum's value lookup method, validated the way Core's {@code BeanIntrospectionWriter}
+     * validates it: static, non-private, exactly one {@code String}/{@code CharSequence} parameter,
+     * and a return type assignable to the enum. Core turns an ill-formed method into a
+     * ProcessingException raised from deep inside the introspection writer, so rejecting it here
+     * instead means such a method is simply not a candidate.
+     *
+     * @return The lookup method, if the enum declares a valid one
+     */
+    final Optional<MethodElement> enumValueOfMethod() {
+        if (classData == null) {
+            return Optional.empty();
+        }
+        return requiredData().methods().stream()
+            .filter(method -> "valueOf".equals(method.name()))
+            .filter(method -> method.modifiers().contains(ElementModifier.STATIC))
+            .filter(method -> !method.modifiers().contains(ElementModifier.PRIVATE))
+            .filter(method -> method.parameters().size() == 1)
+            .filter(method -> {
+                String parameterType = method.parameters().get(0).type().name();
+                return String.class.getName().equals(parameterType)
+                    || CharSequence.class.getName().equals(parameterType);
+            })
+            .map(this::methodElement)
+            .filter(method -> method.getReturnType().isAssignable(this))
+            .findFirst()
+            .map(MethodElement.class::cast);
+    }
+
+    @Override
+    public Optional<MethodElement> getDefaultConstructor() {
+        if (classData == null) {
+            ClassElement declaration = declaration();
+            return declaration == null ? Optional.empty() : declaration.getDefaultConstructor();
+        }
+        Optional<MethodElement> staticCreator = findDefaultStaticCreator();
+        if (staticCreator.isPresent()) {
+            return staticCreator;
+        }
+        if (classData.enumType()) {
+            return Optional.empty();
+        }
+        return requiredData().constructors().stream()
+            .filter(constructor -> constructor.parameters().isEmpty())
+            .findFirst()
+            .map(this::constructorElement);
+    }
+
+    /**
+     * The element that carries this type's declaration, when this one does not.
+     *
+     * <p>A {@code ScalaClassElement} is built either from a declaration or from a *reference*
+     * to a type -- a method return type, a parameter type, a field type, a type argument. A
+     * reference has no {@code classData}, and every member query answered empty for one: the
+     * element for the return type of {@code def stream(): Stream[String]} reported no methods,
+     * no properties and no constructors, so walking from a method to its return type and on to
+     * that type's members -- which is how core resolves introduction, validation and AOP
+     * targets -- stopped dead at the first step.</p>
+     *
+     * <p>Resolved by name, source first and then the classpath, and cached. Neither kind can
+     * come back here, since both carry their own declarations.</p>
+     */
+    private @Nullable ClassElement declaration() {
+        if (classData != null) {
+            return this;
+        }
+        if (declarationElement == null) {
+            declarationElement = resolveDeclaration();
+        }
+        return declarationElement == this ? null : declarationElement;
+    }
+
+    private ClassElement resolveDeclaration() {
+        if (typeData.primitive() || typeData.arrayDimensions() > 0 || typeData.genericPlaceholder()) {
+            return this;
+        }
+        ClassElement resolved = visitorContext.sourceClassElement(typeData.name())
+            .map(ClassElement.class::cast)
+            .orElseGet(() -> visitorContext.getClassElement(typeData.name()).orElse(null));
+        if (resolved == null || resolved == this) {
+            return this;
+        }
+        // The reference knows what the type was used at; the declaration only knows how it was
+        // declared. Reflection reads `Function.apply` as `Object apply(Object)` however the
+        // `Function` was parameterized, so delegating without carrying the arguments over lost
+        // them for every member of a classpath type.
+        Map<String, ClassElement> arguments = elementFactory.typeArguments(typeData);
+        if (arguments.isEmpty()) {
+            return resolved;
+        }
+        Map<String, ClassElement> declared = resolved.getTypeArguments();
+        if (declared.isEmpty()) {
+            return resolved;
+        }
+        Map<String, ClassElement> substituted = new LinkedHashMap<>(declared.size());
+        declared.forEach((name, value) -> substituted.put(name, arguments.getOrDefault(name, value)));
+        return resolved.withTypeArguments(substituted);
+    }
+
+    @Override
+    public <T extends Element> List<T> getEnclosedElements(ElementQuery<T> query) {
+        if (classData == null) {
+            ClassElement declaration = declaration();
+            return declaration == null ? List.of() : declaration.getEnclosedElements(query);
+        }
+        ElementQuery.Result<T> result = query.result();
+        List<Element> elements = new ArrayList<>();
+        Class<T> elementType = result.getElementType();
+        if (elementType == ConstructorElement.class) {
+            requiredData().constructors().forEach(constructor -> elements.add(constructorElement(constructor)));
+            if (!result.isOnlyDeclared()) {
+                // A constructor is not inherited by the JVM, but `ElementQuery.CONSTRUCTORS` is
+                // defined as `of(ConstructorElement).onlyDeclared()`, so the query without that
+                // flag is asking for the superclass's too. Ignoring the flag made the two
+                // queries answer identically.
+                collectInheritedConstructors(requiredData().superType(), elements, new HashSet<>(Set.of(getName())));
+            }
+        } else if (elementType == MethodElement.class) {
+            addMethodElements(result, elements);
+        } else if (elementType == FieldElement.class) {
+            addFieldElements(result, elements);
+        } else if (elementType == PropertyElement.class) {
+            elements.addAll(propertyElements());
+        } else if (elementType == ClassElement.class) {
+            elements.addAll(visitorContext.sourceClassElementsEnclosedBy(getName()));
+            for (String nested : requiredData().nestedTypeNames()) {
+                visitorContext.getClassElement(nested).ifPresent(elements::add);
+            }
+        } else if (elementType == MemberElement.class) {
+            addFieldElements(result, elements);
+            addMethodElements(result, elements);
+            if (!result.isExcludePropertyElements()) {
+                elements.addAll(propertyElements());
+            }
+        }
+        return elements.stream()
+            .filter(element -> matches(result, element))
+            .map(elementType::cast)
+            .toList();
+    }
+
+    /**
+     * The properties a query for {@code PropertyElement} answers with.
+     *
+     * <p>A Scala class declares its properties, and those are the answer. A Java class has
+     * none in that sense -- what it has are getters and setters -- and for it the answer is
+     * what Java's conventions make of its members, which is what core's own model answers.</p>
+     */
+    private List<PropertyElement> propertyElements() {
+        List<ScalaPropertyData> declared = requiredData().properties();
+        if (declared.isEmpty()) {
+            return getBeanProperties();
+        }
+        return declared.stream().map(this::propertyElement).map(PropertyElement.class::cast).toList();
+    }
+
+    private <T extends Element> void addMethodElements(ElementQuery.Result<T> result, List<Element> elements) {
+        ScalaClassData data = data();
+        if (data == null) {
+            return;
+        }
+        // `includeOverriddenMethods` asks for every declaration rather than the one that wins,
+        // so the signature set that normally hides a supertype's declaration is not shared with
+        // the walk. The visited-type set still stops a type being read twice.
+        Set<MethodSignature> signatures = new HashSet<>();
+        data.methods().forEach(method -> addMethodElement(method, this, signatures, elements));
+        if (!result.isOnlyDeclared()) {
+            Set<MethodSignature> inheritedSignatures =
+                result.isIncludeOverriddenMethods() ? new HashSet<>() : signatures;
+            List<ScalaTypeData> roots = new ArrayList<>();
+            if (data.superType() != null) {
+                roots.add(data.superType());
+            }
+            roots.addAll(data.interfaces());
+            collectInheritedMethods(roots, inheritedSignatures, elements);
+        }
+    }
+
+    /**
+     * Constructors of the superclass chain, for a query that did not ask for declared members
+     * only.
+     */
+    private void collectInheritedConstructors(@Nullable ScalaTypeData type, List<Element> elements, Set<String> visited) {
+        if (type == null || !visited.add(type.name())) {
+            return;
+        }
+        Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(type.name());
+        if (sourceElement.isEmpty()) {
+            classpathElement(type.name()).ifPresent(classpathElement ->
+                elements.addAll(classpathElement.getEnclosedElements(ElementQuery.CONSTRUCTORS)));
+            return;
+        }
+        ScalaClassElement inheritedElement = sourceElement.get();
+        ScalaClassData inheritedData = inheritedElement.classData;
+        if (inheritedData == null) {
+            return;
+        }
+        inheritedData.constructors().forEach(constructor -> elements.add(inheritedElement.constructorElement(constructor)));
+        collectInheritedConstructors(inheritedData.superType(), elements, visited);
+    }
+
+    private void collectInheritedMethods(
+        List<ScalaTypeData> roots,
+        Set<MethodSignature> signatures,
+        List<Element> elements) {
+        // Level order, not depth first. A signature is recorded the first time the walk meets
+        // it, so the order decides which declaration of an overridden method is reported. Depth
+        // first descends one parent to the top before looking at the next, so in
+        // `C extends P1, P2` where P2 narrows a method P1 inherits, it reached the base
+        // declaration through P1 before ever reaching P2's override, and reported the widened
+        // return type. Walking by distance instead meets every direct parent before any
+        // grandparent, and an override always sits nearer the queried class than what it
+        // overrides.
+        ArrayDeque<ScalaTypeData> queue = new ArrayDeque<>(roots);
+        Set<String> visited = new HashSet<>();
+        while (!queue.isEmpty()) {
+            ScalaTypeData type = queue.poll();
+            if (type == null || !visited.add(type.name())) {
+                continue;
+            }
+            Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(type.name());
+            if (sourceElement.isEmpty()) {
+                collectClasspathMethods(type, signatures, elements);
+                continue;
+            }
+            ScalaClassElement inheritedElement = sourceElement.get();
+            ScalaClassData inheritedData = inheritedElement.classData;
+            if (inheritedData == null) {
+                continue;
+            }
+            Map<String, ScalaTypeData> substitutions = type.typeArguments();
+            inheritedData.methods().forEach(method ->
+                addMethodElement(substitute(method, substitutions), inheritedElement, signatures, elements));
+            ScalaTypeData superType = substitute(inheritedData.superType(), substitutions);
+            if (superType != null) {
+                queue.add(superType);
+            }
+            inheritedData.interfaces().forEach(interfaceType -> {
+                ScalaTypeData substituted = substitute(interfaceType, substitutions);
+                if (substituted != null) {
+                    queue.add(substituted);
+                }
+            });
+        }
+    }
+
+    /**
+     * Inherited members of a supertype that is not part of this compilation.
+     *
+     * <p>A supertype read from the classpath used to contribute nothing at all, so a class
+     * extending a Java or already-compiled Scala base inherited none of its injectable
+     * members -- no inherited {@code @Inject} method, no inherited bean property. The
+     * classpath element walks its own hierarchy, so this does not recurse further.</p>
+     *
+     * <p>Universal supertypes are skipped. A Scala class on the classpath really does
+     * implement {@code scala.Product}, {@code scala.Equals} and {@code java.io.Serializable},
+     * but the source path never produces their members, and neither can carry Micronaut
+     * metadata -- merging them in would make the two element kinds disagree about what a
+     * class inherits.</p>
+     */
+    /**
+     * Inherited methods of a classpath supertype, with the supertype's type variables bound.
+     *
+     * <p>Only the name used to be passed, so the element was built from the declaration alone and
+     * every inherited signature came back at its erasure: a repository extending
+     * {@code CrudRepository[Book, java.lang.Long]} reported {@code findAll} as
+     * {@code List<Object>}. The source-supertype walk beside this one already substitutes; this
+     * is the same step for a supertype compiled earlier, which is the common case, since the
+     * interfaces worth inheriting from are the ones a library published.</p>
+     *
+     * @param type The supertype reference, carrying whatever it was parameterized with
+     * @param signatures The signatures already collected
+     * @param elements The collected elements
+     */
+    private void collectClasspathMethods(ScalaTypeData type, Set<MethodSignature> signatures, List<Element> elements) {
+        classpathElement(type.name()).map(element -> bindTypeArguments(element, type)).ifPresent(classpathElement -> {
+            for (MethodElement method : classpathElement.getEnclosedElements(ElementQuery.ALL_METHODS)) {
+                if (universalSupertype(method.getDeclaringType().getName())) {
+                    continue;
+                }
+                if (signatures.add(signature(method))) {
+                    elements.add(owned(method));
+                }
+            }
+        });
+    }
+
+    /**
+     * Fields of a classpath supertype, with the reference's type arguments bound as they are
+     * for its methods: an inherited `@Inject var item: T` through `Holder[String]` is an
+     * injection point for a `String`, not for a `T`.
+     */
+    private void collectClasspathFields(ScalaTypeData type, Set<String> fieldNames, List<Element> elements) {
+        classpathElement(type.name()).map(element -> bindTypeArguments(element, type)).ifPresent(classpathElement -> {
+            for (FieldElement field : classpathElement.getEnclosedElements(ElementQuery.ALL_FIELDS)) {
+                if (universalSupertype(field.getDeclaringType().getName())) {
+                    continue;
+                }
+                if (fieldNames.add(field.getName())) {
+                    elements.add(field);
+                }
+            }
+        });
+    }
+
+    /**
+     * Applies a supertype reference's arguments to the element resolved for its declaration.
+     *
+     * @param element The declaration element
+     * @param type The reference, whose arguments are keyed by the declared parameter names
+     * @return The element with its type variables bound, or unchanged when the reference is raw
+     */
+    private ClassElement bindTypeArguments(ClassElement element, ScalaTypeData type) {
+        Map<String, ScalaTypeData> arguments = type.typeArguments();
+        if (arguments.isEmpty()) {
+            return element;
+        }
+        Map<String, ClassElement> resolved = new LinkedHashMap<>(arguments.size());
+        arguments.forEach((name, argument) ->
+            resolved.put(name, visitorContext.getElementFactory().newClassElement(argument)));
+        return element.withTypeArguments(resolved);
+    }
+
+    private Optional<ClassElement> classpathElement(String name) {
+        if (universalSupertype(name)) {
+            return Optional.empty();
+        }
+        return visitorContext.getClassElement(name);
+    }
+
+    private static boolean universalSupertype(String name) {
+        return UNIVERSAL_SUPERTYPES.contains(name);
+    }
+
+    /**
+     * The signature by which an override hides what it overrides, in the parameterisation the
+     * class sees. {@code save(entity: T)} inherited through {@code Repo[String]} and the class's
+     * own {@code save(entity: String)} are one method to the class, whatever the two compile
+     * to -- so the resolved parameter types are compared, not the declared ones.
+     */
+    private MethodSignature signature(MethodElement method) {
+        return new MethodSignature(
+            method.getName(),
+            Arrays.stream(method.getParameters())
+                .map(parameter -> new TypeSignature(
+                    parameter.getGenericType().getName(),
+                    parameter.getGenericType().getArrayDimensions()))
+                .toList()
+        );
+    }
+
+    private void addMethodElement(
+        ScalaMethodData method,
+        ScalaClassElement declaringElement,
+        Set<MethodSignature> signatures,
+        List<Element> elements) {
+        if (signatures.add(signature(method))) {
+            elements.add(owned(declaringElement.methodElement(method)));
+        }
+    }
+
+    /**
+     * An inherited method owned by the class the query was made on, not by the supertype
+     * that declares it.
+     *
+     * <p>{@code getDeclaringType()} answers where a method is declared; {@code
+     * getOwningType()} answers which class it was reached through, and Core's Java module
+     * builds every enclosed element -- inherited ones included -- owned by the queried
+     * class. Both element kinds here kept the supertype as the owner, so anything that
+     * resolves against the owner read the supertype's answer: an inherited accessor of a
+     * {@code @ConfigurationProperties} class took its property prefix from the supertype,
+     * which usually carries none, and bound {@code .host} instead of {@code app.host}.</p>
+     */
+    private MethodElement owned(MethodElement method) {
+        return method.getOwningType().getName().equals(getName()) ? method : method.withNewOwningType(this);
+    }
+
+    private MethodSignature signature(ScalaMethodData method) {
+        return new MethodSignature(
+            method.name(),
+            method.parameters().stream()
+                .map(parameter -> new TypeSignature(parameter.resolvedType().name(), parameter.resolvedType().arrayDimensions()))
+                .toList()
+        );
+    }
+
+    /**
+     * A method with a parameterisation applied.
+     *
+     * <p>The declared types stay what they are, and the bindings go into the generic types.
+     * {@code getType()} is the JVM signature -- what a proxy or adapter that overrides the
+     * method has to declare -- and {@code getGenericType()} is what the caller means by it.
+     * Substituting the declared type made an {@code @Adapter} for
+     * {@code ApplicationEventListener[StartupEvent]} implement
+     * {@code onApplicationEvent(StartupEvent)} and leave the interface's own
+     * {@code onApplicationEvent(Object)} abstract.</p>
+     */
+    private ScalaMethodData substitute(ScalaMethodData method, Map<String, ScalaTypeData> substitutions) {
+        if (substitutions.isEmpty()) {
+            return method;
+        }
+        return new ScalaMethodData(
+            method.name(),
+            method.returnType(),
+            method.parameters().stream()
+                .map(parameter -> substitute(parameter, substitutions))
+                .toList(),
+            method.typeParameters().stream()
+                .map(typeParameter -> substituteBounds(typeParameter, substitutions))
+                .toList(),
+            method.thrownTypes().stream()
+                .map(thrownType -> substitute(thrownType, substitutions))
+                .toList(),
+            method.annotations(),
+            method.modifiers(),
+            method.constructor(),
+            method.nativeType(),
+            method.overriddenMethods(),
+            substitute(method.resolvedReturnType(), substitutions)
+        );
+    }
+
+    /**
+     * A method's own type variable with the parameterisation applied to its bounds only. The
+     * variable stays a variable -- it is what the method declares -- but `S <: E` is bounded by
+     * `String` once `E` is, and is named for it, as the erasure the JVM sees.
+     */
+    private ScalaTypeData substituteBounds(ScalaTypeData typeParameter, Map<String, ScalaTypeData> substitutions) {
+        if (!typeParameter.genericPlaceholder() || substitutions.isEmpty()) {
+            return typeParameter;
+        }
+        List<ScalaTypeData> bounds = substitute(typeParameter.bounds(), substitutions);
+        if (bounds.equals(typeParameter.bounds())) {
+            return typeParameter;
+        }
+        ScalaTypeData primary = bounds.isEmpty() ? typeParameter : bounds.get(0);
+        return new ScalaTypeData(
+            primary.name(),
+            typeParameter.primitive(),
+            typeParameter.arrayDimensions(),
+            primary.interfaceType(),
+            primary.typeArguments(),
+            primary.superType(),
+            primary.interfaces(),
+            typeParameter.annotations(),
+            typeParameter.annotatedTypeUse(),
+            typeParameter.nativeType(),
+            true,
+            typeParameter.variableName(),
+            bounds,
+            typeParameter.wildcard(),
+            typeParameter.upperBounds(),
+            typeParameter.lowerBounds()
+        );
+    }
+
+    private ScalaParameterData substitute(ScalaParameterData parameter, Map<String, ScalaTypeData> substitutions) {
+        return new ScalaParameterData(
+            parameter.name(),
+            parameter.type(),
+            parameter.annotations(),
+            parameter.defaultAccessor(),
+            parameter.defaultAccessorStatic(),
+            parameter.nativeType(),
+            parameter.overriddenParameters(),
+            substitute(parameter.resolvedType(), substitutions)
+        );
+    }
+
+    private @Nullable ScalaTypeData substitute(@Nullable ScalaTypeData type, Map<String, ScalaTypeData> substitutions) {
+        if (type == null || substitutions.isEmpty()) {
+            return type;
+        }
+        if (type.genericPlaceholder() && type.variableName() != null) {
+            ScalaTypeData replacement = substitutions.get(type.variableName());
+            if (replacement != null) {
+                return type.arrayDimensions() == replacement.arrayDimensions()
+                    ? replacement
+                    : replacement.withArrayDimensions(type.arrayDimensions());
+            }
+            // A variable bound by another -- `<S extends E> S save(S)` -- is not itself in the
+            // substitutions, but once E is Book there is nothing S can be but a Book. Only when
+            // following the bound reaches something that was actually bound: a variable of a type
+            // used raw is genuinely unbound, and collapsing it to its bound would rewrite the
+            // signature an adapter is generated against.
+            if (!type.bounds().isEmpty()) {
+                ScalaTypeData bound = type.bounds().get(0);
+                ScalaTypeData resolved = substitute(bound, substitutions);
+                if (resolved != null && !resolved.equals(bound)) {
+                    return type.arrayDimensions() == resolved.arrayDimensions()
+                        ? resolved
+                        : resolved.withArrayDimensions(type.arrayDimensions());
+                }
+            }
+        }
+        if (type.wildcard() && !type.upperBounds().isEmpty()) {
+            // `? extends E` is an E once E is known. The bound is what every caller reads --
+            // what the collection holds -- so the resolved bound stands in for the wildcard.
+            ScalaTypeData bound = type.upperBounds().get(0);
+            ScalaTypeData resolved = substitute(bound, substitutions);
+            if (resolved != null && !resolved.equals(bound)) {
+                return resolved;
+            }
+        }
+        Map<String, ScalaTypeData> typeArguments = substitute(type.typeArguments(), substitutions);
+        ScalaTypeData superType = substitute(type.superType(), substitutions);
+        List<ScalaTypeData> interfaces = substitute(type.interfaces(), substitutions);
+        List<ScalaTypeData> bounds = substitute(type.bounds(), substitutions);
+        List<ScalaTypeData> upperBounds = substitute(type.upperBounds(), substitutions);
+        List<ScalaTypeData> lowerBounds = substitute(type.lowerBounds(), substitutions);
+        if (typeArguments.equals(type.typeArguments())
+            && Objects.equals(superType, type.superType())
+            && interfaces.equals(type.interfaces())
+            && bounds.equals(type.bounds())
+            && upperBounds.equals(type.upperBounds())
+            && lowerBounds.equals(type.lowerBounds())) {
+            return type;
+        }
+        return new ScalaTypeData(
+            type.name(),
+            type.primitive(),
+            type.arrayDimensions(),
+            type.interfaceType(),
+            typeArguments,
+            superType,
+            interfaces,
+            type.annotations(),
+            type.annotatedTypeUse(),
+            type.nativeType(),
+            type.genericPlaceholder(),
+            type.variableName(),
+            bounds,
+            type.wildcard(),
+            upperBounds,
+            lowerBounds
+        );
+    }
+
+    private Map<String, ScalaTypeData> substitute(Map<String, ScalaTypeData> types, Map<String, ScalaTypeData> substitutions) {
+        if (types.isEmpty()) {
+            return types;
+        }
+        Map<String, ScalaTypeData> substituted = new LinkedHashMap<>(types.size());
+        boolean changed = false;
+        for (Map.Entry<String, ScalaTypeData> entry : types.entrySet()) {
+            ScalaTypeData original = entry.getValue();
+            ScalaTypeData replacement = substitute(original, substitutions);
+            substituted.put(entry.getKey(), replacement);
+            changed |= !Objects.equals(replacement, original);
+        }
+        return changed ? substituted : types;
+    }
+
+    private List<ScalaTypeData> substitute(List<ScalaTypeData> types, Map<String, ScalaTypeData> substitutions) {
+        if (types.isEmpty()) {
+            return types;
+        }
+        List<ScalaTypeData> substituted = new ArrayList<>(types.size());
+        boolean changed = false;
+        for (ScalaTypeData type : types) {
+            ScalaTypeData replacement = substitute(type, substitutions);
+            substituted.add(replacement);
+            changed |= !Objects.equals(replacement, type);
+        }
+        return changed ? substituted : types;
+    }
+
+    private <T extends Element> void addFieldElements(ElementQuery.Result<T> result, List<Element> elements) {
+        ScalaClassData data = data();
+        if (data == null) {
+            return;
+        }
+        // Fields are de-duplicated by name, not signature: a subclass field shadows a
+        // superclass field of the same name rather than overloading it.
+        Set<String> fieldNames = new HashSet<>();
+        addDeclaredFieldElements(this, data, result, fieldNames, elements);
+        if (!result.isOnlyDeclared()) {
+            // This walk did not exist, so inherited @Inject and @Value fields and inherited
+            // @ConfigurationProperties state were always missed.
+            Set<String> visited = new HashSet<>();
+            visited.add(getName());
+            collectInheritedFields(data.superType(), result, fieldNames, elements, visited);
+            data.interfaces().forEach(interfaceType -> collectInheritedFields(interfaceType, result, fieldNames, elements, visited));
+        }
+    }
+
+    private <T extends Element> void addDeclaredFieldElements(
+        ScalaClassElement declaringElement,
+        ScalaClassData data,
+        ElementQuery.Result<T> result,
+        Set<String> fieldNames,
+        List<Element> elements) {
+        data.fields().forEach(field -> {
+            if (!fieldNames.add(field.name())) {
+                return;
+            }
+            if (field.enumConstant()) {
+                if (result.isIncludeEnumConstants() && declaringElement instanceof ScalaEnumElement enumElement) {
+                    elements.add(enumElement.enumConstantElement(field));
+                }
+            } else {
+                elements.add(declaringElement.fieldElement(field));
+            }
+        });
+    }
+
+    private <T extends Element> void collectInheritedFields(
+        @Nullable ScalaTypeData type,
+        ElementQuery.Result<T> result,
+        Set<String> fieldNames,
+        List<Element> elements,
+        Set<String> visited) {
+        if (type == null || !visited.add(type.name())) {
+            return;
+        }
+        Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(type.name());
+        if (sourceElement.isEmpty()) {
+            collectClasspathFields(type, fieldNames, elements);
+            return;
+        }
+        ScalaClassElement inheritedElement = sourceElement.get();
+        ScalaClassData inheritedData = inheritedElement.classData;
+        if (inheritedData == null) {
+            return;
+        }
+        Map<String, ScalaTypeData> substitutions = type.typeArguments();
+        addDeclaredFieldElements(inheritedElement, substitute(inheritedData, substitutions), result, fieldNames, elements);
+        collectInheritedFields(substitute(inheritedData.superType(), substitutions), result, fieldNames, elements, visited);
+        inheritedData.interfaces().forEach(interfaceType ->
+            collectInheritedFields(substitute(interfaceType, substitutions), result, fieldNames, elements, visited));
+    }
+
+    /**
+     * A copy of a class's data with its type variables resolved against a parameterisation,
+     * so an inherited {@code @Inject} field of type {@code T} reports the concrete type at the
+     * injection point, and a method inherited from {@code Repo[E, ID]} through
+     * {@code Repo[Book, Long]} returns {@code Book}.
+     */
+    private ScalaClassData substitute(ScalaClassData data, Map<String, ScalaTypeData> substitutions) {
+        if (substitutions.isEmpty()) {
+            return data;
+        }
+        return new ScalaClassData(
+            data.name(),
+            data.annotations(),
+            data.modifiers(),
+            data.annotationType(),
+            data.interfaceType(),
+            data.enumType(),
+            data.typeParameters(),
+            substitute(data.superType(), substitutions),
+            substitute(data.interfaces(), substitutions),
+            data.constructors().stream().map(constructor -> substitute(constructor, substitutions)).toList(),
+            data.methods().stream().map(method -> substitute(method, substitutions)).toList(),
+            data.fields().stream().map(field -> substitute(field, substitutions)).toList(),
+            data.properties().stream().map(property -> substitute(property, substitutions)).toList(),
+            data.enclosingTypeName(),
+            data.nativeType(),
+            data.nestedTypeNames()
+        );
+    }
+
+    private ScalaFieldData substitute(ScalaFieldData field, Map<String, ScalaTypeData> substitutions) {
+        return new ScalaFieldData(
+            field.name(),
+            field.type(),
+            field.annotations(),
+            field.modifiers(),
+            field.enumConstant(),
+            field.constantValue(),
+            field.nativeType(),
+            substitute(field.resolvedType(), substitutions)
+        );
+    }
+
+    final ScalaConstructorElement constructorElement(ScalaMethodData constructor) {
+        return constructorElements.computeIfAbsent(constructor, ignored -> new ScalaConstructorElement(this, constructor, visitorContext));
+    }
+
+    final ScalaMethodElement methodElement(ScalaMethodData method) {
+        return methodElements.computeIfAbsent(method, ignored -> new ScalaMethodElement(this, method, visitorContext));
+    }
+
+    final ScalaFieldElement fieldElement(ScalaFieldData field) {
+        return fieldElements.computeIfAbsent(field, ignored -> new ScalaFieldElement(this, field, visitorContext));
+    }
+
+    final ScalaEnumConstantElement enumConstantElement(ScalaFieldData field) {
+        if (this instanceof ScalaEnumElement enumElement) {
+            return enumConstantElements.computeIfAbsent(field, ignored -> new ScalaEnumConstantElement(enumElement, field, visitorContext));
+        }
+        throw new IllegalStateException("Declaring class must be a ScalaEnumElement");
+    }
+
+    final ScalaPropertyElement propertyElement(ScalaPropertyData property) {
+        return propertyElements.computeIfAbsent(property, ignored -> new ScalaPropertyElement(this, property, visitorContext));
+    }
+
+    private <T extends Element> boolean matches(ElementQuery.Result<T> result, Element element) {
+        if (result.isOnlyAbstract() && !element.isAbstract()) {
+            return false;
+        }
+        if (result.isOnlyConcrete() && element.isAbstract()) {
+            return false;
+        }
+        if (result.isOnlyStatic() && !element.isStatic()) {
+            return false;
+        }
+        if (result.isOnlyInstance() && element.isStatic()) {
+            return false;
+        }
+        if (result.isOnlyAccessible() && element instanceof MemberElement memberElement) {
+            ClassElement fromType = result.getOnlyAccessibleFromType().orElse(this);
+            if (!memberElement.isAccessible(fromType)) {
+                return false;
+            }
+        }
+        for (Predicate<String> predicate : result.getNamePredicates()) {
+            if (!predicate.test(element.getName())) {
+                return false;
+            }
+        }
+        if (element instanceof io.micronaut.inject.ast.TypedElement typedElement) {
+            for (Predicate<ClassElement> predicate : result.getTypePredicates()) {
+                if (!predicate.test(typedElement.getType())) {
+                    return false;
+                }
+            }
+        }
+        for (Predicate<AnnotationMetadata> predicate : result.getAnnotationPredicates()) {
+            if (!predicate.test(element.getAnnotationMetadata())) {
+                return false;
+            }
+        }
+        for (Predicate<Set<ElementModifier>> predicate : result.getModifierPredicates()) {
+            if (!predicate.test(element.getModifiers())) {
+                return false;
+            }
+        }
+        for (Predicate<T> predicate : result.getElementPredicates()) {
+            if (!predicate.test(result.getElementType().cast(element))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public String getPackageName() {
+        return NameUtils.getPackageName(getName());
+    }
+
+    /**
+     * The source-level name of the type, with nested types separated by a dot.
+     *
+     * <p>Core's default returns {@link #getName()}, which is the binary name -- {@code
+     * nest.Outer$Inner}. The Java module answers with the qualified name,
+     * {@code nest.Outer.Inner}, and this is what reaches users in diagnostics and in
+     * introspection naming.</p>
+     */
+    @Override
+    public String getCanonicalName() {
+        String enclosingTypeName = classData == null ? null : classData.enclosingTypeName();
+        if (enclosingTypeName == null) {
+            return defaultCanonicalName();
+        }
+        String enclosing = visitorContext.sourceClassElement(enclosingTypeName)
+            .map(ClassElement.class::cast)
+            .or(() -> classpathElement(enclosingTypeName))
+            .map(ClassElement::getCanonicalName)
+            .orElse(enclosingTypeName);
+        return enclosing + "." + nestedSimpleName(getName());
+    }
+
+    private String defaultCanonicalName() {
+        // Core's default, which cannot be reached with `super` from here because it is declared
+        // on ClassElement rather than on a supertype of this class.
+        if (isOptional()) {
+            return getFirstTypeArgument().map(ClassElement::getName).orElse(Object.class.getName());
+        }
+        return getName();
+    }
+
+    private static String nestedSimpleName(String name) {
+        int index = name.lastIndexOf('$');
+        return index > -1 ? name.substring(index + 1) : name;
+    }
+
+    @Override
+    public PackageElement getPackage() {
+        return visitorContext.packageElement(getPackageName());
+    }
+
+    @Override
+    public ClassElement withArrayDimensions(int arrayDimensions) {
+        if (arrayDimensions == getArrayDimensions()) {
+            return this;
+        }
+        return copy(typeData.withArrayDimensions(arrayDimensions), getAnnotationMetadata());
+    }
+
+    @Override
+    public int getArrayDimensions() {
+        return typeData.arrayDimensions();
+    }
+
+    @Override
+    public boolean isPrimitive() {
+        return typeData.primitive();
+    }
+
+    @Override
+    public boolean isContainerType() {
+        return ScalaContainerTypes.isContainerType(this);
+    }
+
+    @Override
+    public Map<String, Map<String, ClassElement>> getAllTypeArguments() {
+        return ScalaContainerTypes.withIterableTypeArguments(
+            this, ArrayableClassElement.super.getAllTypeArguments());
+    }
+
+    @Override
+    public ClassElement withTypeArguments(Map<String, ClassElement> typeArguments) {
+        if (typeArguments == null || typeArguments.isEmpty()) {
+            return this;
+        }
+        // Micronaut calls this wherever it resolves generics -- `foldBoundGenericTypes`,
+        // factory return types, `AstBeanPropertiesUtils`. Returning `this` handed the
+        // caller back the unsubstituted type with no way to tell that nothing happened.
+        Map<String, ScalaTypeData> resolved = new LinkedHashMap<>();
+        typeArguments.forEach((name, element) -> resolved.put(name, typeDataOf(element)));
+        return copy(typeData.withTypeArguments(resolved), getAnnotationMetadata());
+    }
+
+    /**
+     * This element with other type data or other metadata, and otherwise the same: the same
+     * declaration, and the same kind -- an enum's copy is an enum, so that its constants are
+     * still produced. Every {@code with...} goes through here.
+     */
+    ClassElement copy(ScalaTypeData newTypeData, AnnotationMetadata annotationMetadata) {
+        if (classData == null) {
+            return new ScalaClassElement(newTypeData, visitorContext, annotationMetadata);
+        }
+        return new ScalaClassElement(classData, newTypeData, visitorContext, annotationMetadata);
+    }
+
+    /**
+     * The {@link ScalaTypeData} behind a class element. Elements from outside this
+     * compilation carry no Scala type data, so a minimal one is built from the Element API
+     * itself; their native type is deliberately not borrowed, since only a dotty tree or
+     * symbol is usable as one.
+     */
+    private static ScalaTypeData typeDataOf(ClassElement element) {
+        if (element instanceof ScalaClassElement scalaClassElement) {
+            return scalaClassElement.typeData;
+        }
+        return new ScalaTypeData(
+            element.getName(),
+            element.isPrimitive(),
+            element.getArrayDimensions(),
+            element.isInterface(),
+            Map.of(),
+            null,
+            List.of(),
+            List.of(),
+            false,
+            null
+        );
+    }
+
+    /**
+     * This declaration as referred to from one place, with metadata of its own.
+     *
+     * <p>The element for a classpath class is cached, so that the same type reached twice is
+     * one element. A reference to it from a parameter, a return type or a type argument is
+     * not the declaration, though: a visitor that annotates the parameter's type means that
+     * parameter, and writing into the shared element made every use of {@code String} in the
+     * compilation carry the last such annotation. The reference starts from the declaration's
+     * metadata -- so {@code @MappedEntity} on the class is visible on the reference -- and is
+     * mutated on its own from there, which is also how javac's model behaves.</p>
+     *
+     * @return A reference element for this declaration
+     */
+    ScalaClassElement useSiteReference() {
+        return (ScalaClassElement) copy(typeData, MutableAnnotationMetadata.of(getAnnotationMetadata()));
+    }
+
+    @Override
+    public ClassElement withAnnotationMetadata(AnnotationMetadata annotationMetadata) {
+        // Both forms keep the type data. Rebuilding a declaration from its class data alone
+        // dropped the array dimensions and the type arguments the element had been given, and
+        // the introspection visitor calls this on every property type: `Array[Inner]` was
+        // written as `Inner`, and a bound `Repo[Book, Long]` went back to `Repo[E, ID]`.
+        return copy(typeData, annotationMetadata);
+    }
+
+    @Override
+    protected Class<?> equalityType() {
+        return ScalaClassElement.class;
+    }
+
+    @Override
+    protected Object equalityKey() {
+        return new ClassElementKey(getName(), getArrayDimensions());
+    }
+
+    /**
+     * The identity of a class element: the type it names, not the compiler structure it was
+     * read from.
+     *
+     * <p>Shared by every element kind so that a type read from source and the
+     * same type read from the classpath are one element as far as Micronaut's element caches
+     * are concerned. Placeholders and wildcards deliberately do not use it -- their identity
+     * is the variable or the bounds, not the erasure.</p>
+     *
+     * @param name The type name
+     * @param arrayDimensions The number of array dimensions
+     */
+    record ClassElementKey(String name, int arrayDimensions) {
+    }
+
+    private record MethodSignature(String name, List<TypeSignature> parameterTypes) {
+    }
+
+    private record TypeSignature(String name, int arrayDimensions) {
+    }
+}

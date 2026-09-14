@@ -1,0 +1,360 @@
+/*
+ * Copyright 2017-2026 original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.micronaut.scala.convert;
+
+import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.Nullable;
+import io.micronaut.core.convert.ConversionContext;
+import io.micronaut.core.convert.exceptions.ConversionErrorException;
+import io.micronaut.core.type.Argument;
+import io.micronaut.core.convert.MutableConversionService;
+import io.micronaut.core.convert.TypeConverterRegistrar;
+import scala.collection.IterableOnce;
+import scala.jdk.javaapi.CollectionConverters;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+
+/**
+ * Converters for Scala collection types.
+ *
+ * <p>Every converter into a Scala collection produces an independent copy rather than a view over
+ * the Java collection it was given. Micronaut hands these converters a container-owned collection,
+ * and a view over it would let a later mutation change the value already injected into a bean. The
+ * mutable targets copy into a mutable Scala collection, so the bean still owns something it can
+ * modify; the mutation simply does not travel back. The two Scala-to-Java converters are the
+ * deliberate exception: there the caller owns the source, and wrapping is the cheaper, expected
+ * behaviour of {@code CollectionConverters.asJavaCollection}.</p>
+ */
+@Internal
+public final class ScalaCollectionConverterRegistrar implements TypeConverterRegistrar {
+
+    /** Set by {@link #register}; the converters below are only reachable after that. */
+    private @Nullable MutableConversionService conversionService;
+
+    @Override
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public void register(MutableConversionService conversionService) {
+        this.conversionService = conversionService;
+        conversionService.addConverter(Collection.class, scala.collection.Iterable.class, this::toScalaIterable);
+        conversionService.addConverter(Collection.class, scala.collection.Seq.class, this::toScalaSeq);
+        conversionService.addConverter(Collection.class, scala.collection.Set.class, this::toScalaSet);
+        conversionService.addConverter(Collection.class, scala.collection.IndexedSeq.class, this::toScalaIndexedSeq);
+        conversionService.addConverter(Collection.class, scala.collection.mutable.Iterable.class, this::toMutableIterable);
+        conversionService.addConverter(Collection.class, scala.collection.mutable.Seq.class, this::toMutableSeq);
+        conversionService.addConverter(Collection.class, scala.collection.mutable.Set.class, this::toMutableSet);
+        conversionService.addConverter(Collection.class, scala.collection.mutable.Buffer.class, this::toMutableBuffer);
+        conversionService.addConverter(Collection.class, scala.collection.mutable.IndexedSeq.class, this::toMutableIndexedSeq);
+        conversionService.addConverter(Collection.class, scala.collection.immutable.Iterable.class, this::toImmutableIterable);
+        conversionService.addConverter(Collection.class, scala.collection.immutable.Seq.class, this::toImmutableSeq);
+        conversionService.addConverter(Collection.class, scala.collection.immutable.Set.class, this::toImmutableSet);
+        conversionService.addConverter(Collection.class, scala.collection.immutable.IndexedSeq.class, this::toImmutableIndexedSeq);
+        conversionService.addConverter(Collection.class, scala.collection.immutable.List.class, this::toImmutableList);
+        conversionService.addConverter(Collection.class, scala.collection.immutable.Vector.class, this::toImmutableVector);
+
+        conversionService.addConverter(scala.collection.Iterable.class, Iterable.class, this::toJavaIterable);
+        conversionService.addConverter(scala.collection.Iterable.class, Collection.class, this::toJavaCollection);
+        conversionService.addConverter(scala.collection.Map.class, Map.class, this::toJavaMap);
+
+        conversionService.addConverter(Map.class, scala.collection.Map.class, this::toScalaMap);
+        conversionService.addConverter(Map.class, scala.collection.mutable.Map.class, this::toMutableMap);
+        conversionService.addConverter(Map.class, scala.collection.immutable.Map.class, this::toImmutableMap);
+        conversionService.addConverter(Optional.class, scala.Option.class, this::toScalaOption);
+        conversionService.addConverter(Object.class, scala.Option.class, this::toScalaOptionOf);
+    }
+
+    private Optional<scala.collection.Iterable> toScalaIterable(Collection<?> collection,
+                                                                       Class<scala.collection.Iterable> targetType,
+                                                                       ConversionContext context) {
+        return toScalaIterableOnce(collection, context).map(elements -> scala.collection.immutable.Iterable.from(elements));
+    }
+
+    private Optional<scala.collection.Seq> toScalaSeq(Collection<?> collection,
+                                                             Class<scala.collection.Seq> targetType,
+                                                             ConversionContext context) {
+        return toScalaIterableOnce(collection, context).map(elements -> scala.collection.immutable.Seq.from(elements));
+    }
+
+    private Optional<scala.collection.Set> toScalaSet(Collection<?> collection,
+                                                             Class<scala.collection.Set> targetType,
+                                                             ConversionContext context) {
+        return toScalaIterableOnce(collection, context).map(elements -> scala.collection.immutable.Set.from(elements));
+    }
+
+    private Optional<scala.collection.IndexedSeq> toScalaIndexedSeq(Collection<?> collection,
+                                                                           Class<scala.collection.IndexedSeq> targetType,
+                                                                           ConversionContext context) {
+        return toScalaIterableOnce(collection, context).map(elements -> scala.collection.immutable.Vector.from(elements));
+    }
+
+    private Optional<scala.collection.immutable.Iterable> toImmutableIterable(Collection<?> collection,
+                                                                                    Class<scala.collection.immutable.Iterable> targetType,
+                                                                                    ConversionContext context) {
+        return toScalaIterableOnce(collection, context).map(elements -> scala.collection.immutable.Iterable.from(elements));
+    }
+
+    private Optional<scala.collection.immutable.Seq> toImmutableSeq(Collection<?> collection,
+                                                                           Class<scala.collection.immutable.Seq> targetType,
+                                                                           ConversionContext context) {
+        return toScalaIterableOnce(collection, context).map(elements -> scala.collection.immutable.Seq.from(elements));
+    }
+
+    private Optional<scala.collection.immutable.Set> toImmutableSet(Collection<?> collection,
+                                                                           Class<scala.collection.immutable.Set> targetType,
+                                                                           ConversionContext context) {
+        return toScalaIterableOnce(collection, context).map(elements -> scala.collection.immutable.Set.from(elements));
+    }
+
+    private Optional<scala.collection.immutable.IndexedSeq> toImmutableIndexedSeq(Collection<?> collection,
+                                                                                         Class<scala.collection.immutable.IndexedSeq> targetType,
+                                                                                         ConversionContext context) {
+        return toScalaIterableOnce(collection, context).map(elements -> scala.collection.immutable.Vector.from(elements));
+    }
+
+    private Optional<scala.collection.mutable.Iterable> toMutableIterable(Collection<?> collection,
+                                                                                 Class<scala.collection.mutable.Iterable> targetType,
+                                                                                 ConversionContext context) {
+        return asMutableBuffer(collection, context).map(buffer -> buffer);
+    }
+
+    private Optional<scala.collection.mutable.Seq> toMutableSeq(Collection<?> collection,
+                                                                       Class<scala.collection.mutable.Seq> targetType,
+                                                                       ConversionContext context) {
+        return asMutableBuffer(collection, context).map(buffer -> buffer);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Optional<scala.collection.mutable.Set> toMutableSet(Collection<?> collection,
+                                                                       Class<scala.collection.mutable.Set> targetType,
+                                                                       ConversionContext context) {
+        return toScalaIterableOnce(collection, context).map(elements -> (scala.collection.mutable.Set) scala.collection.mutable.Set.from(elements));
+    }
+
+    private Optional<scala.collection.mutable.Buffer> toMutableBuffer(Collection<?> collection,
+                                                                             Class<scala.collection.mutable.Buffer> targetType,
+                                                                             ConversionContext context) {
+        return asMutableBuffer(collection, context).map(buffer -> buffer);
+    }
+
+    /**
+     * {@code mutable.IndexedSeq} had no converter of its own, so a member declared as one was
+     * converted by the nearest registered ancestor -- {@code mutable.Seq}, which produces a
+     * {@code Buffer}, or {@code collection.IndexedSeq}, which produces an immutable
+     * {@code Vector} -- and neither is assignable to it, so the generated constructor's cast
+     * failed. An {@code ArrayBuffer} is both a buffer and an indexed sequence.
+     */
+    private Optional<scala.collection.mutable.IndexedSeq> toMutableIndexedSeq(Collection<?> collection,
+                                                                                    Class<scala.collection.mutable.IndexedSeq> targetType,
+                                                                                    ConversionContext context) {
+        return convertElements(collection, context)
+            .map(elements -> scala.collection.mutable.ArrayBuffer.from(CollectionConverters.asScala(elements)));
+    }
+
+    private Optional<scala.collection.immutable.List> toImmutableList(Collection<?> collection,
+                                                                             Class<scala.collection.immutable.List> targetType,
+                                                                             ConversionContext context) {
+        return toScalaIterableOnce(collection, context).map(elements -> scala.collection.immutable.List.from(elements));
+    }
+
+    private Optional<scala.collection.immutable.Vector> toImmutableVector(Collection<?> collection,
+                                                                                 Class<scala.collection.immutable.Vector> targetType,
+                                                                                 ConversionContext context) {
+        return toScalaIterableOnce(collection, context).map(elements -> scala.collection.immutable.Vector.from(elements));
+    }
+
+    private Optional<Iterable> toJavaIterable(scala.collection.Iterable<?> collection,
+                                                     Class<Iterable> targetType,
+                                                     ConversionContext context) {
+        return Optional.of(CollectionConverters.asJavaCollection(collection));
+    }
+
+    private Optional<Collection> toJavaCollection(scala.collection.Iterable<?> collection,
+                                                         Class<Collection> targetType,
+                                                         ConversionContext context) {
+        return Optional.of(CollectionConverters.asJavaCollection(collection));
+    }
+
+    /**
+     * A Scala map as a Java map.
+     *
+     * <p>A {@code scala.collection.Map} is a {@code scala.collection.Iterable} of tuples, so
+     * without this the only candidate converter was the one to {@code Collection} -- which
+     * does not produce a {@code Map}, so the conversion simply failed and anything asking a
+     * Scala bean for a {@code Map} (the metadata a {@code @ConfigurationProperties} writer
+     * reads, an HTTP body serialized from a returned map) got nothing back.</p>
+     *
+     * <p>Wrapping is the documented behaviour in this direction, so the view is returned
+     * whenever the target states no key or value type. When it does state one, the entries
+     * have to be converted, which needs a copy.</p>
+     */
+    @SuppressWarnings("unchecked")
+    private Optional<Map> toJavaMap(scala.collection.Map<?, ?> map,
+                                           Class<Map> targetType,
+                                           ConversionContext context) {
+        Map<Object, Object> asJava = CollectionConverters.asJava((scala.collection.Map<Object, Object>) map);
+        if (!statesEntryTypes(context)) {
+            return Optional.of(asJava);
+        }
+        return convertEntries(asJava, context).map(Map.class::cast);
+    }
+
+    private static boolean statesEntryTypes(ConversionContext context) {
+        for (Argument<?> typeParameter : context.getTypeParameters()) {
+            if (typeParameter.getType() != Object.class) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Optional<scala.collection.Map> toScalaMap(Map<?, ?> map,
+                                                             Class<scala.collection.Map> targetType,
+                                                             ConversionContext context) {
+        return convertEntries(map, context).map(entries -> scala.collection.immutable.Map.from(CollectionConverters.asScala(entries)));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Optional<scala.collection.mutable.Map> toMutableMap(Map<?, ?> map,
+                                                                       Class<scala.collection.mutable.Map> targetType,
+                                                                       ConversionContext context) {
+        return convertEntries(map, context).map(entries -> (scala.collection.mutable.Map) scala.collection.mutable.Map.from(CollectionConverters.asScala(entries)));
+    }
+
+    private Optional<scala.collection.immutable.Map> toImmutableMap(Map<?, ?> map,
+                                                                           Class<scala.collection.immutable.Map> targetType,
+                                                                           ConversionContext context) {
+        return convertEntries(map, context).map(entries -> scala.collection.immutable.Map.from(CollectionConverters.asScala(entries)));
+    }
+
+    private Optional<scala.Option> toScalaOption(Optional<?> optional,
+                                                        Class<scala.Option> targetType,
+                                                        ConversionContext context) {
+        return someOf(optional.orElse(null), context);
+    }
+
+    /**
+     * A {@code scala.Option} around any value, not only around a {@code java.util.Optional}.
+     *
+     * <p>Only the {@code Optional} source was registered, so nothing could produce an
+     * {@code Option} from an ordinary value. A property binder resolving
+     * {@code timeout: Option[Int]} asks the conversion service for an {@code Option} from
+     * the raw property value, gets nothing, and reports the property as missing -- so
+     * {@code Option} in a {@code @ConfigurationProperties} was unusable, and the diagnostic
+     * pointed at the configuration rather than at the missing converter.</p>
+     */
+    private Optional<scala.Option> toScalaOptionOf(Object value,
+                                                          Class<scala.Option> targetType,
+                                                          ConversionContext context) {
+        return someOf(value, context);
+    }
+
+    private Optional<scala.Option> someOf(@Nullable Object value, ConversionContext context) {
+        if (value == null || isEmptyDefault(value)) {
+            return Optional.of(scala.Option.empty());
+        }
+        return convertEntryPart(value, context.getFirstTypeVariable().orElse(null), context)
+            .map(converted -> scala.Option.apply(converted));
+    }
+
+    /**
+     * Whether a source value is Micronaut's "no value" marker.
+     *
+     * <p>An empty string is how an absent value is written in annotation members --
+     * {@code @Bindable(defaultValue = "")}, {@code @Value("${x:}")} -- and core converts that
+     * marker to the target type rather than special-casing it. Converting it to
+     * {@code Some("")} would make an unset property indistinguishable from one explicitly set
+     * to the empty string, and would make an {@code Option} constructor parameter with no
+     * value present arrive as {@code Some("")} rather than {@code None}.</p>
+     */
+    private static boolean isEmptyDefault(Object value) {
+        return value instanceof CharSequence text && text.isEmpty();
+    }
+
+    /**
+     * The source elements converted to the target's element type.
+     *
+     * <p>These converters previously ignored the {@link ConversionContext} entirely, so a
+     * {@code List[Int]} bound from configuration held {@code String}s and reported itself as
+     * a {@code List[Int]}. The mismatch surfaced as a {@code ClassCastException} the first
+     * time an element was used, rather than as a conversion error at binding time.
+     *
+     * @return empty when an element cannot be converted, so the whole conversion fails
+     */
+    private Optional<IterableOnce<?>> toScalaIterableOnce(Collection<?> collection, ConversionContext context) {
+        return convertElements(collection, context).map(elements -> CollectionConverters.asScala((Collection<Object>) elements));
+    }
+
+    private MutableConversionService conversionService() {
+        return Objects.requireNonNull(conversionService, "register(MutableConversionService) has not been called");
+    }
+
+    private Optional<List<Object>> convertElements(Collection<?> collection, ConversionContext context) {
+        Argument<?> elementType = context.getFirstTypeVariable().orElse(null);
+        if (elementType == null || elementType.getType() == Object.class) {
+            return Optional.of(new ArrayList<>(collection));
+        }
+        List<Object> converted = new ArrayList<>(collection.size());
+        for (Object element : collection) {
+            Optional<?> convertedElement = conversionService().convert(element, elementType);
+            if (convertedElement.isEmpty()) {
+                context.reject(element, new ConversionErrorException(elementType,
+                    new IllegalArgumentException("Cannot convert element [" + element + "] to " + elementType.getType().getName())));
+                return Optional.empty();
+            }
+            converted.add(convertedElement.get());
+        }
+        return Optional.of(converted);
+    }
+
+    private Optional<Map<Object, Object>> convertEntries(Map<?, ?> map, ConversionContext context) {
+        Argument<?>[] typeParameters = context.getTypeParameters();
+        Argument<?> keyType = typeParameters.length > 0 ? typeParameters[0] : null;
+        Argument<?> valueType = typeParameters.length > 1 ? typeParameters[1] : null;
+        Map<Object, Object> converted = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            Optional<?> key = convertEntryPart(entry.getKey(), keyType, context);
+            Optional<?> value = convertEntryPart(entry.getValue(), valueType, context);
+            if (key.isEmpty() || value.isEmpty()) {
+                return Optional.empty();
+            }
+            converted.put(key.get(), value.get());
+        }
+        return Optional.of(converted);
+    }
+
+    private Optional<?> convertEntryPart(Object value, @Nullable Argument<?> type, ConversionContext context) {
+        if (type == null || type.getType() == Object.class || value == null) {
+            return Optional.ofNullable(value);
+        }
+        Optional<?> converted = conversionService().convert(value, type);
+        if (converted.isEmpty()) {
+            context.reject(value, new ConversionErrorException(type,
+                new IllegalArgumentException("Cannot convert [" + value + "] to " + type.getType().getName())));
+        }
+        return converted;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Optional<scala.collection.mutable.Buffer<?>> asMutableBuffer(Collection<?> collection, ConversionContext context) {
+        return convertElements(collection, context)
+            .map(elements -> (scala.collection.mutable.Buffer<?>) CollectionConverters.asScala(new ArrayList<>(elements)));
+    }
+}

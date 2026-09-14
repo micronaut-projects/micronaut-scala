@@ -1,0 +1,58 @@
+Options are passed to the plugin with the standard Scala compiler-plugin syntax:
+
+----
+-P:micronaut-scala:<key>=<value>
+----
+
+An option given without `=` is set to `"true"`.
+
+== What the options are
+
+The plugin does not define an option vocabulary of its own. Every option is placed
+into `VisitorContext.getOptions()`, which Micronaut itself and any
+`TypeElementVisitor` on the compilation classpath may read. The set is therefore
+open, and an unrecognised key is accepted rather than rejected — the same contract
+as `javac`'s `-A` options.
+
+`-P:micronaut-scala:help` prints this list.
+
+|===
+|Key |Meaning
+
+|`micronaut.processing.incremental`
+|`true` or `false`. Whether incremental processing is enabled.
+
+|`micronaut.processing.group`
+|The Maven group of the module being compiled.
+
+|`micronaut.processing.module`
+|The name of the module being compiled.
+
+|`micronaut.processing.project.dir`
+|The project directory, used to locate generated configuration metadata.
+
+|`micronaut.processing.annotations`
+|Comma-separated package prefixes to restrict annotation processing to.
+
+|`micronaut.processing.use.context.classloader`
+|`true` or `false`. Whether to load visitors from the context classloader.
+|===
+
+== Setting options
+
+[source,kotlin]
+----
+tasks.withType<ScalaCompile>().configureEach {
+    scalaCompileOptions.additionalParameters.addAll(
+        listOf(
+            "-J--add-modules=java.compiler",
+            "-P:micronaut-scala:micronaut.processing.group=com.example",
+            "-P:micronaut-scala:micronaut.processing.module=app"
+        )
+    )
+}
+----
+
+NOTE: Because unrecognised keys are accepted silently, a misspelled option is not
+an error. If an option appears to have no effect, check the spelling against the
+table above first.
