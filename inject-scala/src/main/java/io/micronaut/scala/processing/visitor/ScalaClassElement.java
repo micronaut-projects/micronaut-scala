@@ -491,17 +491,35 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         PropertyElementQuery propertyElementQuery,
         Map<String, PropertyElement> properties,
         Set<String> visited) {
-        ScalaClassData data = data();
+        collectInheritedProperties(propertyElementQuery, properties, visited, this, Map.of());
+    }
+
+    /**
+     * @param element The element whose supertypes are walked
+     * @param substitutions The type arguments bound so far on the way down to `element`, so
+     *     that a property `Base[T]` declares is reported as `String` through
+     *     `Mid[T] extends Base[T]` and `Child extends Mid[String]`, not only when `Base` is
+     *     the immediate parent
+     */
+    private void collectInheritedProperties(
+        PropertyElementQuery propertyElementQuery,
+        Map<String, PropertyElement> properties,
+        Set<String> visited,
+        ScalaClassElement element,
+        Map<String, ScalaTypeData> substitutions) {
+        ScalaClassData data = element.data();
         if (data == null) {
             return;
         }
         List<ScalaTypeData> supertypes = new ArrayList<>();
         if (data.superType() != null) {
-            supertypes.add(data.superType());
+            supertypes.add(substitute(data.superType(), substitutions));
         }
-        supertypes.addAll(data.interfaces());
+        for (ScalaTypeData interfaceType : data.interfaces()) {
+            supertypes.add(substitute(interfaceType, substitutions));
+        }
         for (ScalaTypeData supertype : supertypes) {
-            if (!visited.add(supertype.name())) {
+            if (supertype == null || !visited.add(supertype.name())) {
                 continue;
             }
             Optional<ScalaClassElement> supertypeElement = visitorContext.sourceClassElement(supertype.name())
@@ -516,12 +534,12 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             if (inheritedData == null) {
                 continue;
             }
-            Map<String, ScalaTypeData> substitutions = supertype.typeArguments();
+            Map<String, ScalaTypeData> inheritedSubstitutions = supertype.typeArguments();
             inheritedData.properties().stream()
-                .map(property -> inherited.propertyElement(substitute(property, substitutions)))
+                .map(property -> inherited.propertyElement(substitute(property, inheritedSubstitutions)))
                 .filter(propertyElement -> matches(propertyElementQuery, propertyElement))
                 .forEach(propertyElement -> properties.putIfAbsent(propertyElement.getName(), propertyElement));
-            inherited.collectInheritedProperties(propertyElementQuery, properties, visited);
+            collectInheritedProperties(propertyElementQuery, properties, visited, inherited, inheritedSubstitutions);
         }
     }
 
@@ -956,8 +974,13 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         });
     }
 
-    private void collectClasspathFields(String name, Set<String> fieldNames, List<Element> elements) {
-        classpathElement(name).ifPresent(classpathElement -> {
+    /**
+     * Fields of a classpath supertype, with the reference's type arguments bound as they are
+     * for its methods: an inherited `@Inject var item: T` through `Holder[String]` is an
+     * injection point for a `String`, not for a `T`.
+     */
+    private void collectClasspathFields(ScalaTypeData type, Set<String> fieldNames, List<Element> elements) {
+        classpathElement(type.name()).map(element -> bindTypeArguments(element, type)).ifPresent(classpathElement -> {
             for (FieldElement field : classpathElement.getEnclosedElements(ElementQuery.ALL_FIELDS)) {
                 if (universalSupertype(field.getDeclaringType().getName())) {
                     continue;
@@ -1281,7 +1304,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         }
         Optional<ScalaClassElement> sourceElement = visitorContext.sourceClassElement(type.name());
         if (sourceElement.isEmpty()) {
-            collectClasspathFields(type.name(), fieldNames, elements);
+            collectClasspathFields(type, fieldNames, elements);
             return;
         }
         ScalaClassElement inheritedElement = sourceElement.get();

@@ -17,6 +17,7 @@ package io.micronaut.scala.processing
 
 import io.micronaut.inject.ast.ElementQuery
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
+import io.micronaut.scala.processing.test.ScalaCompiler
 
 /**
  * Generic signatures inherited from a supertype that was compiled earlier.
@@ -107,5 +108,44 @@ trait Raw extends Function[String, Integer]
         expect:
         method(element, 'apply').genericReturnType.name == 'java.lang.Integer'
         method(element, 'apply').parameters[0].genericType.name == 'java.lang.String'
+    }
+
+    void "binds the variable of a field and a property inherited through a compiled generic hierarchy"() {
+        given: '''`Base[T]` declares the members, `Mid[T]` passes its own variable on, and the
+                  class being compiled binds it -- so `T` resolves only if every step carries
+                  the binding down, and an inherited `@Inject var item: T` is an injection
+                  point for a String rather than for an Object'''
+        def library = precompile(ScalaCompiler.SourceFile.scala('library.Base', '''
+package library
+
+import jakarta.inject.Inject
+
+abstract class Base[T]:
+  @Inject var item: T = null.asInstanceOf[T]
+  var setting: T = null.asInstanceOf[T]
+  def first: T = item
+
+abstract class Mid[T] extends Base[T]:
+  def second: T = item
+'''))
+        def element = buildClassElementAgainst([library], 'generics.Child', '''
+package generics
+
+class Child extends library.Mid[String]
+''')
+
+        expect: 'the field, through the classpath path that used to read the raw declaration'
+        def item = element.getEnclosedElements(ElementQuery.ALL_FIELDS.named('item'))[0]
+        item.declaringType.name == 'library.Base'
+        item.genericType.name == 'java.lang.String'
+
+        and: 'the property, through the ancestor walk that used to drop the binding after one step'
+        def setting = element.beanProperties.find { it.name == 'setting' }
+        setting.declaringType.name == 'library.Base'
+        setting.genericType.name == 'java.lang.String'
+
+        and: 'the methods, which already did'
+        method(element, 'first').genericReturnType.name == 'java.lang.String'
+        method(element, 'second').genericReturnType.name == 'java.lang.String'
     }
 }
