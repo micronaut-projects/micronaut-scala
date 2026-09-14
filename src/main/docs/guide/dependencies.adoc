@@ -48,6 +48,14 @@ It is not crossed with the compiler version, because it is not a compiler plugin
 example the validation processor — therefore has to be a compile-time dependency
 of the module being compiled, not a runtime one.
 
+A visitor and its dependencies are loaded from that classpath, ahead of anything
+the compiler process itself was started with. The only classes a visitor shares
+with the plugin are the JDK's, the compiler's, and what the plugin jar bundles:
+Micronaut's Element API and the annotations it ships. A library that both a
+visitor and the compiler's own toolchain depend on — Gradle starts the compiler
+with scaladoc, and so with scaladoc's Jackson and snakeyaml — is the version the
+module declares, never the toolchain's.
+
 == Version relationships
 
 The Scala version in the artifact name is the full compiler version, not the

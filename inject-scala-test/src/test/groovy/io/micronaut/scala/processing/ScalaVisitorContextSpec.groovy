@@ -15,8 +15,10 @@
  */
 package io.micronaut.scala.processing
 
+import io.micronaut.inject.visitor.TypeElementVisitor
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
 import io.micronaut.scala.processing.test.ScalaVisitorContextCaptureVisitor
+import io.micronaut.scala.processing.visitor.ScalaProcessingClassLoader
 
 class ScalaVisitorContextSpec extends AbstractScalaTypeElementSpec {
 
@@ -59,5 +61,38 @@ enum Color:
         lookedUp.nested.inner
         !lookedUp.missing
         lookedUp.packageElements.containsAll(['vc.Root', 'vc.Other', 'vc.Color'])
+    }
+
+    void "a visitor runs with the compilation classpath ahead of the plugin's parent chain"() {
+        given:
+        def seen = [:]
+
+        when:
+        ScalaVisitorContextCaptureVisitor.withConsumer({ context ->
+            def loader = Thread.currentThread().contextClassLoader
+            seen.loader = loader
+            // On the test classpath, and so visible to the plugin's parent as well; a visitor
+            // must get the compilation's copy, not whatever the compiler was loaded with.
+            seen.dependency = loader.loadClass('jakarta.validation.constraints.Digits').classLoader
+            // What the plugin bundles is the plugin's, so the two sides agree on it.
+            seen.bundled = loader.loadClass('org.objectweb.asm.ClassWriter').classLoader
+            seen.visitorApi = loader.loadClass(TypeElementVisitor.name)
+        }, {
+            buildClassLoader('vc.Bean', '''
+package vc
+
+import jakarta.inject.Singleton
+
+@Singleton
+class Bean
+''')
+        })
+
+        then:
+        // The plugin's own copy of the class, so by name: the test sees the one on its classpath.
+        seen.loader.getClass().name == ScalaProcessingClassLoader.name
+        seen.dependency.is(seen.loader)
+        seen.bundled.is(seen.loader.parent)
+        seen.visitorApi.is(TypeElementVisitor)
     }
 }

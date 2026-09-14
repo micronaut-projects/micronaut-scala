@@ -40,7 +40,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -94,6 +93,7 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
     private final BiConsumer<String, Object> warningReporter;
     private final BiConsumer<String, Object> errorReporter;
     private final ClassLoader classLoader;
+    private final ScalaAnnotationServices annotationServices;
     // Only ever used to reach the two-argument getAnnotationType, whose resolutions are
     // cached in a registry shared by every metadata instance.
     private final MutableAnnotationMetadata annotationTypeRegistrar = new MutableAnnotationMetadata();
@@ -125,6 +125,7 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
         this.warningReporter = warningReporter;
         this.errorReporter = errorReporter;
         this.classLoader = createClassLoader(classpath);
+        this.annotationServices = new ScalaAnnotationServices(classLoader);
         this.annotationMetadataBuilder = new ScalaAnnotationMetadataBuilder(this);
         this.annotationMetadataFactory = new ScalaElementAnnotationMetadataFactory(annotationMetadataBuilder);
         for (ScalaClassData sourceClass : sourceClasses) {
@@ -146,7 +147,8 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
                     }
                 })
                 .toArray(URL[]::new);
-            return new URLClassLoader(urls, getClass().getClassLoader());
+            URL plugin = ScalaProcessingClassLoader.class.getProtectionDomain().getCodeSource().getLocation();
+            return new ScalaProcessingClassLoader(urls, getClass().getClassLoader(), plugin);
         } catch (RuntimeException e) {
             return getClass().getClassLoader();
         }
@@ -352,6 +354,10 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
 
     ClassLoader getProcessingClassLoader() {
         return classLoader;
+    }
+
+    ScalaAnnotationServices annotationServices() {
+        return annotationServices;
     }
 
     TypeElementVisitor.VisitorKind getVisitorKind() {
