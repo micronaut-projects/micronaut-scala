@@ -1344,7 +1344,8 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             data.fields().stream().map(field -> substitute(field, substitutions)).toList(),
             data.properties().stream().map(property -> substitute(property, substitutions)).toList(),
             data.enclosingTypeName(),
-            data.nativeType()
+            data.nativeType(),
+            data.nestedTypeNames()
         );
     }
 
@@ -1448,12 +1449,15 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
      */
     @Override
     public String getCanonicalName() {
-        if (classData == null || classData.enclosingTypeName() == null) {
+        String enclosingTypeName = classData == null ? null : classData.enclosingTypeName();
+        if (enclosingTypeName == null) {
             return defaultCanonicalName();
         }
-        String enclosing = visitorContext.sourceClassElement(classData.enclosingTypeName())
+        String enclosing = visitorContext.sourceClassElement(enclosingTypeName)
+            .map(ClassElement.class::cast)
+            .or(() -> classpathElement(enclosingTypeName))
             .map(ClassElement::getCanonicalName)
-            .orElse(classData.enclosingTypeName());
+            .orElse(enclosingTypeName);
         return enclosing + "." + nestedSimpleName(getName());
     }
 

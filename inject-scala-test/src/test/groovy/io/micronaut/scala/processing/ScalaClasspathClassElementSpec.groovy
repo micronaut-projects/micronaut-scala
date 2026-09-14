@@ -375,6 +375,37 @@ class Uses:
         locale.beanProperties*.name.containsAll(['language', 'country'])
     }
 
+    void "a parameterised reference to a classpath class keeps its nested types and their names"() {
+        given:
+        Path library = precompile(ScalaCompiler.SourceFile.scala('library.Box', '''
+package library
+
+class Box[T](val value: T):
+  class Lid:
+    class Hinge
+'''))
+        ClassElement box = buildClassElementAgainst([library], 'shelf.Uses', '''
+package shelf
+
+class Uses:
+  def box: library.Box[String] = null
+''').getEnclosedElements(ElementQuery.ALL_METHODS.named('box'))[0].genericReturnType
+
+        expect: 'the reference is bound'
+        box.typeArguments['T'].name == 'java.lang.String'
+
+        and: '''and still lists the declaration's nested types -- the copy that binds the
+                 variables used to start from an empty list of them'''
+        def nested = box.getEnclosedElements(ElementQuery.of(ClassElement))
+        nested*.name == ['library.Box$Lid']
+
+        and: '''a class nested two levels down names its enclosing classes canonically, which
+                 needs the enclosing classpath class to be resolved, not just named'''
+        def hinge = nested[0].getEnclosedElements(ElementQuery.of(ClassElement))[0]
+        hinge.name == 'library.Box$Lid$Hinge'
+        hinge.canonicalName == 'library.Box.Lid.Hinge'
+    }
+
     private static def method(ClassElement element, String name) {
         element.getEnclosedElements(ElementQuery.ALL_METHODS.named(name))[0]
     }
