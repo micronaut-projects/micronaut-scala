@@ -87,6 +87,27 @@ class Main extends Other {
         element.interfaces.any { it.name == 'test.Other' }
     }
 
+    void "two sources with the same simple name in different packages compile in one run"() {
+        given: '''laid out under their packages, as a build does; written flat, the second
+                  overwrote the first and the compiler was handed one file twice'''
+        ClassElement element = buildClassElement([
+            ScalaCompiler.SourceFile.scala('a.Model', '''
+package a
+
+class Model(val name: String)
+'''),
+            ScalaCompiler.SourceFile.scala('b.Model', '''
+package b
+
+class Model(val inner: a.Model)
+'''),
+        ], 'b.Model')
+
+        expect:
+        element != null
+        element.primaryConstructor.get().parameters[0].type.name == 'a.Model'
+    }
+
     void "test joint Java and Scala compilation in one run"() {
         given:
         ClassElement element = buildClassElement([

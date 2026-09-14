@@ -393,9 +393,12 @@ public final class ScalaCompiler {
             Path outputDirectory = Files.createDirectories(workDirectory.resolve("classes"));
             List<Path> sourceFiles = new ArrayList<>();
             for (SourceFile source : sources) {
+                // Under its package, as a build lays sources out, so that `a.Model` and `b.Model`
+                // in one compilation are two files rather than one overwriting the other.
                 Path sourceFile = sourceDirectory.resolve(
-                    NameUtils.getSimpleName(source.className()) + source.extension()
+                    source.className().replace('.', '/') + source.extension()
                 );
+                Files.createDirectories(sourceFile.getParent());
                 Files.writeString(sourceFile, source.source(), StandardCharsets.UTF_8);
                 sourceFiles.add(sourceFile);
             }
