@@ -15,11 +15,16 @@
  */
 package io.micronaut.scala.processing
 
+import io.micronaut.inject.annotation.AnnotationMapper
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
+import io.micronaut.scala.processing.test.annotation.ScalaClasspathOnlySourceMapper
 import io.micronaut.scala.processing.test.annotation.ScalaMappedResult
 import io.micronaut.scala.processing.test.annotation.ScalaMappedSource
 import io.micronaut.scala.processing.test.annotation.ScalaTransformedSource
 import io.micronaut.scala.processing.test.annotation.remap.ScalaRemappedSource
+
+import java.nio.file.Files
+import java.nio.file.Path
 
 class ScalaAnnotationMappingParitySpec extends AbstractScalaTypeElementSpec {
 
@@ -46,6 +51,9 @@ package annmapping
 
 import io.micronaut.scala.processing.test.annotation.remap.ScalaRemappedSource
 
+import java.nio.file.Files
+import java.nio.file.Path
+
 @ScalaRemappedSource
 class RemappedEngine
 ''')
@@ -59,5 +67,33 @@ class RemappedEngine
 
         !remapped.hasAnnotation(ScalaRemappedSource)
         remapped.getAnnotation(ScalaMappedResult).stringValue().get() == 'remapper'
+    }
+
+    // A mapper is found through the compilation classpath, as javac finds one through the
+    // processor path -- not once for the JVM through whatever loaded the plugin, which in a
+    // Gradle build is a loader that cannot see the compilation classpath at all. This harness
+    // cannot tell the two apart for a mapper on the test classpath, so the mapper is registered
+    // in a directory that only this compilation's classpath carries.
+    void "applies a mapper registered only on the compilation classpath"() {
+        given:
+        Path services = Files.createDirectories(Files.createTempDirectory('micronaut-scala-services')
+            .resolve('META-INF/services'))
+        Files.writeString(
+            services.resolve(AnnotationMapper.name),
+            ScalaClasspathOnlySourceMapper.name + System.lineSeparator()
+        )
+
+        when:
+        def mapped = buildClassElementAgainst([services.parent.parent], 'annmapping.ClasspathOnlyEngine', '''
+package annmapping
+
+import io.micronaut.scala.processing.test.annotation.ScalaClasspathOnlySource
+
+@ScalaClasspathOnlySource
+class ClasspathOnlyEngine
+''')
+
+        then:
+        mapped.getAnnotation(ScalaMappedResult).stringValue().get() == 'classpath-only'
     }
 }

@@ -19,6 +19,10 @@ import io.micronaut.core.annotation.AnnotationClassValue;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.annotation.AbstractAnnotationMetadataBuilder;
+import io.micronaut.inject.annotation.AnnotatedElementValidator;
+import io.micronaut.inject.annotation.AnnotationMapper;
+import io.micronaut.inject.annotation.AnnotationRemapper;
+import io.micronaut.inject.annotation.AnnotationTransformer;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.visitor.VisitorContext;
 import org.jspecify.annotations.Nullable;
@@ -53,12 +57,36 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
     );
 
     private final VisitorContext visitorContext;
+    /** This compilation's mappers, transformers, remappers and validator; see the class. */
+    private final @Nullable ScalaAnnotationServices services;
     private final Map<String, ScalaAnnotationTypeData> nativeAnnotationTypes = new LinkedHashMap<>();
     /** Names already looked up and not resolvable, so the compiler is asked only once each. */
     private final Set<String> unresolvableAnnotationTypes = new HashSet<>();
 
     public ScalaAnnotationMetadataBuilder(VisitorContext visitorContext) {
         this.visitorContext = visitorContext;
+        this.services = visitorContext instanceof ScalaVisitorContext scalaVisitorContext
+            ? scalaVisitorContext.annotationServices() : null;
+    }
+
+    @Override
+    protected @Nullable AnnotatedElementValidator getElementValidator() {
+        return services == null ? super.getElementValidator() : services.elementValidator();
+    }
+
+    @Override
+    protected <K extends Annotation> @Nullable List<AnnotationMapper<K>> getAnnotationMappers(String annotationName) {
+        return services == null ? super.getAnnotationMappers(annotationName) : services.mappers(annotationName);
+    }
+
+    @Override
+    protected <K extends Annotation> @Nullable List<AnnotationTransformer<K>> getAnnotationTransformers(String annotationName) {
+        return services == null ? super.getAnnotationTransformers(annotationName) : services.transformers(annotationName);
+    }
+
+    @Override
+    protected List<AnnotationRemapper> getAnnotationRemappers(String packageName) {
+        return services == null ? super.getAnnotationRemappers(packageName) : services.remappers(packageName);
     }
 
     /**
