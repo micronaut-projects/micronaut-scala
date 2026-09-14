@@ -40,7 +40,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -148,7 +147,8 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
                     }
                 })
                 .toArray(URL[]::new);
-            return new URLClassLoader(urls, getClass().getClassLoader());
+            URL plugin = ScalaProcessingClassLoader.class.getProtectionDomain().getCodeSource().getLocation();
+            return new ScalaProcessingClassLoader(urls, getClass().getClassLoader(), plugin);
         } catch (RuntimeException e) {
             return getClass().getClassLoader();
         }
