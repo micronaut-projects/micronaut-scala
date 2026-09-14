@@ -14,10 +14,18 @@ def scalaVersion = libs.versions.scala3.get()
 def scalaPluginProjectPath = ":micronaut-inject-scala-compiler"
 def scalaTestProjectPath = ":micronaut-inject-scala-test-compiler"
 
+// The jar task bundles this configuration, so it is the real input to every
+// packaging question below: what gets shaded in, and which service descriptors
+// collide while it is merged.
+def scalaLtsPluginProjectPath = ":micronaut-inject-scala-compiler-lts"
+def pluginBundled = project(scalaPluginProjectPath).configurations.named("bundled")
+
 tasks.register("verifyCompilerArtifacts") {
     dependsOn(
         "${scalaPluginProjectPath}:jar",
         "${scalaPluginProjectPath}:generatePomFileForMavenPublication",
+        "${scalaLtsPluginProjectPath}:jar",
+        "${scalaLtsPluginProjectPath}:generatePomFileForMavenPublication",
         "${scalaTestProjectPath}:jar",
         "${scalaTestProjectPath}:generatePomFileForMavenPublication",
         ":micronaut-scala-bom:generatePomFileForMavenPublication"
@@ -38,16 +46,268 @@ tasks.register("verifyCompilerArtifacts") {
         assert pluginPom.contains("<artifactId>${pluginArtifactId}</artifactId>")
         assert testPom.contains("<artifactId>${testArtifactId}</artifactId>")
         assert bomPom.contains("<artifactId>${pluginArtifactId}</artifactId>")
+
+        // Every supported compiler release is published from the same sources as its own
+        // variant, and each has to reach the platform. A variant that builds but is not in
+        // the BOM is a variant nobody can resolve by the managed version.
+        def ltsScalaVersion = libs.versions.scalaLts.get()
+        def ltsArtifactId = "micronaut-inject-scala_${ltsScalaVersion}"
+        def ltsProject = project(scalaLtsPluginProjectPath)
+        def ltsJar = ltsProject.layout.buildDirectory.file("libs/${ltsArtifactId}-${project.version}.jar").get().asFile
+        def ltsPom = ltsProject.layout.buildDirectory.file("publications/maven/pom-default.xml").get().asFile.text
+        assert ltsJar.isFile(): "Missing ${ltsJar}"
+        assert ltsPom.contains("<artifactId>${ltsArtifactId}</artifactId>")
+        assert bomPom.contains("<artifactId>${ltsArtifactId}</artifactId>")
+
+        // The variants are the same code for different compilers; a plugin descriptor missing
+        // from one of them is a variant that silently does nothing.
+        assert !zipTree(ltsJar).matching { include("plugin.properties") }.files.empty:
+            "plugin.properties is missing from the root of ${ltsJar.name}"
+
+        // The two must not resolve to the same compiler.
+        assert ltsScalaVersion != scalaVersion:
+            "The LTS variant is pinned to the same Scala version as the primary one"
+        def ltsScalaJars = ltsProject.configurations.named("bundled").get().resolve()
+            .findAll { it.name.startsWith("scala3-") }
+        assert ltsScalaJars.every { it.name.contains(ltsScalaVersion) }:
+            "${ltsArtifactId} bundles Scala artifacts from another release: ${ltsScalaJars*.name}"
+
         assert bomPom.contains("<artifactId>${testArtifactId}</artifactId>")
         assert !bomPom.contains("<artifactId>${scalaPluginProjectPath.substring(1)}</artifactId>")
         assert !bomPom.contains("<artifactId>${scalaTestProjectPath.substring(1)}</artifactId>")
 
+        // The test artifact must depend on the plugin by its published, crossed
+        // coordinate. Gradle project dependencies serialize to the *project* name by
+        // default, and `micronaut-inject-scala-compiler` resolves for nobody.
+        assert testPom.contains("<artifactId>${pluginArtifactId}</artifactId>"):
+            "${testArtifactId} POM does not depend on ${pluginArtifactId}"
+
+        // The jar bundles these at their original package paths, so a consumer that also
+        // resolved them from the POM would get every class twice with classpath order
+        // deciding the winner -- and, because Gradle turns each resolved
+        // `scalaCompilerPlugins` file into its own `-Xplugin` argument, would hand `dotc`
+        // a pile of jars with no plugin descriptor. They are declared on a `bundled`
+        // configuration that is deliberately not published.
+        ["micronaut-core-processor", "asm"].each { bundledArtifact ->
+            assert !pluginPom.contains("<artifactId>${bundledArtifact}</artifactId>"):
+                "${bundledArtifact} is bundled into ${pluginArtifactId} and must not also be a POM dependency"
+        }
+
+        // slf4j-api is the one deliberate exception, and it is both bundled and declared.
+        // The convention plugin adds it, and the functional test shows the plugin does not
+        // load without it inside the jar -- the compiler's own classloader does not supply
+        // it. An API-only artifact every application already has is a benign duplicate in a
+        // way that Micronaut and ASM are not.
+        assert pluginPom.contains("<artifactId>slf4j-api</artifactId>")
+
+        // scala3-compiler is `compileOnly`: the host compiler supplies it. Leaking it
+        // into the POM would drag a second compiler onto the user's compile classpath.
+        assert !pluginPom.contains("scala3-compiler_3"):
+            "scala3-compiler_3 leaked into the ${pluginArtifactId} POM"
+
+        // Registering the plugin at all depends on this file being at the jar root;
+        // without it `-Xplugin:` fails with "Missing plugin descriptor".
+        def pluginDescriptor = zipTree(pluginJar).matching { include("plugin.properties") }.files
+        assert !pluginDescriptor.empty: "plugin.properties is missing from the root of ${pluginJar.name}"
+
+        // `scala3-library_3-*` and `scala-library-*` were jar *file names*. Inside a jar
+        // the entries are class paths, so those two patterns matched nothing under any
+        // circumstances and the guard only ever tested `scala/**` and `dotty/**`.
         def forbiddenPluginEntries = zipTree(pluginJar).matching {
             include("scala/**")
             include("dotty/**")
-            include("scala3-library_3-*")
-            include("scala-library-*")
+            include("META-INF/versions/*/scala/**")
+            include("META-INF/versions/*/dotty/**")
         }.files
         assert forbiddenPluginEntries.empty: "Compiler runtime classes leaked into ${pluginJar.name}: ${forbiddenPluginEntries}"
+
+        // scala3-library and scala-library are legitimate `api` dependencies; the jar task
+        // drops them from the bundle by file name because the host compiler provides them.
+        // Whatever survives that filter *is* bundled, so no Scala artifact may remain --
+        // scala3-compiler in particular is `compileOnly` and must never reach here.
+        def bundledJars = pluginBundled.get().resolve().findAll { file ->
+            file.isFile() && file.name.endsWith(".jar") &&
+                !file.name.startsWith("scala3-library_3-") &&
+                !file.name.startsWith("scala-library-")
+        }
+        def bundledScalaJars = bundledJars.findAll { it.name.startsWith("scala3-") || it.name.startsWith("scala-") }
+        assert bundledScalaJars.empty:
+            "Scala artifacts survive the bundling filter and would be packaged into ${pluginArtifactId}: ${bundledScalaJars*.name}"
+
+        // The plugin is loaded by whatever JVM runs the user's Scala compiler, so a class
+        // above the supported baseline makes the whole jar unloadable there with
+        // UnsupportedClassVersionError. The Java and Scala halves are compiled by
+        // different tasks, and they did silently diverge -- 23 classes at version 61 and
+        // 64 at version 69 -- so this asserts one version, not a ceiling.
+        def supportedJavaVersion = 25
+        def expectedClassFileVersion = supportedJavaVersion + 44
+        def wrongVersionClassFiles = zipTree(pluginJar).matching { include("io/micronaut/scala/**/*.class") }.files
+            .findAll { classFile ->
+                classFile.withDataInputStream { stream ->
+                    stream.readInt() // 0xCAFEBABE
+                    stream.readUnsignedShort() // minor
+                    stream.readUnsignedShort() != expectedClassFileVersion
+                }
+            }
+        assert wrongVersionClassFiles.empty:
+            "${pluginArtifactId} contains classes that are not Java ${supportedJavaVersion} bytecode " +
+                "(class file version ${expectedClassFileVersion}): ${wrongVersionClassFiles*.name}"
+
+        // The jar merges every runtime jar with DuplicatesStrategy.EXCLUDE, so when two
+        // inputs declare the same service the first one silently wins and the rest of the
+        // implementations disappear. Visitors are found by ServiceLoader, so a dropped
+        // descriptor is a missing visitor with no build error at all.
+        def declaredServices = [:].withDefault { [] as Set }
+        bundledJars.each { jar ->
+            zipTree(jar).matching { include("META-INF/services/*") }.each { serviceFile ->
+                declaredServices["META-INF/services/${serviceFile.name}"].addAll(serviceEntries(serviceFile.text))
+            }
+        }
+        def droppedServices = [:]
+        declaredServices.each { path, expected ->
+            def packagedFiles = zipTree(pluginJar).matching { include(path) }.files
+            def packaged = packagedFiles.empty ? ([] as Set) : serviceEntries(packagedFiles.first().text)
+            def missing = expected - packaged
+            if (!missing.isEmpty()) {
+                droppedServices[path] = missing
+            }
+        }
+        assert droppedServices.isEmpty():
+            "Service implementations were dropped while merging ${pluginJar.name}: ${droppedServices}"
     }
+}
+
+// A `snippet::` whose target does not resolve is not an error to Asciidoctor: the macro
+// prints a warning to stdout and renders nothing, so a renamed or moved example leaves a
+// heading with no code under it and a green build. That is the exact rot the snippets were
+// adopted to prevent, so the references are resolved here the way the macro resolves them.
+tasks.register("verifyGuideSnippets") {
+    description = "Checks every snippet:: target in the guide resolves to a source file"
+    group = "verification"
+
+    def guideDir = layout.projectDirectory.dir("src/main/docs/guide")
+    def examplesDir = layout.projectDirectory.dir("test-suite-scala/src/main/scala")
+    def repositoryRoot = layout.projectDirectory.asFile
+    inputs.dir(guideDir).withPropertyName("guide")
+    inputs.dir(examplesDir).withPropertyName("examples")
+    outputs.upToDateWhen { true }
+
+    doLast {
+        def extensions = [scala: "scala", java: "java", groovy: "groovy", kotlin: "kt", python: "py"]
+        def defaultProjects = [
+            scala: "test-suite-scala", java: "test-suite", groovy: "test-suite-groovy",
+            kotlin: "test-suite-kotlin", python: "test-suite-python"
+        ]
+        def macro = ~/(?m)^\s*snippet::([^\[]+)\[([^\]]*)]/
+        def problems = []
+        int checked = 0
+
+        guideDir.asFile.eachFileRecurse { file ->
+            if (!file.name.endsWith(".adoc")) {
+                return
+            }
+            def text = file.text
+            def matcher = macro.matcher(text)
+            while (matcher.find()) {
+                def targets = matcher.group(1).split(",")*.trim().findAll { !it.isEmpty() }
+                def attributes = [:]
+                matcher.group(2).split(",").each { attribute ->
+                    def equals = attribute.indexOf("=")
+                    if (equals > 0) {
+                        attributes[attribute.substring(0, equals).trim()] =
+                            attribute.substring(equals + 1).trim().replaceAll(/^["']|["']$/, "")
+                    }
+                }
+
+                // The macro renders every known language when none is named, which would warn
+                // for the four this repository does not ship examples in. Requiring the
+                // attribute keeps a missing file a real failure rather than four expected ones.
+                def language = attributes["language"]
+                if (!language) {
+                    problems << "${file.name}: snippet::${matcher.group(1)} does not name a language"
+                    continue
+                }
+                if (!extensions.containsKey(language)) {
+                    problems << "${file.name}: snippet::${matcher.group(1)} names unknown language '${language}'"
+                    continue
+                }
+
+                def projectBase = attributes["project-base"]
+                def projectDir = attributes["project"]
+                    ?: (projectBase ? "${projectBase}-${language}" : defaultProjects[language])
+                def sourceType = attributes["source"] ?: "test"
+
+                targets.each { target ->
+                    def relative = "${projectDir}/src/${sourceType}/${language}/" +
+                        target.replace(".", "/") + "." + extensions[language]
+                    def source = new File(repositoryRoot, relative)
+                    checked++
+                    if (!source.isFile()) {
+                        problems << "${file.name}: snippet::${target} resolves to ${relative}, which does not exist"
+                        return
+                    }
+                    def tags = attributes["tags"]
+                    if (tags) {
+                        def body = source.text
+                        tags.split(",")*.trim().findAll { !it.isEmpty() }.each { tag ->
+                            if (!body.contains("tag::${tag}[") || !body.contains("end::${tag}[")) {
+                                problems << "${file.name}: snippet::${target} asks for tag '${tag}', " +
+                                    "which ${relative} does not open and close"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!problems.empty) {
+            throw new GradleException(
+                "Guide snippets do not resolve:\n  " + problems.join("\n  ")
+            )
+        }
+        logger.lifecycle("verifyGuideSnippets: ${checked} snippet target(s) resolved")
+    }
+}
+
+// Packaging and publication are the two things this repository cannot test any
+// other way, and until now the only guard for them ran solely if a human typed
+// the task name.
+tasks.named("check") {
+    dependsOn("verifyCompilerArtifacts", "verifyGuideSnippets")
+}
+
+// The catalog pins micronaut-core to 5.2.0-SNAPSHOT, which is published nowhere,
+// so `-PincludeMicronautCore=true` builds it from source. That works for `check`,
+// but it must not be mistaken for a releasable state: the generated POMs would
+// still declare a Core version no consumer can resolve. The publishing workflows
+// do not pass that flag and already fail on every push to master; failing here
+// instead says why, and says it before anything is uploaded.
+def micronautCoreVersion = libs.versions.micronaut.core.get()
+
+gradle.taskGraph.whenReady { graph ->
+    if (!micronautCoreVersion.endsWith("-SNAPSHOT")) {
+        return
+    }
+    // Only remote publication. `publishToMavenLocal` is how CONTRIBUTING.md tells
+    // contributors to test a snapshot in another project, and the Build repository is a
+    // local directory the build itself inspects; neither puts anything in front of a
+    // consumer.
+    def remotePublishTasks = graph.allTasks.findAll { task ->
+        (task.name.startsWith("publish") &&
+            (task.name.contains("Sonatype") || task.name.contains("MavenCentral"))) ||
+            task.name.startsWith("closeAndReleaseSonatype")
+    }
+    if (!remotePublishTasks.empty) {
+        throw new GradleException(
+            "Refusing to publish: the version catalog pins micronaut-core to ${micronautCoreVersion}, " +
+                "which is not resolvable from any configured repository, so the published POMs would " +
+                "declare a dependency no consumer can resolve. Pin a released Core version in " +
+                "gradle/libs.versions.toml before releasing. Requested: ${remotePublishTasks*.path.join(', ')}. " +
+                "publishToMavenLocal is unaffected and remains available for local testing."
+        )
+    }
+}
+
+static Set<String> serviceEntries(String text) {
+    text.readLines()*.trim().findAll { !it.isEmpty() && !it.startsWith("#") } as Set
 }

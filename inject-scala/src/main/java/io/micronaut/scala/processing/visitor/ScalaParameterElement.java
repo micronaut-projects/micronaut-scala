@@ -18,11 +18,14 @@ package io.micronaut.scala.processing.visitor;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.ast.ClassElement;
+import io.micronaut.inject.ast.ConstructorElement;
+import io.micronaut.inject.ast.Element;
 import io.micronaut.inject.ast.ElementModifier;
 import io.micronaut.inject.ast.MethodElement;
 import io.micronaut.inject.ast.ParameterElement;
 import org.jspecify.annotations.Nullable;
 
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -35,6 +38,8 @@ public final class ScalaParameterElement extends AbstractScalaElement implements
     private final ScalaVisitorContext visitorContext;
     @Nullable
     private ClassElement type;
+    @Nullable
+    private ClassElement genericType;
 
     ScalaParameterElement(MethodElement methodElement, ScalaParameterData parameterData, ScalaVisitorContext visitorContext) {
         this(methodElement, parameterData, visitorContext, visitorContext.annotationMetadata(parameterData));
@@ -57,12 +62,106 @@ public final class ScalaParameterElement extends AbstractScalaElement implements
         this.visitorContext = visitorContext;
     }
 
+    /**
+     * Whether this parameter declares a default value that a caller can supply.
+     *
+     * <p>Reports a default only when the generated accessor is reachable from a call site;
+     * see {@code defaultAccessor} in the extractor. Core pairs this with a
+     * {@link io.micronaut.inject.writer.ParameterDefaultValueProvider}, which
+     * {@link ScalaParameterDefaultValueProvider} supplies.</p>
+     */
+    @Override
+    public boolean hasDefault() {
+        return parameterData.defaultAccessor() != null;
+    }
+
+    /**
+     * The generated accessor supplying this parameter's default, for the provider to call.
+     *
+     * @return the accessor name, or {@code null} when there is no reachable default
+     */
+    @Nullable
+    String defaultAccessor() {
+        return parameterData.defaultAccessor();
+    }
+
+    /**
+     * @return whether {@link #defaultAccessor()} is static on the declaring class
+     */
+    boolean isDefaultAccessorStatic() {
+        return parameterData.defaultAccessorStatic();
+    }
+
+    /**
+     * @return the method or constructor this parameter belongs to
+     */
+    MethodElement declaringMethod() {
+        return methodElement;
+    }
+
+    /**
+     * The documentation of this parameter, which is a tag on whatever declares it.
+     *
+     * <p>A parameter carries no comment of its own in any language Micronaut supports; it is
+     * documented by a {@code @param} tag on its method. Scala adds a second place to look, and
+     * it is the one that matters most here: the parameters of a case class are its properties,
+     * so a {@code @ConfigurationProperties} case class documents each property as a
+     * {@code @param} tag on the class. That is where the description in the generated
+     * configuration metadata comes from, and it is the same rule Java applies to records.</p>
+     *
+     * <p>Absent when {@code parse} is false, because a tag's text is only reachable by parsing
+     * the comment that contains it -- the same answer the Java implementation gives.</p>
+     *
+     * @param parse Whether the comment may be parsed
+     * @return The documentation for this parameter, if its declaration gives any
+     */
+    @Override
+    public Optional<String> getDocumentation(boolean parse) {
+        if (!parse) {
+            return Optional.empty();
+        }
+        Optional<String> fromMethod = documentationOf(methodElement)
+            .flatMap(raw -> ScalaDocParser.parameter(raw, getName()));
+        if (fromMethod.isPresent()) {
+            return fromMethod;
+        }
+        if (methodElement instanceof ConstructorElement) {
+            return documentationOf(methodElement.getDeclaringType())
+                .flatMap(raw -> ScalaDocParser.parameter(raw, getName()));
+        }
+        return Optional.empty();
+    }
+
+    private Optional<String> documentationOf(@Nullable Element element) {
+        if (element instanceof AbstractScalaElement scalaElement) {
+            return scalaElement.rawDocumentation();
+        }
+        return Optional.empty();
+    }
+
     @Override
     public ClassElement getType() {
         if (type == null) {
             type = visitorContext.getElementFactory().newClassElement(parameterData.type());
         }
         return type;
+    }
+
+    /**
+     * The type with the declaring type's variables bound as they were where the method was
+     * reached: {@code Book} for the {@code E} of a method inherited through
+     * {@code Repo[Book, Long]}. {@link #getType()} stays the declared type -- the JVM signature
+     * an override has to be declared with.
+     */
+    @Override
+    public ClassElement getGenericType() {
+        if (parameterData.genericType() == null) {
+            return getType();
+        }
+        if (genericType == null) {
+            genericType = visitorContext.getElementFactory().newClassElement(parameterData.resolvedType());
+        }
+        return genericType;
     }
 
     @Override
@@ -80,6 +179,19 @@ public final class ScalaParameterElement extends AbstractScalaElement implements
         return new ParameterElementKey(methodElement, parameterData.name());
     }
 
+    /**
+     * A parameter is null-marked when the method that declares it is: `@NullMarked` on a class
+     * reaches a parameter only through the method, the same route the Java module takes.
+     */
+    @Override
+    public boolean isNonNull() {
+        return ParameterElement.super.isNonNull()
+            || methodElement instanceof AbstractScalaMemberElement member
+            && member.hasNullMarked()
+            && !isNullable();
+    }
+
     private record ParameterElementKey(MethodElement methodElement, String name) {
     }
+
 }

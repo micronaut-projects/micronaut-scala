@@ -26,7 +26,6 @@ import io.micronaut.context.exceptions.NonUniqueBeanException
 import io.micronaut.context.exceptions.NoSuchBeanException
 import io.micronaut.inject.qualifiers.Qualifiers
 import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
-import spock.lang.PendingFeature
 
 class ScalaBeanDefinitionSpec extends AbstractScalaTypeElementSpec {
 
@@ -643,7 +642,6 @@ case class F()
         context?.close()
     }
 
-    @PendingFeature(reason = "Generated Java and Scala collection factory references are not yet returned as element-bean candidates")
     void "supports Scala factory methods producing collection elements"() {
         when:
         def context = buildContext('''
@@ -728,7 +726,6 @@ class Shop:
         context?.close()
     }
 
-    @PendingFeature(reason = "Generated Scala collection factory references are not yet returned as element-bean candidates")
     void "supports Scala singleton factory methods producing collection elements"() {
         when:
         def context = buildContext('''

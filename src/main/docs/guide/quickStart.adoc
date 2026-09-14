@@ -2,16 +2,31 @@ This project publishes a Scala compiler plugin for use by Scala 3 builds.
 The plugin must be selected for the exact Scala compiler version used by the
 application.
 
+There are two artifacts, and they are not interchangeable:
+
+`micronaut-inject-scala_<scala version>`:: The compiler plugin. It runs inside
+the Scala compiler and generates bean definitions. It is crossed with the full
+compiler version, and it bundles the Micronaut classes it compiles against, so
+it belongs on the compiler plugin configuration and nowhere else.
+
+`micronaut-runtime-scala`:: The application-side support: the converters that
+let Micronaut bind Scala collections and `Option`. It is a small ordinary
+library, is not crossed with the compiler version, and belongs on the runtime
+classpath.
+
 == Gradle
 
-For Scala 3.9.0, add the following plugin artifact to the Scala compiler
-plugin configuration and runtime dependencies:
+For Scala 3.9.0:
 
 [source,kotlin]
 ----
 scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
-runtimeOnly("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
+runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
 ----
+
+WARNING: Do not put the compiler plugin on the application runtime classpath.
+It bundles Micronaut and ASM at their original package paths, so it would place
+a second copy of those classes in the running application.
 
 Use a released Micronaut Scala version in published applications. During
 development, the repository can be built against the Core SPI branch with
@@ -24,8 +39,8 @@ IncludeGit or a local Core checkout:
 
 == Maven
 
-Use the full compiler-version artifact ID in the Scala compiler plugin and
-runtime dependency declarations:
+Use the full compiler-version artifact ID for the compiler plugin, and the
+uncrossed artifact for the runtime support:
 
 [source,xml]
 ----
@@ -33,6 +48,13 @@ runtime dependency declarations:
   <groupId>io.micronaut.scala</groupId>
   <artifactId>micronaut-inject-scala_3.9.0</artifactId>
   <version>1.0.0-SNAPSHOT</version>
+  <scope>provided</scope>
+</dependency>
+<dependency>
+  <groupId>io.micronaut.scala</groupId>
+  <artifactId>micronaut-runtime-scala</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <scope>runtime</scope>
 </dependency>
 ----
 
@@ -42,6 +64,39 @@ sbt builds should use `CrossVersion.full` so the complete Scala compiler
 version participates in the artifact coordinate. Mill builds should use the
 full-cross `:::` dependency syntax. In both tools, select the integration
 version independently from the Scala compiler version.
+
+== Writing beans
+
+Nothing about a bean is Scala-specific: `@Singleton` on a class makes it a bean, and
+its constructor parameters are injected. What follows is the shortest path to a
+running bean; <<concepts, Micronaut for Scala Developers>> explains what each
+piece is for.
+
+snippet::io.micronaut.docs.helloworld.Translator[source=main,language=scala,tags=clazz]
+
+snippet::io.micronaut.docs.helloworld.GreetingService[source=main,language=scala,tags=clazz]
+
+`ApplicationContext.run().getBean(classOf[GreetingService])` then returns a
+`GreetingService` with its `Translator` supplied.
+
+=== Configuration properties
+
+A `@ConfigurationProperties` class binds its constructor parameters from configuration.
+Scala's own types work here, which is what `micronaut-runtime-scala` provides: a
+`List[Int]` binds from a list-valued property, and an `Option[String]` binds to `None`
+when the property is absent rather than failing the bean.
+
+snippet::io.micronaut.docs.config.EngineConfiguration[source=main,language=scala,tags=clazz]
+
+=== Introspection
+
+`@Introspected` on a case class generates a reflection-free introspection over its
+parameters, which is what serialization and validation read.
+
+snippet::io.micronaut.docs.introspection.Book[source=main,language=scala,tags=clazz]
+
+NOTE: These examples live in `test-suite-scala` and are compiled by this repository's
+build and executed by its tests, so what is printed above is code that runs.
 
 == Compiler compatibility
 

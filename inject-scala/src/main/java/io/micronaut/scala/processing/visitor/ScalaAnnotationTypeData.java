@@ -30,6 +30,8 @@ import java.util.Map;
  * @param members The annotation members by name
  * @param retentionPolicyName The retention policy enum name, if known
  * @param repeatableContainerName The repeatable container annotation name, if known
+ * @param javaDefined Whether the annotation type is a Java annotation, which decides the
+ *     retention it gets when it declares none
  * @param nativeType The native Scala compiler object
  */
 public record ScalaAnnotationTypeData(
@@ -38,11 +40,27 @@ public record ScalaAnnotationTypeData(
     Map<String, ScalaAnnotationMemberData> members,
     @Nullable String retentionPolicyName,
     @Nullable String repeatableContainerName,
+    boolean javaDefined,
     Object nativeType
 ) {
 
     public ScalaAnnotationTypeData {
         annotations = annotations == null ? Collections.emptyList() : List.copyOf(annotations);
         members = members == null ? Collections.emptyMap() : Collections.unmodifiableMap(new LinkedHashMap<>(members));
+    }
+
+    /**
+     * A declaration is itself: two are equal only when they are the same object. Record
+     * equality would compare every member, type and annotation beneath, and core keeps these
+     * as keys of a hash map -- so every lookup was hashing the whole model of the class.
+     */
+    @Override
+    public boolean equals(Object other) {
+        return this == other;
+    }
+
+    @Override
+    public int hashCode() {
+        return System.identityHashCode(this);
     }
 }

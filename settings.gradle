@@ -7,7 +7,7 @@ pluginManagement {
 
 plugins {
     id 'me.champeau.includegit' version '0.3.2'
-    id 'io.micronaut.build.shared.settings' version '8.0.1'
+    id 'io.micronaut.build.shared.settings' version '8.0.2'
 }
 
 def localCore = providers.gradleProperty('local.git.micronaut-core')
@@ -41,8 +41,14 @@ rootProject.name = 'micronaut-scala-parent'
 
 include 'inject-scala'
 include 'inject-scala-compiler'
+include 'inject-scala-compiler-lts'
 include 'inject-scala-test'
 include 'inject-scala-test-compiler'
+include 'runtime-scala'
+include 'test-suite-scala'
+include 'test-suite-scala-openapi'
+include 'test-suite-scala-data'
+include 'test-suite-scala-serde'
 include 'micronaut-scala-bom'
 
 // The compiler plugin API is not binary compatible across compiler releases, so

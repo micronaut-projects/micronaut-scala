@@ -1,1 +1,2 @@
 io.micronaut.scala.processing.test.annotation.ScalaMappedSourceMapper
+io.micronaut.scala.processing.test.annotation.ScalaRepeatableSourceMapper

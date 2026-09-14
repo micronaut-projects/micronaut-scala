@@ -1,5 +1,3 @@
-<!-- Checklist: https://github.com/micronaut-projects/micronaut-core/wiki/New-Module-Checklist -->
-
 # Micronaut Scala
 
 [![Maven Central](https://img.shields.io/maven-central/v/io.micronaut.scala/micronaut-inject-scala_3.9.0.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.micronaut.scala/micronaut-inject-scala_3.9.0)
@@ -29,10 +27,6 @@ The guide sources are in [`src/main/docs/guide`](src/main/docs/guide). They
 cover the compiler plugin, artifact coordinates, bootstrap process, release
 policy, and compiler compatibility. The user-facing Micronaut Framework Scala
 examples are maintained in the [Core documentation follow-up](https://github.com/micronaut-projects/micronaut-core/pull/12981).
-
-<!-- ## Examples
-
-Examples can be found in the [examples](https://github.com/micronaut-projects/micronaut-scala/tree/master/examples) directory. -->
 
 ## Local bootstrap
 

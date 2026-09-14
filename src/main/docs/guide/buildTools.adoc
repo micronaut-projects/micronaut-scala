@@ -1,0 +1,136 @@
+The compiler plugin is registered with the Scala compiler, not applied as a build
+plugin. Every build tool has its own way of doing that, and the artifact
+coordinate always carries the full compiler version.
+
+== Gradle
+
+[source,kotlin]
+----
+plugins {
+    scala
+}
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+dependencies {
+    implementation("org.scala-lang:scala3-library_3:3.9.0")
+    implementation("io.micronaut:micronaut-inject:5.2.0")
+
+    scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
+    runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
+}
+
+tasks.withType<ScalaCompile>().configureEach {
+    scalaCompileOptions.additionalParameters.add("-J--add-modules=java.compiler")
+}
+----
+
+The `-J--add-modules=java.compiler` argument is required: the plugin reaches
+Micronaut code that references `javax.lang.model`, and that module is not resolved
+by default in a JDK 9+ compiler process.
+
+NOTE: This is the build the repository's own functional test generates and runs
+(`ScalaGradlePluginFunctionalSpec`), so it is verified rather than illustrative.
+
+== Maven
+
+[source,xml]
+----
+<properties>
+  <scala.version>3.9.0</scala.version>
+  <micronaut.scala.version>1.0.0-SNAPSHOT</micronaut.scala.version>
+</properties>
+
+<dependencies>
+  <dependency>
+    <groupId>org.scala-lang</groupId>
+    <artifactId>scala3-library_3</artifactId>
+    <version>${scala.version}</version>
+  </dependency>
+  <dependency>
+    <groupId>io.micronaut.scala</groupId>
+    <artifactId>micronaut-runtime-scala</artifactId>
+    <version>${micronaut.scala.version}</version>
+    <scope>runtime</scope>
+  </dependency>
+</dependencies>
+
+<build>
+  <plugins>
+    <plugin>
+      <groupId>net.alchim31.maven</groupId>
+      <artifactId>scala-maven-plugin</artifactId>
+      <configuration>
+        <args>
+          <arg>-J--add-modules=java.compiler</arg>
+        </args>
+        <compilerPlugins>
+          <compilerPlugin>
+            <groupId>io.micronaut.scala</groupId>
+            <artifactId>micronaut-inject-scala_3.9.0</artifactId>
+            <version>${micronaut.scala.version}</version>
+          </compilerPlugin>
+        </compilerPlugins>
+      </configuration>
+    </plugin>
+  </plugins>
+</build>
+----
+
+== sbt
+
+`CrossVersion.full` is required so that the full compiler version participates in
+the coordinate; the default binary suffix would resolve `_3`, which this project
+does not publish.
+
+[source,scala]
+----
+scalaVersion := "3.9.0"
+
+libraryDependencies ++= Seq(
+  "io.micronaut" % "micronaut-inject" % "5.2.0",
+  "io.micronaut.scala" % "micronaut-runtime-scala" % "1.0.0-SNAPSHOT" % Runtime
+)
+
+addCompilerPlugin(
+  "io.micronaut.scala" % "micronaut-inject-scala_3.9.0" % "1.0.0-SNAPSHOT"
+)
+
+javacOptions ++= Seq("--add-modules", "java.compiler")
+----
+
+== Mill
+
+Mill's full-cross dependency syntax is `:::`, which plays the same role as sbt's
+`CrossVersion.full`.
+
+[source,scala]
+----
+object app extends ScalaModule {
+  def scalaVersion = "3.9.0"
+
+  def ivyDeps = Agg(
+    ivy"io.micronaut:micronaut-inject:5.2.0",
+    ivy"io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT"
+  )
+
+  def scalacPluginIvyDeps = Agg(
+    ivy"io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT"
+  )
+
+  def scalacOptions = Seq("-J--add-modules=java.compiler")
+}
+----
+
+WARNING: Only the Gradle build above is exercised by this repository's tests. The
+Maven, sbt and Mill configurations follow each tool's documented mechanism for
+registering a compiler plugin, but they are not verified here. See
+<<troubleshooting, Troubleshooting>> if a build does not generate bean definitions.

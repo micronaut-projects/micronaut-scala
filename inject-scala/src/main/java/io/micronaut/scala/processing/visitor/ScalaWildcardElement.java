@@ -31,7 +31,11 @@ final class ScalaWildcardElement extends ScalaClassElement implements WildcardEl
     private final ScalaVisitorContext visitorContext;
 
     ScalaWildcardElement(ScalaTypeData typeData, ScalaVisitorContext visitorContext) {
-        super(typeData, visitorContext, visitorContext.annotationMetadata(typeData));
+        this(typeData, visitorContext, visitorContext.annotationMetadata(typeData));
+    }
+
+    private ScalaWildcardElement(ScalaTypeData typeData, ScalaVisitorContext visitorContext, AnnotationMetadata annotationMetadata) {
+        super(typeData, visitorContext, annotationMetadata);
         this.typeData = typeData;
         this.visitorContext = visitorContext;
     }
@@ -58,5 +62,46 @@ final class ScalaWildcardElement extends ScalaClassElement implements WildcardEl
     @Override
     public MutableAnnotationMetadataDelegate<AnnotationMetadata> getGenericTypeAnnotationMetadata() {
         return getElementAnnotationMetadata();
+    }
+
+    /**
+     * Copying must keep the element a wildcard. Without this the inherited copy returned a
+     * plain {@code ScalaClassElement}, so every {@code instanceof WildcardElement} check in
+     * the generics writers failed on a copied element -- and copying is what annotating one
+     * does.
+     *
+     * <p>An *array* of a wildcard is the exception, and is not a wildcard itself.
+     * `Array[_]` is modelled as one type carrying both the wildcard bounds and the array
+     * dimension, so a copy of that must erase to an ordinary array class element --
+     * `Array[_]` is `Object[]`, not a wildcard.
+     */
+    @Override
+    public ClassElement withAnnotationMetadata(AnnotationMetadata annotationMetadata) {
+        if (getArrayDimensions() > 0) {
+            return super.withAnnotationMetadata(annotationMetadata);
+        }
+        return new ScalaWildcardElement(typeData, visitorContext, annotationMetadata);
+    }
+
+    /**
+     * Two wildcards are the same only when their bounds are, so they cannot share the
+     * erasure-keyed equality of an ordinary class element.
+     */
+    @Override
+    protected Class<?> equalityType() {
+        return ScalaWildcardElement.class;
+    }
+
+    @Override
+    protected Object equalityKey() {
+        return new WildcardKey(
+            getName(),
+            getArrayDimensions(),
+            typeData.upperBounds().stream().map(ScalaTypeData::name).toList(),
+            typeData.lowerBounds().stream().map(ScalaTypeData::name).toList()
+        );
+    }
+
+    private record WildcardKey(String name, int arrayDimensions, List<String> upperBounds, List<String> lowerBounds) {
     }
 }

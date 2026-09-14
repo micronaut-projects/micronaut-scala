@@ -38,8 +38,8 @@ final class ScalaEnumElement extends ScalaClassElement implements EnumElement {
         this.visitorContext = visitorContext;
     }
 
-    private ScalaEnumElement(ScalaClassData classData, ScalaVisitorContext visitorContext, AnnotationMetadata annotationMetadata) {
-        super(classData, visitorContext, annotationMetadata);
+    private ScalaEnumElement(ScalaClassData classData, ScalaTypeData typeData, ScalaVisitorContext visitorContext, AnnotationMetadata annotationMetadata) {
+        super(classData, typeData, visitorContext, annotationMetadata);
         this.classData = classData;
         this.visitorContext = visitorContext;
     }
@@ -52,11 +52,20 @@ final class ScalaEnumElement extends ScalaClassElement implements EnumElement {
             .toList();
     }
 
+    /**
+     * The enum constants, taken from the same per-class cache every other element kind is
+     * handed out through.
+     *
+     * <p>Constructing them here instead made this accessor disagree with
+     * {@code ElementQuery}: an annotation a visitor added to a constant it queried was
+     * invisible through {@code elements()}, and two calls to {@code elements()} produced two
+     * different elements for the same constant.</p>
+     */
     @Override
     public List<EnumConstantElement> elements() {
         return classData.fields().stream()
             .filter(ScalaFieldData::enumConstant)
-            .map(field -> new ScalaEnumConstantElement(this, field, visitorContext))
+            .map(this::enumConstantElement)
             .map(EnumConstantElement.class::cast)
             .toList();
     }
@@ -67,7 +76,7 @@ final class ScalaEnumElement extends ScalaClassElement implements EnumElement {
     }
 
     @Override
-    public ClassElement withAnnotationMetadata(AnnotationMetadata annotationMetadata) {
-        return new ScalaEnumElement(classData, visitorContext, annotationMetadata);
+    ClassElement copy(ScalaTypeData newTypeData, AnnotationMetadata annotationMetadata) {
+        return new ScalaEnumElement(classData, newTypeData, visitorContext, annotationMetadata);
     }
 }

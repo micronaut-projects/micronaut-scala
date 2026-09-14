@@ -6,6 +6,7 @@ group = properties["projectGroupId"].toString()
 version = properties["projectVersion"].toString()
 
 val scalaCompilerProject = "inject-scala-compiler"
+val scalaLtsCompilerProject = "inject-scala-compiler-lts"
 val scalaTestCompilerProject = "inject-scala-test-compiler"
 
 micronautBuild {
@@ -19,10 +20,12 @@ micronautBom {
     extraExcludedProjects = listOf(
         "inject-scala",
         scalaCompilerProject,
+        scalaLtsCompilerProject,
         "inject-scala-test",
         scalaTestCompilerProject,
         "micronaut-inject-scala",
         "micronaut-$scalaCompilerProject",
+        "micronaut-$scalaLtsCompilerProject",
         "micronaut-inject-scala-test",
         "micronaut-$scalaTestCompilerProject"
     )
@@ -37,6 +40,7 @@ micronautBom {
 dependencies {
     constraints {
         add("api", "io.micronaut.scala:micronaut-inject-scala_${libs.versions.scala3.get()}:${project.version}")
+        add("api", "io.micronaut.scala:micronaut-inject-scala_${libs.versions.scalaLts.get()}:${project.version}")
         add("api", "io.micronaut.scala:micronaut-inject-scala-test_${libs.versions.scala3.get()}:${project.version}")
     }
 }
