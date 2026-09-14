@@ -72,6 +72,14 @@ import java.util.function.Function;
 public final class ScalaProcessingEngine {
 
     private static final String MODULE_INSTANCE_FIELD = "MODULE$";
+    /**
+     * Where the lock every compilation in the JVM takes while it holds JVM-global state is kept.
+     * A static field would not do: the plugin is loaded afresh for each compilation, so a
+     * static is one lock per compilation, and two compilations running at once in one compiler
+     * daemon -- which Gradle does -- would each hold their own. The system properties are the
+     * one object the compilations share, and a {@link java.util.Properties} holds any object.
+     */
+    private static final String PROCESSING_LOCK_PROPERTY = "micronaut.scala.processing.lock";
     private static final String MICRONAUT_INTROSPECTIONS_USE_CONTEXT_CLASSLOADER =
         "micronaut.introspections.use.context.classloader";
 
@@ -157,8 +165,22 @@ public final class ScalaProcessingEngine {
         }
         typeVisitorsProcessed = true;
         ScalaVisitorContext context = visitorContext();
-        withMicronautOptionsAsSystemProperties(() ->
-            withProcessingClassLoader(context, () -> processTypeVisitors(context)));
+        synchronized (processingLock()) {
+            withMicronautOptionsAsSystemProperties(() ->
+                withProcessingClassLoader(context, () -> processTypeVisitors(context)));
+        }
+    }
+
+    /**
+     * The lock held while processing sets JVM-global state: the `micronaut.*` options and the
+     * context-class-loader switches are system properties, and core keeps the writer's state
+     * in statics. Two compilations processing at once in one JVM interleaved their changes --
+     * one restored a property the other was still relying on, and core stopped loading through
+     * that compilation's class loader halfway through it. Processing is serialised across
+     * compilations instead; compiling itself still runs in parallel.
+     */
+    static Object processingLock() {
+        return System.getProperties().computeIfAbsent(PROCESSING_LOCK_PROPERTY, key -> new Object());
     }
 
     private void processTypeVisitors(ScalaVisitorContext context) {
@@ -314,13 +336,15 @@ public final class ScalaProcessingEngine {
         // change to the phase wiring can violate it. processTypeVisitors() is idempotent.
         processTypeVisitors();
         ScalaVisitorContext context = visitorContext();
-        try {
-            withProcessingClassLoader(context, () -> generateBeanDefinitions(context));
-        } finally {
-            // Always, even if generation threw. Service descriptors are written here, and a
-            // definition on disk without its descriptor is a bean the runtime cannot see.
-            context.finish();
-            BeanDefinitionWriter.finish();
+        synchronized (processingLock()) {
+            try {
+                withProcessingClassLoader(context, () -> generateBeanDefinitions(context));
+            } finally {
+                // Always, even if generation threw. Service descriptors are written here, and a
+                // definition on disk without its descriptor is a bean the runtime cannot see.
+                context.finish();
+                BeanDefinitionWriter.finish();
+            }
         }
     }
 
