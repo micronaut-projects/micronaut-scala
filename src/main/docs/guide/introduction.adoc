@@ -32,8 +32,7 @@ visitors. The Scala processing model supports bean definitions, injection,
 introspection, AOP, configuration properties, annotation metadata, Scala
 collections, `Option`, `BeanRegistration`, and Scala 3 enum lookup.
 
-Scala 2 is not currently supported. GraalPy is not required by the Scala
-compiler plugin or its test harness.
+Scala 2 is not currently supported. 
 
 If you are new to Micronaut, <<concepts, Micronaut for Scala Developers>>
 explains dependency injection, configuration, introspections, serialization and
