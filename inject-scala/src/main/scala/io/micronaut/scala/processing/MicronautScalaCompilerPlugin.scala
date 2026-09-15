@@ -929,8 +929,16 @@ private object ScalaModelExtractor:
       if hasFlag(symbol, Flags.Enum) && !java then List(enumValueOfMethodData(symbol))
       else Nil
     val companionCreators = if java then Nil else companionStaticCreators(symbol)
+    // The compiler enters a Java class's nested classes with a module val each, for their
+    // statics. That is the compiler's device, not a field the class file declares -- and
+    // modelling it as one resolved its type, which completes the nested class, and dotty
+    // cannot parse the class file of a JDK inner class on its own: `ArrayList$Itr` refers to
+    // the `E` of its outer class, which the reader has not put in scope, and the file is
+    // reported as broken. That turned `class Strings extends java.util.ArrayList[String]`
+    // into a compilation error.
     val fields = declarations
       .filter(member => member.isTerm && !hasFlag(member, Flags.Method) && !member.denot.isConstructor && !skipField(member))
+      .filterNot(member => java && hasFlag(member, Flags.Module))
       .map(field => fieldData(field, classFileFieldAnnotations(classFile, field)))
       ++ classFile.toList.flatMap(reader => javaPrivateFields(symbol, reader))
     val enumConstants = enumConstantSymbols(symbol)
@@ -2421,6 +2429,13 @@ private object ScalaModelExtractor:
       }
       converted
 
+  /**
+   * An unbounded wildcard written for a bounded parameter -- `Bounded[?]` for
+   * `trait Bounded[T <: Number]` -- stands for the parameter's bound: its type is `Number`.
+   * Its own bounds stay what was written, `Object` above and nothing below, which is what the
+   * Java, Kotlin and Groovy models answer for `Bounded<?>` and `Bounded<*>`; reporting the
+   * parameter's bounds as the wildcard's made the same declaration read as `? <: Number`.
+   */
   private def resolveUnboundedWildcard(argumentData: ScalaTypeData, parameter: Symbol)(using Context, AnnotationDefaults): ScalaTypeData =
     if !isObjectWildcard(argumentData) then
       argumentData
@@ -2445,7 +2460,7 @@ private object ScalaModelExtractor:
           null,
           Nil.asJava,
           true,
-          parameterBounds.asJava,
+          argumentData.upperBounds(),
           argumentData.lowerBounds()
         )
 
@@ -2547,12 +2562,16 @@ private object ScalaModelExtractor:
     val upper = upperBounds(bounds, visitedTypeParameters)
     val lower = lowerBounds(bounds, visitedTypeParameters)
     val primaryBound = upper.head
+    // The wildcard stands for its primary bound, arguments included: `? <: Comparable[String]`
+    // is written as an argument of `Comparable` with `String` as its own argument, as the
+    // Java, Kotlin and Groovy models write it. Leaving them out erased the bound to a raw
+    // `Comparable` in the generated metadata.
     ScalaTypeData(
       primaryBound.name(),
       primitive = false,
       arrayDimensions = 0,
       primaryBound.interfaceType(),
-      java.util.Map.of(),
+      primaryBound.typeArguments(),
       primaryBound.superType(),
       primaryBound.interfaces(),
       typeAnnotationsFor(Symbols.NoSymbol, typeAnnotations, explicitNullable).asJava,

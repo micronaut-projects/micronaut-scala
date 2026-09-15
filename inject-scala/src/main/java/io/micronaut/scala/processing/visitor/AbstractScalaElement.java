@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.AnnotationValueBuilder;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
+import io.micronaut.inject.ast.annotation.ElementAnnotationMetadata;
 import io.micronaut.inject.ast.annotation.MutableAnnotationMetadataDelegate;
 import io.micronaut.inject.ast.Element;
 import io.micronaut.inject.ast.ElementModifier;
@@ -35,8 +36,7 @@ abstract class AbstractScalaElement implements Element {
     private final String name;
     private final Object nativeType;
     private final Set<ElementModifier> modifiers;
-    private final MutableAnnotationMetadata annotationMetadata;
-    private final SimpleElementAnnotationMetadata elementAnnotationMetadata;
+    private final ElementAnnotationMetadata elementAnnotationMetadata;
     private final ScalaAnnotationMetadataBuilder annotationMetadataBuilder;
 
     AbstractScalaElement(
@@ -45,11 +45,40 @@ abstract class AbstractScalaElement implements Element {
         Set<ElementModifier> modifiers,
         MutableAnnotationMetadata annotationMetadata,
         ScalaAnnotationMetadataBuilder annotationMetadataBuilder) {
+        this(
+            name,
+            nativeType,
+            modifiers,
+            new SimpleElementAnnotationMetadata(
+                annotationMetadata == null ? new MutableAnnotationMetadata() : annotationMetadata,
+                false,
+                annotationMetadataBuilder
+            ),
+            annotationMetadataBuilder
+        );
+    }
+
+    /**
+     * An element with the given metadata as its own.
+     *
+     * @param name The element name
+     * @param nativeType The native type
+     * @param modifiers The modifiers
+     * @param elementAnnotationMetadata The element's own annotation metadata, which is what a
+     *     mutation of the element writes through: an inherited member read through a subclass
+     *     is given the owner-scoped view of its declaration's metadata here
+     * @param annotationMetadataBuilder The annotation metadata builder
+     */
+    AbstractScalaElement(
+        String name,
+        Object nativeType,
+        Set<ElementModifier> modifiers,
+        ElementAnnotationMetadata elementAnnotationMetadata,
+        ScalaAnnotationMetadataBuilder annotationMetadataBuilder) {
         this.name = name;
         this.nativeType = nativeType;
         this.modifiers = modifiers == null ? Set.of() : Set.copyOf(modifiers);
-        this.annotationMetadata = annotationMetadata == null ? new MutableAnnotationMetadata() : annotationMetadata;
-        this.elementAnnotationMetadata = new SimpleElementAnnotationMetadata(this.annotationMetadata, false, annotationMetadataBuilder);
+        this.elementAnnotationMetadata = elementAnnotationMetadata;
         this.annotationMetadataBuilder = annotationMetadataBuilder;
     }
 
@@ -133,7 +162,7 @@ abstract class AbstractScalaElement implements Element {
         return elementAnnotationMetadata.getAnnotationMetadata();
     }
 
-    protected SimpleElementAnnotationMetadata getElementAnnotationMetadata() {
+    protected ElementAnnotationMetadata getElementAnnotationMetadata() {
         return elementAnnotationMetadata;
     }
 

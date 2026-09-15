@@ -536,7 +536,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             }
             Map<String, ScalaTypeData> inheritedSubstitutions = supertype.typeArguments();
             inheritedData.properties().stream()
-                .map(property -> inherited.propertyElement(substitute(property, inheritedSubstitutions)))
+                .map(property -> inheritedPropertyElement(inherited, substitute(property, inheritedSubstitutions)))
                 .filter(propertyElement -> matches(propertyElementQuery, propertyElement))
                 .forEach(propertyElement -> properties.putIfAbsent(propertyElement.getName(), propertyElement));
             collectInheritedProperties(propertyElementQuery, properties, visited, inherited, inheritedSubstitutions);
@@ -633,14 +633,29 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
             this,
             value.type,
             value.propertyName,
-            value.getter,
-            value.setter,
-            value.field,
+            propertyComponent(value.getter),
+            propertyComponent(value.setter),
+            propertyComponent(value.field),
             accessKind(value.readAccessKind),
             accessKind(value.writeAccessKind),
             false,
             visitorContext
         );
+    }
+
+    /**
+     * An accessor found by Java's conventions as a component of the property it makes up,
+     * so that annotating the property annotates the accessor for this class alone, as it does
+     * for a property Scala declares; see {@link #propertyAccessorElement}.
+     */
+    @Nullable
+    private MethodElement propertyComponent(@Nullable MethodElement accessor) {
+        return accessor instanceof ScalaMethodElement scalaMethodElement ? scalaMethodElement.asPropertyComponentOf(this) : accessor;
+    }
+
+    @Nullable
+    private FieldElement propertyComponent(@Nullable FieldElement field) {
+        return field instanceof ScalaFieldElement scalaFieldElement ? scalaFieldElement.asPropertyComponentOf(this) : field;
     }
 
     private static PropertyElement.AccessKind accessKind(BeanProperties.AccessKind accessKind) {
@@ -1044,8 +1059,18 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
         Set<MethodSignature> signatures,
         List<Element> elements) {
         if (signatures.add(signature(method))) {
-            elements.add(owned(declaringElement.methodElement(method)));
+            elements.add(declares(declaringElement) ? methodElement(method) : inheritedMethodElement(declaringElement, method));
         }
+    }
+
+    /**
+     * Whether a member declared by the given element is this class's own: the element that
+     * declares it is this very element, not a supertype's and not another copy of this class,
+     * whose caches are its own.
+     */
+    @SuppressWarnings("ReferenceEquality")
+    private boolean declares(ScalaClassElement declaringElement) {
+        return declaringElement == this;
     }
 
     /**
@@ -1288,7 +1313,7 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
                     elements.add(enumElement.enumConstantElement(field));
                 }
             } else {
-                elements.add(declaringElement.fieldElement(field));
+                elements.add(declares(declaringElement) ? fieldElement(field) : inheritedFieldElement(declaringElement, field));
             }
         });
     }
@@ -1383,6 +1408,74 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
 
     final ScalaPropertyElement propertyElement(ScalaPropertyData property) {
         return propertyElements.computeIfAbsent(property, ignored -> new ScalaPropertyElement(this, property, visitorContext));
+    }
+
+    /**
+     * A property this class inherits, read through this class.
+     *
+     * <p>Not the declaring type's element: a bean property is resolved for the type it is read
+     * through, so annotating the property of a super type must not annotate the same property
+     * read through a subclass, nor the other way round -- micronaut-serialization annotates the
+     * properties each type names in its own {@code @JsonIgnoreProperties}, and one type's
+     * choice leaked into every other type in the hierarchy.</p>
+     *
+     * @param declaringElement The type declaring the property
+     * @param property The property, with this class's type arguments applied
+     * @return The property as read through this class
+     */
+    final ScalaPropertyElement inheritedPropertyElement(ScalaClassElement declaringElement, ScalaPropertyData property) {
+        if (declares(declaringElement)) {
+            return propertyElement(property);
+        }
+        return propertyElements.computeIfAbsent(property, ignored -> new ScalaPropertyElement(declaringElement, this, property, visitorContext));
+    }
+
+    /**
+     * A method this class inherits, read through this class: owned by this class, and with its
+     * mutations shared with the declaration until a bean property of this class mutates it.
+     *
+     * @param declaringElement The type declaring the method
+     * @param method The method, with this class's type arguments applied
+     * @return The method as read through this class
+     */
+    final ScalaMethodElement inheritedMethodElement(ScalaClassElement declaringElement, ScalaMethodData method) {
+        return new ScalaMethodElement(declaringElement, this, method, visitorContext, visitorContext.ownerScope(getName(), method).memberView());
+    }
+
+    /**
+     * A field this class inherits, read through this class; see {@link #inheritedMethodElement}.
+     *
+     * @param declaringElement The type declaring the field
+     * @param field The field, with this class's type arguments applied
+     * @return The field as read through this class
+     */
+    final ScalaFieldElement inheritedFieldElement(ScalaClassElement declaringElement, ScalaFieldData field) {
+        return new ScalaFieldElement(declaringElement, field, visitorContext, visitorContext.ownerScope(getName(), field).memberView());
+    }
+
+    /**
+     * An accessor of a property read through this class: this class's view of the accessor,
+     * through which a mutation made on the property belongs to this class alone -- for a
+     * property this class declares as for one it inherits, since the declaring type's own
+     * choice must not reach the subclasses either.
+     *
+     * @param declaringElement The type declaring the accessor
+     * @param method The accessor
+     * @return The accessor as a component of the property
+     */
+    final ScalaMethodElement propertyAccessorElement(ScalaClassElement declaringElement, ScalaMethodData method) {
+        return new ScalaMethodElement(declaringElement, this, method, visitorContext, visitorContext.ownerScope(getName(), method).propertyComponentView());
+    }
+
+    /**
+     * The field of a property read through this class; see {@link #propertyAccessorElement}.
+     *
+     * @param declaringElement The type declaring the field
+     * @param field The field
+     * @return The field as a component of the property
+     */
+    final ScalaFieldElement propertyFieldElement(ScalaClassElement declaringElement, ScalaFieldData field) {
+        return new ScalaFieldElement(declaringElement, field, visitorContext, visitorContext.ownerScope(getName(), field).propertyComponentView());
     }
 
     private <T extends Element> boolean matches(ElementQuery.Result<T> result, Element element) {

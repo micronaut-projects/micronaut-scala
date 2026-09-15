@@ -21,6 +21,7 @@ import io.micronaut.inject.ast.WildcardElement;
 import io.micronaut.inject.ast.annotation.MutableAnnotationMetadataDelegate;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Scala wildcard element backed by compiler type bounds.
@@ -38,6 +39,20 @@ final class ScalaWildcardElement extends ScalaClassElement implements WildcardEl
         super(typeData, visitorContext, annotationMetadata);
         this.typeData = typeData;
         this.visitorContext = visitorContext;
+    }
+
+    /**
+     * The type the wildcard stands for, which is what an argument is written with. It is not
+     * always the first upper bound: {@code Bounded[?]} for {@code T <: Number} stands for
+     * {@code Number} while its only bound is the {@code Object} that was written, and without
+     * this the writer took the bound and wrote the argument as {@code Object}.
+     */
+    @Override
+    public Optional<ClassElement> getResolved() {
+        if (getArrayDimensions() > 0) {
+            return Optional.empty();
+        }
+        return Optional.of(visitorContext.getElementFactory().newClassElement(typeData.resolved()));
     }
 
     @Override

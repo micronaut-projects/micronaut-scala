@@ -97,7 +97,9 @@ public class ScalaMethodElement extends AbstractScalaMemberElement implements Me
             methodData.name(),
             methodData.nativeType(),
             methodData.modifiers(),
-            visitorContext.annotationMetadata(methodData),
+            // The declaration's view of its own metadata: shared with every type the method is
+            // read through until a bean property mutates it; see OwnerScopedAnnotationMetadata
+            visitorContext.ownerScope(declaringType.getName(), methodData).memberView(),
             visitorContext.getScalaAnnotationMetadataBuilder()
         );
         this.declaringType = declaringType;
@@ -106,6 +108,41 @@ public class ScalaMethodElement extends AbstractScalaMemberElement implements Me
         this.methodData = methodData;
         this.presetAnnotationMetadata = presetAnnotationMetadata;
         this.methodAnnotationMetadata = sharedMethodAnnotationMetadata;
+        this.parameters = methodData.parameters().stream()
+            .map(parameter -> new ScalaParameterElement(this, parameter, visitorContext))
+            .toArray(ParameterElement[]::new);
+    }
+
+    /**
+     * The method with the given view of its metadata: the view of the type it is read through,
+     * or of the bean property it is an accessor of; see {@link OwnerScopedAnnotationMetadata}.
+     *
+     * @param declaringType The type declaring the method
+     * @param owningType The type the method is read through
+     * @param methodData The method
+     * @param visitorContext The visitor context
+     * @param elementAnnotationMetadata The view the method's mutations write through
+     */
+    ScalaMethodElement(
+        ScalaClassElement declaringType,
+        ClassElement owningType,
+        ScalaMethodData methodData,
+        ScalaVisitorContext visitorContext,
+        ElementAnnotationMetadata elementAnnotationMetadata) {
+        super(
+            declaringType,
+            methodData.name(),
+            methodData.nativeType(),
+            methodData.modifiers(),
+            elementAnnotationMetadata,
+            visitorContext.getScalaAnnotationMetadataBuilder()
+        );
+        this.declaringType = declaringType;
+        this.owningType = owningType;
+        this.visitorContext = visitorContext;
+        this.methodData = methodData;
+        this.presetAnnotationMetadata = null;
+        this.methodAnnotationMetadata = null;
         this.parameters = methodData.parameters().stream()
             .map(parameter -> new ScalaParameterElement(this, parameter, visitorContext))
             .toArray(ParameterElement[]::new);
@@ -246,6 +283,18 @@ public class ScalaMethodElement extends AbstractScalaMemberElement implements Me
         ScalaMethodElement methodElement = new ScalaMethodElement(declaringType, owningType, methodData, visitorContext, getAnnotationMetadata());
         methodElement.replaceParameters(newParameters);
         return methodElement;
+    }
+
+    /**
+     * This method as an accessor of a bean property of the given type, through which a
+     * mutation made on the property belongs to that type; an element given metadata of its own
+     * is already what it stands for and is answered as is.
+     *
+     * @param owningType The type whose property the method is an accessor of
+     * @return The method as a property component
+     */
+    MethodElement asPropertyComponentOf(ScalaClassElement owningType) {
+        return presetAnnotationMetadata != null ? this : owningType.propertyAccessorElement(declaringType, methodData);
     }
 
     @Override

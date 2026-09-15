@@ -45,6 +45,7 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
     private static final String VALUE_ANNOTATION = "io.micronaut.context.annotation.Value";
 
     private final ScalaClassElement declaringType;
+    private final ScalaClassElement owningType;
     private final ScalaVisitorContext visitorContext;
     @Nullable
     private final ScalaPropertyData propertyData;
@@ -61,24 +62,49 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
     private final ElementAnnotationMetadata annotationMetadata;
 
     ScalaPropertyElement(ScalaClassElement declaringType, ScalaPropertyData propertyData, ScalaVisitorContext visitorContext) {
-        this(declaringType, propertyData, visitorContext, null);
+        this(declaringType, declaringType, propertyData, visitorContext, null);
+    }
+
+    /**
+     * A property as read through the type that inherits it.
+     *
+     * <p>A bean property is resolved for the type it is read through, as its accessors are, so
+     * annotating the property of a super type must not annotate the same property read through
+     * a subclass, nor the other way round. The accessors and the field of an inherited property
+     * are therefore the owning type's own views of the declaring type's members, which start
+     * from the shared metadata and keep the owning type's mutations to themselves; see
+     * {@link OwnerScopedAnnotationMetadata}.</p>
+     *
+     * @param declaringType The type declaring the property
+     * @param owningType The type the property is read through
+     * @param propertyData The property
+     * @param visitorContext The visitor context
+     */
+    ScalaPropertyElement(
+        ScalaClassElement declaringType,
+        ScalaClassElement owningType,
+        ScalaPropertyData propertyData,
+        ScalaVisitorContext visitorContext) {
+        this(declaringType, owningType, propertyData, visitorContext, null);
     }
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     private ScalaPropertyElement(
         ScalaClassElement declaringType,
+        ScalaClassElement owningType,
         ScalaPropertyData propertyData,
         ScalaVisitorContext visitorContext,
         @Nullable
         AnnotationMetadata annotationMetadata) {
         this(
             declaringType,
+            owningType,
             propertyData,
             visitorContext.getElementFactory().newClassElement(propertyData.type()),
             propertyData.name(),
-            propertyData.readMethod() == null ? null : declaringType.methodElement(propertyData.readMethod()),
-            propertyData.writeMethod() == null ? null : declaringType.methodElement(propertyData.writeMethod()),
-            propertyData.field() == null ? null : declaringType.fieldElement(propertyData.field()),
+            propertyData.readMethod() == null ? null : owningType.propertyAccessorElement(declaringType, propertyData.readMethod()),
+            propertyData.writeMethod() == null ? null : owningType.propertyAccessorElement(declaringType, propertyData.writeMethod()),
+            propertyData.field() == null ? null : owningType.propertyFieldElement(declaringType, propertyData.field()),
             AccessKind.METHOD,
             AccessKind.METHOD,
             false,
@@ -103,6 +129,7 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
         ScalaVisitorContext visitorContext) {
         this(
             declaringType,
+            declaringType,
             null,
             type,
             name,
@@ -123,6 +150,7 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
     @SuppressWarnings("checkstyle:ParameterNumber")
     private ScalaPropertyElement(
         ScalaClassElement declaringType,
+        ScalaClassElement owningType,
         @Nullable ScalaPropertyData propertyData,
         ClassElement type,
         String name,
@@ -146,6 +174,7 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
             visitorContext.getScalaAnnotationMetadataBuilder()
         );
         this.declaringType = declaringType;
+        this.owningType = owningType;
         this.visitorContext = visitorContext;
         this.propertyData = propertyData;
         this.type = type;
@@ -171,6 +200,11 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
     @Override
     public ClassElement getType() {
         return type;
+    }
+
+    @Override
+    public ClassElement getOwningType() {
+        return owningType;
     }
 
     @Override
@@ -259,9 +293,15 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
         return qualifierMetadata.isEmpty() ? AnnotationMetadata.EMPTY_METADATA : qualifierMetadata;
     }
 
+    /**
+     * The metadata of the accessor a read or write member is built from: the accessor's own
+     * when it declares annotations, read through this property's view of it so that a
+     * mutation made on the property through the owning type is kept; otherwise the field's,
+     * and otherwise the property's.
+     */
     private AnnotationMetadata readMemberAnnotationMetadata() {
-        if (propertyData != null && propertyData.readMethod() != null && !propertyData.readMethod().annotations().isEmpty()) {
-            return visitorContext.annotationMetadata(propertyData.readMethod());
+        if (propertyData != null && propertyData.readMethod() != null && !propertyData.readMethod().annotations().isEmpty() && readMethod != null) {
+            return readMethod.getMethodAnnotationMetadata().getAnnotationMetadata();
         }
         if (field != null) {
             return field.getAnnotationMetadata();
@@ -270,8 +310,8 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
     }
 
     private AnnotationMetadata writeMemberAnnotationMetadata() {
-        if (propertyData != null && propertyData.writeMethod() != null && !propertyData.writeMethod().annotations().isEmpty()) {
-            return visitorContext.annotationMetadata(propertyData.writeMethod());
+        if (propertyData != null && propertyData.writeMethod() != null && !propertyData.writeMethod().annotations().isEmpty() && writeMethod != null) {
+            return writeMethod.getMethodAnnotationMetadata().getAnnotationMetadata();
         }
         if (field != null) {
             return field.getAnnotationMetadata();
@@ -315,10 +355,11 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
     @Override
     public PropertyElement withAnnotationMetadata(AnnotationMetadata annotationMetadata) {
         if (propertyData != null) {
-            return new ScalaPropertyElement(declaringType, propertyData, visitorContext, annotationMetadata);
+            return new ScalaPropertyElement(declaringType, owningType, propertyData, visitorContext, annotationMetadata);
         }
         return new ScalaPropertyElement(
             declaringType,
+            owningType,
             propertyData,
             type,
             getName(),

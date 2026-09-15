@@ -266,13 +266,26 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
 
     @Override
     protected Map<? extends Object, ?> readAnnotationDefaultValues(String annotationName, Object annotationType) {
+        return readAnnotationDefaultValues(annotationName, annotationType, false);
+    }
+
+    /**
+     * The defaults an annotation type declares, by the same rule as the Java, Kotlin and Groovy
+     * builders: every member with a default is reported, whatever its shape, except that an
+     * empty <em>string</em> default is reported only when {@code includeEmptyValues} is set.
+     * The written metadata omits it to stay small, and {@code AnnotationValue.stringValue}
+     * answers empty for an absent member anyway; {@code VisitorContext.getAnnotationDefaultValues}
+     * asks for it, so that "no default" can be told apart from "the empty string".
+     */
+    @Override
+    protected Map<? extends Object, ?> readAnnotationDefaultValues(String annotationName, Object annotationType, boolean includeEmptyValues) {
         AnnotationTypeElement typeElement = annotationType(annotationName, annotationType);
         Map<Object, Object> values = new LinkedHashMap<>();
         ScalaAnnotationTypeData nativeType = typeElement.nativeType();
         if (nativeType != null) {
             for (ScalaAnnotationMemberData member : nativeType.members().values()) {
                 Object defaultValue = member.defaultValue();
-                if (isValidDefaultValue(defaultValue)) {
+                if (isValidDefaultValue(defaultValue, includeEmptyValues)) {
                     values.put(new AnnotationMemberElement(typeElement, member), defaultValue);
                 }
             }
@@ -704,7 +717,10 @@ public final class ScalaAnnotationMetadataBuilder extends AbstractAnnotationMeta
      * {@code @Named}, {@code @Property} and {@code @Requires.property} all default to it --
      * so Micronaut could not tell that an explicitly empty value matched the default.
      */
-    private boolean isValidDefaultValue(@Nullable Object defaultValue) {
+    private boolean isValidDefaultValue(@Nullable Object defaultValue, boolean includeEmptyValues) {
+        if (defaultValue instanceof String string) {
+            return includeEmptyValues || !string.isEmpty();
+        }
         return defaultValue != null;
     }
 

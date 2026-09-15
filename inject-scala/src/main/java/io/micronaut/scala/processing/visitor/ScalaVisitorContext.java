@@ -85,6 +85,12 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
      */
     private final Map<String, ScalaPackageElement> packageElements = new LinkedHashMap<>();
     private final IdentityHashMap<Object, MutableAnnotationMetadata> elementAnnotationMetadata = new IdentityHashMap<>();
+    /**
+     * The metadata of inherited members as read through each owning type, by owner name and
+     * then by the same key as {@link #elementAnnotationMetadata}; see
+     * {@link OwnerScopedAnnotationMetadata}.
+     */
+    private final Map<String, IdentityHashMap<Object, OwnerScopedAnnotationMetadata.Scope>> ownerScopes = new HashMap<>();
     private final List<AbstractBeanDefinitionBuilder> beanDefinitionBuilders = new ArrayList<>();
     private final Map<String, String> options;
     private final Function<String, ScalaAnnotationTypeData> annotationTypeResolver;
@@ -327,6 +333,23 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
             annotationMetadataKey(element),
             ignored -> annotationMetadataBuilder.buildMetadata(element)
         );
+    }
+
+    /**
+     * The metadata of an inherited member as read through the given owning type: the member's
+     * shared metadata until a bean property of the owning type mutates it, and the owning
+     * type's own copy from then on.
+     *
+     * @param owningTypeName The name of the type the member is read through
+     * @param element The member
+     * @return The scope, one per owning type and member
+     */
+    OwnerScopedAnnotationMetadata.Scope ownerScope(String owningTypeName, ScalaAnnotatedElementData element) {
+        return ownerScopes.computeIfAbsent(owningTypeName, ignored -> new IdentityHashMap<>())
+            .computeIfAbsent(
+                annotationMetadataKey(element),
+                ignored -> new OwnerScopedAnnotationMetadata.Scope(annotationMetadata(element), annotationMetadataBuilder)
+            );
     }
 
     private Object annotationMetadataKey(ScalaAnnotatedElementData element) {

@@ -18,6 +18,7 @@ package io.micronaut.scala.processing.visitor;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.ElementModifier;
+import io.micronaut.inject.ast.annotation.ElementAnnotationMetadata;
 import io.micronaut.core.annotation.NullMarked;
 import io.micronaut.inject.ast.MemberElement;
 
@@ -35,6 +36,17 @@ abstract class AbstractScalaMemberElement extends AbstractScalaElement implement
         MutableAnnotationMetadata annotationMetadata,
         ScalaAnnotationMetadataBuilder annotationMetadataBuilder) {
         super(name, nativeType, modifiers, annotationMetadata, annotationMetadataBuilder);
+        this.declaringType = declaringType;
+    }
+
+    AbstractScalaMemberElement(
+        ScalaClassElement declaringType,
+        String name,
+        Object nativeType,
+        Set<ElementModifier> modifiers,
+        ElementAnnotationMetadata elementAnnotationMetadata,
+        ScalaAnnotationMetadataBuilder annotationMetadataBuilder) {
+        super(name, nativeType, modifiers, elementAnnotationMetadata, annotationMetadataBuilder);
         this.declaringType = declaringType;
     }
 

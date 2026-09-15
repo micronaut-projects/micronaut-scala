@@ -19,6 +19,7 @@ import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.FieldElement;
+import io.micronaut.inject.ast.annotation.ElementAnnotationMetadata;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -29,11 +30,15 @@ public final class ScalaFieldElement extends AbstractScalaMemberElement implemen
     private final ScalaClassElement declaringType;
     private final ScalaVisitorContext visitorContext;
     private final ScalaFieldData fieldData;
+    /** Whether this element carries metadata of its own rather than a view of its declaration's. */
+    private final boolean presetAnnotationMetadata;
     private @Nullable ClassElement type;
     private @Nullable ClassElement genericType;
 
     ScalaFieldElement(ScalaClassElement declaringType, ScalaFieldData fieldData, ScalaVisitorContext visitorContext) {
-        this(declaringType, fieldData, visitorContext, visitorContext.annotationMetadata(fieldData));
+        // The declaration's view of its own metadata: shared with every type the field is read
+        // through until a bean property mutates it; see OwnerScopedAnnotationMetadata
+        this(declaringType, fieldData, visitorContext, visitorContext.ownerScope(declaringType.getName(), fieldData).memberView());
     }
 
     private ScalaFieldElement(
@@ -52,6 +57,47 @@ public final class ScalaFieldElement extends AbstractScalaMemberElement implemen
         this.declaringType = declaringType;
         this.visitorContext = visitorContext;
         this.fieldData = fieldData;
+        this.presetAnnotationMetadata = true;
+    }
+
+    /**
+     * The field with the given view of its metadata: the view of the type it is read through,
+     * or of the bean property it is a component of; see {@link OwnerScopedAnnotationMetadata}.
+     *
+     * @param declaringType The type declaring the field
+     * @param fieldData The field
+     * @param visitorContext The visitor context
+     * @param elementAnnotationMetadata The view the field's mutations write through
+     */
+    ScalaFieldElement(
+        ScalaClassElement declaringType,
+        ScalaFieldData fieldData,
+        ScalaVisitorContext visitorContext,
+        ElementAnnotationMetadata elementAnnotationMetadata) {
+        super(
+            declaringType,
+            fieldData.name(),
+            fieldData.nativeType(),
+            fieldData.modifiers(),
+            elementAnnotationMetadata,
+            visitorContext.getScalaAnnotationMetadataBuilder()
+        );
+        this.declaringType = declaringType;
+        this.visitorContext = visitorContext;
+        this.fieldData = fieldData;
+        this.presetAnnotationMetadata = false;
+    }
+
+    /**
+     * This field as a component of a bean property of the given type, through which a
+     * mutation made on the property belongs to that type; an element given metadata of its own
+     * is already what it stands for and is answered as is.
+     *
+     * @param owningType The type whose property the field is a component of
+     * @return The field as a property component
+     */
+    FieldElement asPropertyComponentOf(ScalaClassElement owningType) {
+        return presetAnnotationMetadata ? this : owningType.propertyFieldElement(declaringType, fieldData);
     }
 
     @Override
