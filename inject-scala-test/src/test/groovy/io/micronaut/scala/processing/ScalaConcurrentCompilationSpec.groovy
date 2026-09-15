@@ -80,6 +80,11 @@ class Bean${round}:
         and: 'and none left a property behind for the next compilation in the JVM'
         leaked == []
 
+        and: '''the system properties are still a String-to-String map, which is their contract
+                and what Zinc reads them as while setting up the next compilation in the same
+                daemon: the lock the compilations share used to be an Object stored among them'''
+        System.getProperties().entrySet().findAll { !(it.key instanceof String) || !(it.value instanceof String) }.empty
+
         cleanup:
         executor.shutdownNow()
     }
