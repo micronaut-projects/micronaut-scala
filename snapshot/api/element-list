@@ -1,0 +1,8 @@
+io.micronaut.docs.data.reference
+io.micronaut.scala.convert
+io.micronaut.scala.info
+io.micronaut.scala.processing.test
+io.micronaut.scala.processing.test.annotation
+io.micronaut.scala.processing.test.annotation.remap
+io.micronaut.scala.processing.visitor
+io.micronaut.scala.serde
