@@ -11,3 +11,5 @@ io.micronaut.scala.processing.test.ScalaLowOrderVisitor
 io.micronaut.scala.processing.test.ScalaTypeElementQueryVisitor
 io.micronaut.scala.processing.test.ScalaVisitorContextCaptureVisitor
 io.micronaut.scala.processing.test.ScalaCyclicFailureVisitor
+io.micronaut.scala.processing.test.ScalaAnnotationDefaultsRecordingVisitor
+io.micronaut.scala.processing.test.ScalaInheritedPropertyMutationVisitor
