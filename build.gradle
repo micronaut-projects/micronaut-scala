@@ -276,13 +276,13 @@ tasks.named("check") {
     dependsOn("verifyCompilerArtifacts", "verifyGuideSnippets")
 }
 
-// The catalog pins micronaut-core to 5.2.0-SNAPSHOT, which is published nowhere,
-// so `-PincludeMicronautCore=true` builds it from source. That works for `check`,
-// but it must not be mistaken for a releasable state: the generated POMs would
-// still declare a Core version no consumer can resolve. The publishing workflows
-// do not pass that flag and already fail on every push to master; failing here
-// instead says why, and says it before anything is uploaded.
-def micronautCoreVersion = libs.versions.micronaut.core.get()
+// The catalog may pin micronaut-core to a snapshot while developing against unreleased
+// Core changes, with `-PincludeMicronautCore=true` building it from source. That works
+// for `check`, but it must not be mistaken for a releasable state: the generated POMs
+// would still declare a Core version no consumer can resolve. The publishing workflows
+// do not pass that flag and would fail on every push to master; failing here instead
+// says why, and says it before anything is uploaded.
+def micronautCoreVersion = libs.versions.micronaut.asProvider().get()
 
 gradle.taskGraph.whenReady { graph ->
     if (!micronautCoreVersion.endsWith("-SNAPSHOT")) {

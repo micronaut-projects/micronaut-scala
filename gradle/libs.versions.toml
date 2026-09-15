@@ -6,7 +6,7 @@ scala3 = "3.9.0"
 # sources; see the `scala-compiler-variant` convention plugin. Named to avoid nesting under
 # `scala3`, which would turn `libs.versions.scala3` into a group accessor.
 scalaLts = "3.3.8"
-micronaut-core = "5.2.0-SNAPSHOT"
+micronaut = "5.2.2"
 
 htmlsanitycheck = "1.1.6"
 japicmp-gradle-plugin="0.4.6"
@@ -47,14 +47,14 @@ managed-groovy = { module = "org.apache.groovy:groovy", version.ref = "managed-g
 
 scala3-compiler = { module = "org.scala-lang:scala3-compiler_3", version.ref = "scala3" }
 scala3-library = { module = "org.scala-lang:scala3-library_3", version.ref = "scala3" }
-micronaut-core = { module = "io.micronaut:micronaut-core", version.ref = "micronaut-core" }
-micronaut-core-processor = { module = "io.micronaut:micronaut-core-processor", version.ref = "micronaut-core" }
-micronaut-context = { module = "io.micronaut:micronaut-context", version.ref = "micronaut-core" }
-micronaut-retry = { module = "io.micronaut:micronaut-retry", version.ref = "micronaut-core" }
-micronaut-http = { module = "io.micronaut:micronaut-http", version.ref = "micronaut-core" }
-micronaut-json-core = { module = "io.micronaut:micronaut-json-core", version.ref = "micronaut-core" }
-micronaut-inject-java = { module = "io.micronaut:micronaut-inject-java", version.ref = "micronaut-core" }
-micronaut-jackson-core = { module = "io.micronaut:micronaut-jackson-core", version.ref = "micronaut-core" }
+micronaut-core = { module = "io.micronaut:micronaut-core", version.ref = "micronaut" }
+micronaut-core-processor = { module = "io.micronaut:micronaut-core-processor", version.ref = "micronaut" }
+micronaut-context = { module = "io.micronaut:micronaut-context", version.ref = "micronaut" }
+micronaut-retry = { module = "io.micronaut:micronaut-retry", version.ref = "micronaut" }
+micronaut-http = { module = "io.micronaut:micronaut-http", version.ref = "micronaut" }
+micronaut-json-core = { module = "io.micronaut:micronaut-json-core", version.ref = "micronaut" }
+micronaut-inject-java = { module = "io.micronaut:micronaut-inject-java", version.ref = "micronaut" }
+micronaut-jackson-core = { module = "io.micronaut:micronaut-jackson-core", version.ref = "micronaut" }
 
 sonatype-scan = { module = "org.sonatype.gradle.plugins:scan-gradle-plugin", version.ref = "sonatype-scan" }
 

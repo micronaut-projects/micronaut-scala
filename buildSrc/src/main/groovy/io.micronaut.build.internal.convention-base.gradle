@@ -9,7 +9,7 @@ plugins {
 }
 
 micronautBuild {
-    enableBom = false
+    enableBom = true
     enableProcessing = false
     javaVersion.set(25)
 }

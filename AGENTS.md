@@ -50,15 +50,16 @@ settings evaluation fails on a non-ASCII test resource inside micronaut-core.
 ```
 export JAVA_HOME=/path/to/jdk-25
 export LANG=C.UTF-8 LC_ALL=C.UTF-8
-./gradlew -PincludeMicronautCore=true :micronaut-inject-scala-test-compiler:test
+./gradlew :micronaut-inject-scala-test-compiler:test
 ```
 
-`-PincludeMicronautCore=true` is currently **required**: the catalog pins
-`micronaut-core = "5.2.0-SNAPSHOT"`, which is published nowhere, so the build
-clones micronaut-core `5.2.x` into `checkouts/` via IncludeGit and builds it
-from source. The first such build is slow. To develop against a local Core
-checkout instead, use `-Plocal.git.micronaut-core=/path/to/micronaut-core`; to
-select a different Core branch, use `-PmicronautCoreBranch=<branch>`.
+The catalog pins a released Core (`micronaut` in `gradle/libs.versions.toml`),
+resolved from Maven Central, so a plain `./gradlew` works. To develop against
+unreleased Core changes, build Core from source as an included build instead:
+`-PincludeMicronautCore=true` clones the Core `5.2.x` branch into `checkouts/`
+via IncludeGit (slow the first time; override the branch with
+`-PmicronautCoreBranch=<branch>`), and
+`-Plocal.git.micronaut-core=/path/to/micronaut-core` uses a local checkout.
 
 - `./gradlew check` for general validation.
 - `./gradlew verifyCompilerArtifacts` for the packaging and publication guards.

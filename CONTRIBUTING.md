@@ -36,9 +36,9 @@ To develop against the Core SPI branch, use IncludeGit with a local Core checkou
 ./gradlew check -Plocal.git.micronaut-core=/path/to/micronaut-core
 ```
 
-The remote Core branch include is opt-in with `-PincludeMicronautCore=true`. A
-released build must use a released Core version containing the SPI before the
-Micronaut Scala `1.0.0` release.
+The remote Core branch include is opt-in with `-PincludeMicronautCore=true`.
+Neither include is needed for an ordinary build: the catalog pins a released
+Core version, and a release must pin one.
 
 The compiler plugin is coupled to the full Scala compiler version. Keep
 `_3.9.0` in the initial artifact IDs and use `CrossVersion.full` in sbt or
