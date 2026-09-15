@@ -69,10 +69,7 @@ jobs:
           GH_TOKEN_PUBLIC_REPOS_READONLY: ${{ secrets.GH_TOKEN_PUBLIC_REPOS_READONLY }}
           GH_USERNAME: ${{ secrets.GH_USERNAME }}
         run: |
-          # The catalog pins 5.2.0-SNAPSHOT, which is not resolvable from Maven
-          # Central, so Core is built from source as an included build. Drop this
-          # once Core 5.2.0 is released and the catalog pins the release.
-          ./gradlew check jacocoReport -PincludeMicronautCore=true --no-daemon --continue
+          ./gradlew check jacocoReport --no-daemon --continue
 
       - name: "🔎 Run static analysis"
         if: env.SONAR_TOKEN_AVAILABLE == 'true' && matrix.java == '25'
@@ -82,7 +79,7 @@ jobs:
           DEVELOCITY_CACHE_PASSWORD: ${{ secrets.GRADLE_ENTERPRISE_CACHE_PASSWORD }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          ./gradlew sonar -PincludeMicronautCore=true --no-parallel --continue
+          ./gradlew sonar --no-parallel --continue
 
       - name: "📊 Publish Test Report"
         if: always()

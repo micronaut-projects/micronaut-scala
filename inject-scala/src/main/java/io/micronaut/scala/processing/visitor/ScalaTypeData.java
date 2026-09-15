@@ -140,6 +140,32 @@ public record ScalaTypeData(
             genericPlaceholder, variableName, bounds, wildcard, upperBounds, lowerBounds);
     }
 
+    /**
+     * The type a wildcard stands for, as a plain type: its name and arguments without the
+     * bounds. For {@code ? <: Number} that is {@code Number} and for {@code ? >: Book} it is
+     * {@code Book}, as Core resolves a wildcard argument; for an unbounded wildcard written
+     * for a bounded parameter -- {@code Bounded[?]} with {@code T <: Number} -- it is the
+     * parameter's bound, while {@link #upperBounds()} keeps the {@code Object} that was
+     * written. A type that is not a wildcard is its own resolution.
+     *
+     * @return The resolved type
+     */
+    public ScalaTypeData resolved() {
+        if (!wildcard) {
+            return this;
+        }
+        if (!lowerBounds.isEmpty()) {
+            return lowerBounds.get(0).resolved();
+        }
+        Object resolvedNativeType = upperBounds.stream()
+            .filter(bound -> bound.name().equals(name))
+            .map(ScalaTypeData::nativeType)
+            .findFirst()
+            .orElse(null);
+        return new ScalaTypeData(name, primitive, arrayDimensions, interfaceType, typeArguments, superType, interfaces, annotations, annotatedTypeUse, resolvedNativeType,
+            false, null, Collections.emptyList(), false, Collections.emptyList(), Collections.emptyList());
+    }
+
     public ScalaTypeData withArrayDimensions(int dimensions) {
         return new ScalaTypeData(name, primitive, dimensions, interfaceType, typeArguments, superType, interfaces, annotations, annotatedTypeUse, nativeType, genericPlaceholder,
             variableName, bounds, wildcard, upperBounds, lowerBounds);

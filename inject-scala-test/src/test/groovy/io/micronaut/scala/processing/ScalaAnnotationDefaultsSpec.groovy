@@ -85,9 +85,11 @@ class Target
         defaults['value'] == 'fallback'
         defaults['enabled'] == true
 
-        and: 'an empty-string default is a real default -- @Named and @Property both have one'
-        defaults.containsKey('qualifier')
-        defaults['qualifier'] == ''
+        and: '''an empty-string default -- @Named and @Property both have one -- is left out of the
+                written metadata, as the Java, Kotlin and Groovy builders leave it out, to keep the
+                metadata small; stringValue() answers empty for it either way. The visitor context
+                still reports it: see ScalaAnnotationMemberDefaultsSpec'''
+        !defaults.containsKey('qualifier')
     }
 
     void 'an explicit value still overrides the classpath default'() {

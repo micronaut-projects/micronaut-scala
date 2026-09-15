@@ -79,7 +79,7 @@ public final class ScalaProcessingEngine {
      * daemon -- which Gradle does -- would each hold their own. The system properties are the
      * one object the compilations share, and a {@link java.util.Properties} holds any object.
      */
-    private static final String PROCESSING_LOCK_PROPERTY = "micronaut.scala.processing.lock";
+    private static final String PROCESSING_LOCK_NAME = "micronaut.scala.processing.lock";
     private static final String MICRONAUT_INTROSPECTIONS_USE_CONTEXT_CLASSLOADER =
         "micronaut.introspections.use.context.classloader";
 
@@ -178,9 +178,18 @@ public final class ScalaProcessingEngine {
      * one restored a property the other was still relying on, and core stopped loading through
      * that compilation's class loader halfway through it. Processing is serialised across
      * compilations instead; compiling itself still runs in parallel.
+     *
+     * <p>The lock cannot be a static field: the plugin is loaded afresh for every compilation,
+     * so a static would be one lock per compilation. It is the interned lock name, the one
+     * object of that name in the JVM whichever class loader asks for it. It used to be an
+     * {@code Object} stored as a system property, and {@code Properties} is a {@code String}
+     * to {@code String} map by contract: Zinc reads the system properties as one while
+     * setting up the next compilation in the same daemon, cast the lock to a {@code String}
+     * and failed that compilation with a {@code ClassCastException}.</p>
      */
+    @SuppressWarnings("StringIntern")
     static Object processingLock() {
-        return System.getProperties().computeIfAbsent(PROCESSING_LOCK_PROPERTY, key -> new Object());
+        return PROCESSING_LOCK_NAME.intern();
     }
 
     private void processTypeVisitors(ScalaVisitorContext context) {

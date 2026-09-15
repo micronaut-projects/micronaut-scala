@@ -42,12 +42,10 @@ The remote branch include is opt-in with `-PincludeMicronautCore=true`, which
 clones the Core `5.2.x` branch (override with `-PmicronautCoreBranch=`) instead
 of using a local checkout.
 
-The catalog currently pins `micronaut-core = "5.2.0-SNAPSHOT"`, which is not
-published anywhere, so **one of the two Core includes is required** — a
-standalone `./gradlew check` configures but cannot resolve
-`io.micronaut:micronaut-core-processor`. CI therefore builds the composite.
-Once a released Core version contains the SPI, pin that released version in the
-catalog, drop `-PincludeMicronautCore` from CI, and publish `1.0.0`.
+Neither include is required: the catalog pins a released Core version
+(`micronaut` in `gradle/libs.versions.toml`, currently `5.2.2`), which a
+standalone `./gradlew check` resolves from Maven Central. The includes exist
+for developing against Core changes that are not released yet.
 
 The Scala compiler and integration versions are separate. Scala 2 and GraalPy
 are out of scope.

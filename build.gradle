@@ -276,13 +276,24 @@ tasks.named("check") {
     dependsOn("verifyCompilerArtifacts", "verifyGuideSnippets")
 }
 
-// The catalog pins micronaut-core to 5.2.0-SNAPSHOT, which is published nowhere,
-// so `-PincludeMicronautCore=true` builds it from source. That works for `check`,
-// but it must not be mistaken for a releasable state: the generated POMs would
-// still declare a Core version no consumer can resolve. The publishing workflows
-// do not pass that flag and already fail on every push to master; failing here
-// instead says why, and says it before anything is uploaded.
-def micronautCoreVersion = libs.versions.micronaut.core.get()
+// The compiler variants compile the same sources with different Scala releases, so the
+// aggregate coverage report was handed two different classes of every name and JaCoCo
+// refused the second ("Can't add different class with same name"). As with the javadoc
+// aggregation, the primary variant stands for the code: the LTS variant's classes are
+// left out, and its tests still count against the primary variant's copy of them.
+tasks.withType(org.gradle.testing.jacoco.tasks.JacocoReport).matching { it.name == "testCodeCoverageReport" }.configureEach {
+    def ltsProjectDir = project(scalaLtsPluginProjectPath).projectDir
+    def aggregated = files(classDirectories.from.toList())
+    classDirectories.setFrom(aggregated.filter { !it.toPath().startsWith(ltsProjectDir.toPath()) })
+}
+
+// The catalog may pin micronaut-core to a snapshot while developing against unreleased
+// Core changes, with `-PincludeMicronautCore=true` building it from source. That works
+// for `check`, but it must not be mistaken for a releasable state: the generated POMs
+// would still declare a Core version no consumer can resolve. The publishing workflows
+// do not pass that flag and would fail on every push to master; failing here instead
+// says why, and says it before anything is uploaded.
+def micronautCoreVersion = libs.versions.micronaut.asProvider().get()
 
 gradle.taskGraph.whenReady { graph ->
     if (!micronautCoreVersion.endsWith("-SNAPSHOT")) {

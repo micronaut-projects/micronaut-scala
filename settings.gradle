@@ -39,6 +39,11 @@ dependencyResolutionManagement {
 
 rootProject.name = 'micronaut-scala-parent'
 
+// The build scripts refer to sibling projects as `projects.micronautRuntimeScala`. Core's
+// settings used to enable this for the whole composite; now that Core is a released
+// dependency, this build has to enable it for itself.
+enableFeaturePreview('TYPESAFE_PROJECT_ACCESSORS')
+
 include 'inject-scala'
 include 'inject-scala-compiler'
 include 'inject-scala-compiler-lts'
@@ -54,9 +59,8 @@ include 'micronaut-scala-bom'
 // The compiler plugin API is not binary compatible across compiler releases, so
 // the published Maven coordinates are fully crossed with the Scala version (see
 // the `pluginArtifactId`/`testArtifactId` values in the compiler subprojects).
-// The Gradle project names deliberately stay version-free: Core enables
-// TYPESAFE_PROJECT_ACCESSORS, which applies to the whole composite and rejects
-// any project name containing a dot.
+// The Gradle project names deliberately stay version-free: TYPESAFE_PROJECT_ACCESSORS
+// rejects any project name containing a dot.
 
 micronautBuild {
     useStandardizedProjectNames = true
