@@ -4,23 +4,24 @@ Options are passed to the plugin with the standard Scala compiler-plugin syntax:
 -P:micronaut-scala:<key>=<value>
 ----
 
-An option given without `=` is set to `"true"`.
+An option without `=` has the value `"true"`.
 
-== What the options are
+== Available options
 
-The plugin does not define an option vocabulary of its own. Every option is placed
-into `VisitorContext.getOptions()`, which Micronaut itself and any
-`TypeElementVisitor` on the compilation classpath may read. The set is therefore
-open, and an unrecognised key is accepted rather than rejected — the same contract
-as `javac`'s `-A` options.
+The plugin passes options to `VisitorContext.getOptions()`. Micronaut processing
+code and any `TypeElementVisitor` on the compilation classpath can read them,
+so visitors may accept additional keys beyond those listed here.
 
-`-P:micronaut-scala:help` prints this list.
+The table lists the well-known keys in the plugin's help. Their effect depends
+on the processing code that reads them. Use `-P:micronaut-scala:help` to print
+the help.
 
 |===
 |Key |Meaning
 
 |`micronaut.processing.incremental`
-|`true` or `false`. Whether incremental processing is enabled.
+|Incremental processing hint (`true` or `false`). This does not make build tools
+track generated bean definitions; see <<limitations, Limitations>>.
 
 |`micronaut.processing.group`
 |The Maven group of the module being compiled.
@@ -29,13 +30,14 @@ as `javac`'s `-A` options.
 |The name of the module being compiled.
 
 |`micronaut.processing.project.dir`
-|The project directory, used to locate generated configuration metadata.
+|The project directory passed to processing code.
 
 |`micronaut.processing.annotations`
-|Comma-separated package prefixes to restrict annotation processing to.
+|Comma-separated package prefixes for processors that support annotation filtering.
 
 |`micronaut.processing.use.context.classloader`
-|`true` or `false`. Whether to load visitors from the context classloader.
+|Micronaut's context-classloader switch. The Scala integration enables context
+classloader lookup internally while processing.
 |===
 
 == Setting options
@@ -53,6 +55,5 @@ tasks.withType<ScalaCompile>().configureEach {
 }
 ----
 
-NOTE: Because unrecognised keys are accepted silently, a misspelled option is not
-an error. If an option appears to have no effect, check the spelling against the
-table above first.
+NOTE: The plugin accepts unknown keys. Check the spelling if an option has no
+effect; a typo does not cause a compilation error.

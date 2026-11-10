@@ -1,35 +1,36 @@
-Known gaps, with the reason for each. Anything not listed here is either supported
-or has not been established either way.
+This chapter describes known limitations and Scala bytecode details that can
+affect compile-time visitors.
 
 == Incremental compilation
 
-Bean definitions are written into the class output directory by the compiler
-plugin, not through the compiler's own output mechanism, so the build tool does
-not record them as products of the source that produced them.
+Generated bean definitions are written directly into the class output directory.
+Build tools do not track them as outputs belonging to a particular source file.
+Deleting or renaming a bean's source can therefore leave its generated definition
+and registration marker behind.
 
-The visible consequence is that **deleting a bean's source does not remove its bean
-definition**. The generated `$Foo$Definition.class` and its
-`META-INF/micronaut/io.micronaut.inject.BeanDefinitionReference/` marker both
-survive the rebuild, so a deleted bean is still a bean at runtime. The same
-applies to a definition left behind by a compilation that later failed.
+For example, `$Foo$Definition.class` and its marker under
+`META-INF/micronaut/io.micronaut.inject.BeanDefinitionReference/` may survive an
+incremental rebuild. The application can then still discover the old bean.
+A compilation that fails after generating files can also leave stale output.
 
-Run a clean build after deleting or renaming a bean.
+Run a clean build after deleting or renaming a bean, or when stale generated
+classes remain after a failed compilation.
 
-NOTE: A partial recompile does *not* lose the definitions of sources it did not
-recompile. Each implementation gets its own empty marker file named for the class,
-so there is no shared service file for a partial run to truncate.
+Recompiling only some sources does retain the definitions for unchanged sources.
+Each bean has its own registration marker, so a partial compilation does not
+replace a shared list of all beans.
 
-== Not defects
+== Scala bytecode and the element model
 
-Listed because they look like gaps and are not:
+When writing a visitor, keep these differences from Java source in mind:
 
-* **Varargs.** `def f(xs: String*)` compiles to a single method taking
-  `scala.collection.immutable.Seq` with `ACC_VARARGS` unset, so the parameter type
-  and `isVarArgs() == false` are both accurate.
-* **`protected`.** Scala `protected` and `protected[pkg]` compile to public
-  members, and the model reports what the bytecode contains.
-* **Field visibility.** Every Scala `val` and `var` is a private field behind
-  accessors, so queries that select public fields return nothing. The fields are
-  present; they are not accessible.
-* **Trait parameters, `inline`, and extension methods declared in a class body**
-  are all modelled.
+* A repeated parameter such as `def f(xs: String*)` is represented as a single
+  `scala.collection.immutable.Seq` parameter. The method has no JVM varargs flag,
+  so `isVarArgs()` returns `false`.
+* Scala `protected` and `protected[pkg]` members can be public in the bytecode.
+  The element model reports that JVM visibility.
+* Scala `val` and `var` properties have private backing fields and accessor
+  methods. A query for public fields will not find those backing fields.
+
+The model also includes trait parameters, `inline` methods and extension
+methods declared in a class body.

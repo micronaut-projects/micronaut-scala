@@ -1,40 +1,40 @@
-Micronaut Scala provides the Scala 3 compiler plugin and the Scala-specific
-processing model that integrates Scala sources with Micronaut Framework.
+Micronaut Scala lets you use Micronaut Framework from Scala 3. Its compiler
+plugin generates bean definitions, introspections and AOP proxies from your
+Scala classes during compilation.
 
-The implementation is maintained separately from Micronaut Core. Core
-provides the language-neutral processing and runtime extension points, while
-this project owns the Scala compiler integration, Scala element model, and
-Scala-specific type handling.
+The plugin adapts Scala declarations to Micronaut's compile-time APIs. Micronaut
+Core provides the shared processing and runtime infrastructure; this project
+provides the Scala compiler integration and runtime support for Scala types.
 
 == Supported versions
 
-Two Scala 3 LTS lines are supported, built from the same sources and published
-as separate artifacts. The compiler plugin API is not binary compatible across
-compiler releases, so the compiler version is part of the artifact name:
+The build supports Scala 3.9.0 and 3.3.8. Each compiler version has its own
+plugin artifact:
 
-* `io.micronaut.scala:micronaut-inject-scala_3.9.0` — current LTS
-* `io.micronaut.scala:micronaut-inject-scala_3.3.8` — previous LTS
-* `io.micronaut.scala:micronaut-inject-scala-test_3.9.0`
-* `io.micronaut.scala:micronaut-runtime-scala` — application-side support, not
-  crossed with the compiler version
+* `io.micronaut.scala:micronaut-inject-scala_3.9.0`
+* `io.micronaut.scala:micronaut-inject-scala_3.3.8`
 
-Selecting the wrong one does not fail gracefully: the 3.9.0 plugin loaded into
-the 3.3.8 compiler throws from inside the plugin phase and generates nothing.
-Match the artifact to the compiler exactly.
+Choose the artifact that exactly matches your Scala compiler version. Compiler
+plugin APIs can change between releases, so using a different version can fail
+during compilation.
 
-The repository version is independent of the Micronaut Core version. The
-initial development version is `1.0.0-SNAPSHOT`.
+The test harness is published as
+`io.micronaut.scala:micronaut-inject-scala-test_3.9.0`. Runtime support is
+published as `io.micronaut.scala:micronaut-runtime-scala` and does not have a
+compiler-version suffix.
+
+Micronaut Scala has its own version, independent of Micronaut Core. The current
+development version is `1.0.0-SNAPSHOT`. The build requires JDK 25.
 
 == What is included
 
-The compiler plugin connects Scala compiler phases to Micronaut compile-time
-visitors. The Scala processing model supports bean definitions, injection,
-introspection, AOP, configuration properties, annotation metadata, Scala
-collections, `Option`, `BeanRegistration`, and Scala 3 enum lookup.
+The integration supports dependency injection, bean introspection, AOP,
+configuration properties and annotation metadata. Runtime support includes
+converters for Scala collections and `Option`, along with Micronaut
+Serialization support for collections, `Option` and Scala 3 enums.
 
-Scala 2 is not currently supported. 
+Scala 2 is not supported.
 
-If you are new to Micronaut, <<concepts, Micronaut for Scala Developers>>
-explains dependency injection, configuration, introspections, serialization and
-AOP from the beginning, in Scala. For the wider framework documentation, see the
-Micronaut Framework user guide.
+Start with <<quickStart, Quick Start>> to configure the plugin. If you are new
+to Micronaut, <<concepts, Micronaut for Scala Developers>> introduces the main
+framework features with Scala examples.

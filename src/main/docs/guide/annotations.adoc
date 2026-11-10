@@ -1,12 +1,11 @@
-Micronaut's annotations are Java annotations, and Scala applies a Java annotation
-by different rules to Java's own. Each difference below is a compile error rather
-than a silent change in meaning, so nothing gets past the compiler — but the
-message names a type mismatch, not the rule behind it, which is hard to act on if
-you are transcribing an example from Micronaut's Java documentation.
+Micronaut uses Java annotations. When applying them in Scala, use explicit
+arrays, name the arguments and write repeatable-annotation containers yourself.
+These differences matter when adapting examples from Java.
 
-== A single value is not an array
+== Array-valued members
 
-Java lets a one-element array member be written without braces. Scala does not:
+Java allows a single value for an array-valued annotation member. Scala requires
+an array, even for one element. This does not compile:
 
 [source,scala]
 ----
@@ -19,16 +18,15 @@ Found:    (io.micronaut.core.annotation.Introspected.AccessKind.METHOD :
 Required: Array[io.micronaut.core.annotation.Introspected.AccessKind]
 ....
 
-Wrap it, whether it holds one element or several:
+Wrap the value in `Array(...)`:
 
 snippet::io.micronaut.docs.annotations.AnnotationExamples[source=main,language=scala,tags=arrayMember]
 
-== Name the member
+== Named arguments
 
-In Java, a single unnamed argument goes to the member called `value`. Scala binds
-a positional argument by *declaration order* instead, which is the order the
-members appear in the annotation's class file and is rarely the one you want. For
-`jakarta.validation.constraints.Min`, whose first declared member is `message`:
+Use named arguments for Java annotation members. A positional argument can bind
+to the first declared member rather than `value`. For example, `@Min(10)` binds
+to the `message` member of `jakarta.validation.constraints.Min` and fails:
 
 [source,scala]
 ----
@@ -40,44 +38,43 @@ Found:    (10 : Int)
 Required: String
 ....
 
-The habit that always works is to name every member, even when there is only one:
+Name the member explicitly:
 
 snippet::io.micronaut.docs.annotations.AnnotationExamples[source=main,language=scala,tags=namedMember]
 
-NOTE: An annotation whose only member is `value` accepts a positional argument,
-because declaration order and the `value` convention agree. Relying on that means
-the same expression breaks when a member is added ahead of it.
+An annotation whose only member is `value` also accepts a positional argument.
+Naming it still makes the intent clear.
 
 == Repeatable annotations
 
-Scala has no repeatable annotations. Writing one twice is an error, so the
-container Java would generate has to be written out, with `new` on each entry:
+Scala does not accept repeated applications of the same annotation. Use the
+container annotation declared by Java's `@Repeatable`, with `new` for each entry:
 
 snippet::io.micronaut.docs.annotations.AnnotationExamples[source=main,language=scala,tags=container]
 
-Micronaut's repeatable annotations each name their container in `@Repeatable` —
-`@Requires` uses `@Requirements`, `@InterceptorBinding` uses
-`@InterceptorBindingDefinitions`, `@Property` uses `@PropertySource`.
+For Micronaut annotations, common pairs are `@Requires` and `@Requirements`,
+`@InterceptorBinding` and `@InterceptorBindingDefinitions`, and `@Property` and
+`@PropertySource`.
 
 == Declaring an annotation
 
-A Scala annotation extends `scala.annotation.StaticAnnotation`, and its members
-are constructor parameters. Give it `@Retention(RetentionPolicy.RUNTIME)` so
-Micronaut can read it, and `@Target` to say where it may be written:
+A Scala annotation extends `scala.annotation.StaticAnnotation` and declares its
+members as constructor parameters. Use `@Retention(RetentionPolicy.RUNTIME)`
+for Micronaut annotation processing and `@Target` to specify where it applies:
 
 snippet::io.micronaut.docs.annotations.AnnotationExamples[source=main,language=scala,tags=declaring]
 
-An annotation used as a `classOf[...]` argument — `@InterceptorBean`, `@Type`,
-`@Introduction(interfaces = ...)` — must also extend
-`java.lang.annotation.Annotation` and override `annotationType()`, because those
-members are declared as `Class[? <: Annotation]`. The `Managed` example above
-shows the full form.
+If another annotation accepts your annotation type as a `classOf[...]` argument
+bounded by `Annotation`, also extend `java.lang.annotation.Annotation` and
+implement `annotationType()`, as `Managed` does above. Examples of such arguments
+include those of `@InterceptorBean`, `@Type` and `@Introduction(interfaces = ...)`.
 
-== Types that are not the Java type of the same name
+== Scala and Java type names
 
-`StringBuilder` in Scala is `scala.collection.mutable.StringBuilder`, a different
-type from `java.lang.StringBuilder`. An injection point or a bean method that
-means the Java one has to say so. The same applies to `Seq`, `List` and `Map`,
-which are Scala collections rather than `java.util` ones — both are supported,
-and `micronaut-runtime-scala` binds the Scala forms, but they are not
-interchangeable at a type level.
+Check which type a short name refers to. Scala's `StringBuilder` is
+`scala.collection.mutable.StringBuilder`; use `java.lang.StringBuilder` when a
+Java API or injection point needs that type.
+
+Similarly, Scala `Seq`, `List` and `Map` differ from Java collections. The
+runtime support converts between supported collection types, but the types are
+not interchangeable in method signatures.

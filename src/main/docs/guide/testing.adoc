@@ -1,22 +1,22 @@
-`micronaut-inject-scala-test_<scala version>` provides the harness this repository
-uses to compile Scala sources in-process and inspect the result: the element model,
-the generated bean definitions, or a running `ApplicationContext`.
+`micronaut-inject-scala-test_<scala version>` provides a harness for compiling
+Scala sources in-process and inspecting the resulting elements, bean definitions
+and introspections. It can also start an `ApplicationContext` from the compiled
+classes.
 
-It is intended for projects that extend the Scala integration itself. An
-application does not need it to test its own beans.
+Use this harness when developing the Scala integration or a compile-time visitor.
+Application tests can use the normal Micronaut testing APIs without it.
 
-== Adding it
+== Add the harness
 
 dependency:io.micronaut.scala:micronaut-inject-scala-test_3.9.0[scope="testImplementation"]
 
-The artifact name carries the full Scala compiler version, as every compiler-side
-artifact here does — see <<dependencies, Artifacts and Dependencies>>.
+The artifact suffix must match the full Scala compiler version. See
+<<dependencies, Artifacts and Dependencies>>.
 
-== Required system properties
+== Set the system properties
 
-The harness compiles by invoking the Scala compiler directly, so it has to be told
-where the plugin and the compilation classpath are. Both are required, and the
-harness fails immediately if either is missing.
+The harness invokes the Scala compiler directly. Supply both of these properties
+so it can locate the plugin and resolve the compiled source's dependencies:
 
 |===
 |Property |Value
@@ -25,8 +25,10 @@ harness fails immediately if either is missing.
 |Absolute path to the compiler plugin jar.
 
 |`micronaut.scala.test.classpath`
-|The classpath compiled sources are resolved against, usually the test runtime classpath.
+|Classpath for the compiled sources, usually the test runtime classpath.
 |===
+
+For a Gradle test task, with `pluginJar` referring to the built plugin jar:
 
 [source,kotlin]
 ----
@@ -41,20 +43,20 @@ tasks.withType<Test>().configureEach {
 }
 ----
 
-The properties are set in `doFirst` rather than at configuration time so that
-resolving the classpath does not happen during configuration.
+Using `doFirst` defers classpath resolution until the test task runs. The harness
+reports an error if either required property is missing.
 
-== What the harness offers
+== Compile and inspect sources
 
-`AbstractScalaTypeElementSpec` exposes the operations the specs in this repository
-are written against:
+`AbstractScalaTypeElementSpec` provides these helpers:
 
-* `buildClassElement(name, source)` — compile a source and return its `ClassElement`
-* `buildBeanDefinition(name, source)` — compile and load the generated definition
-* `buildBeanIntrospection(name, source)` — compile and load the generated introspection
-* `buildContext(source, properties, includeAllBeans)` — compile and start an `ApplicationContext`
-* `buildClassLoader(name, source)` — compile and return a classloader over the output
+* `buildClassElement(name, source)` compiles source and returns its `ClassElement`.
+* `buildBeanDefinition(name, source)` compiles and loads a bean definition.
+* `buildBeanIntrospection(name, source)` compiles and loads an introspection.
+* `buildContext(source, properties, includeAllBeans)` compiles source and starts
+  an `ApplicationContext`.
+* `buildClassLoader(name, source)` compiles source and returns a classloader for
+  the output.
 
-A visitor can be installed for the duration of one compilation to capture the
-`VisitorContext`, which is how the specs assert against elements the compiler
-produced rather than against elements they constructed.
+A test can install a visitor for a compilation to capture the `VisitorContext`
+and inspect the elements produced by the compiler.

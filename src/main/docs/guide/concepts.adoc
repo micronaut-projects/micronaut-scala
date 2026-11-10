@@ -1,254 +1,186 @@
-This chapter is for Scala developers meeting Micronaut for the first time. It
-explains what the framework does, in the order the pieces build on each other,
-and shows each in Scala. No prior Micronaut knowledge is assumed.
+Micronaut provides dependency injection, configuration binding, introspection
+and AOP. This chapter introduces those features through Scala examples.
 
-Everything here is ordinary Micronaut. What the Scala compiler plugin adds is
-that a Scala source file is a first-class input to it: the plugin runs inside
-`scalac` and produces the same generated classes the Java annotation processor
-does, from Scala declarations.
+The Scala compiler plugin runs Micronaut's compile-time processing while your
+Scala sources are compiled. You use the same Micronaut annotations and runtime
+APIs as you would in a Java application.
 
-== What Micronaut does, and when
+== Compile-time processing and runtime bean creation
 
-Most dependency injection frameworks decide at startup what to inject, by
-loading classes and reading their annotations with reflection. Micronaut decides
-at *compile time*. While your code is being compiled, the plugin reads your
-declarations and writes a `BeanDefinition` class beside each bean — a plain
-class holding the answers: what this bean's dependencies are, how to construct
-it, what qualifies it.
+During compilation, the plugin generates a `BeanDefinition` for each bean. It
+records how to construct the bean, which dependencies it needs and which
+qualifiers apply. At runtime, Micronaut uses these definitions to create beans
+and resolve their dependencies, avoiding reflective discovery of that metadata.
 
-Three things follow from that, and they are the reason the rest of this chapter
-looks the way it does:
+This does not mean every dependency problem is a compile error. A missing bean
+or an ambiguous qualifier can still cause an error when Micronaut tries to
+create the bean at runtime.
 
-* Startup does no classpath scanning and no reflection, so it is fast and its
-  cost does not grow with the size of the application.
-* Anything the framework needs to know must be visible in the source. A type it
-  cannot see at compile time is a type it cannot inject.
-* Mistakes are compile errors. A missing dependency or an unresolvable
-  qualifier fails the build rather than the first request.
-
-Micronaut's annotations are Java annotations, and Scala applies a Java
-annotation by rules of its own — a single value is not an array, and a
-positional argument does not go to `value`. Each difference is a compile error
-rather than a silent change in meaning, but the message names a type mismatch
-rather than the rule. <<annotations, Annotations>> lists them; it is worth
-reading before transcribing an example from Micronaut's Java documentation.
+Scala also has different rules for Java annotation arguments. See
+<<annotations, Annotations>> when adapting an example from the Java guide.
 
 == Dependency injection
 
-A *bean* is an object Micronaut creates and supplies to whatever needs it. You
-declare one by annotating a class; you never write code that constructs it.
-
-Start with something to inject. A trait describes what is needed, without
-saying which implementation provides it:
+A *bean* is an object managed by Micronaut. Start by defining a trait for a
+dependency:
 
 snippet::io.micronaut.docs.di.Vehicle[source=main,language=scala,tags=interface]
 
-`@Singleton` on a class makes it a bean. Here two classes implement the same
-trait, so each is labelled with `@Named` to tell them apart:
+Annotate each implementation with `@Singleton` to make it a bean. Here,
+`@Named` distinguishes two implementations of the same trait:
 
 snippet::io.micronaut.docs.di.Vehicle[source=main,language=scala,tags=implementations]
 
-A bean's constructor parameters are its dependencies. Nothing marks them as
-injected — being a bean's constructor is enough. Where more than one bean could
-satisfy a parameter, a *qualifier* says which, and `@Named` is the simplest one:
+Declare the dependency as a constructor parameter. A *qualifier*, such as
+`@Named`, selects an implementation when several beans have the required type:
 
 snippet::io.micronaut.docs.di.Vehicle[source=main,language=scala,tags=injection]
 
-`ApplicationContext.run().getBean(classOf[Vehicle])` returns a `Vehicle` with
-`V8Engine` supplied. Asking for a `Vehicle` without having declared `V8Engine` a
-bean is a compile error, not a startup failure.
+`ApplicationContext.run().getBean(classOf[Vehicle])` creates a `Vehicle` with
+`V8Engine` supplied. If no matching engine bean is available, creating the
+`Vehicle` fails at runtime.
 
-TIP: Constructor injection is the form to prefer, and it is the one that fits
-Scala best: the dependency arrives as a constructor parameter, so it can be a
-`val` and the class has no uninitialised state. Micronaut also supports
-injecting a field or a setter with `@Inject`, which is worth knowing when
-reading Java examples.
+TIP: Prefer constructor injection in Scala. Dependencies are available as soon
+as the class is constructed, and a unit test can supply them directly with
+`new`. Micronaut also supports field and setter injection with `@Inject`.
 
 === Scopes
 
-A *scope* decides how long a bean lives and how many exist. `@Singleton` means
-one instance for the whole application. `@Prototype` means a new instance for
-every injection point that asks for one:
+A *scope* controls a bean's lifetime. `@Singleton` shares one instance within
+an application context. `@Prototype` creates a new instance for each injection
+or lookup:
 
 snippet::io.micronaut.docs.di.Vehicle[source=main,language=scala,tags=prototype]
 
-`@Singleton` is the common case. The others — `@Prototype`, `@Context`,
-`@Refreshable`, request scope in a server application — are all applied the same
-way.
+Other Micronaut scopes include `@Context`, `@Refreshable` and request scope in
+server applications.
 
 == Configuration properties
 
-Applications are configured from outside: a YAML file, environment variables,
-system properties. `@ConfigurationProperties` binds a class to a section of that
-configuration, and the bound object is itself a bean, so it can be injected
-anywhere:
+`@ConfigurationProperties` binds a class to a section of application
+configuration. The resulting object is a bean that other beans can inject:
 
 snippet::io.micronaut.docs.config.EngineConfiguration[source=main,language=scala,tags=clazz]
 
-With `engine.manufacturer` set to `Ford` and `engine.cylinders` to a list, this
-bean is created with those values. The Scala types are the point of the example:
+Set `engine.manufacturer` to `Ford` and `engine.cylinders` to a list to supply
+the corresponding constructor values. `nickname` is optional: when its
+configuration property is absent, it binds to `None`. The `List[Int]` parameter
+receives a Scala list with each element converted to an integer.
 
-`Option[String]`:: An absent property binds to `None`. Without the `Option` an
-absent property is a missing value and the bean fails to be created, which is
-the right answer for something genuinely required and the wrong one for
-something optional.
-`List[Int]`:: A Scala collection binds from a list-valued property, converted
-element by element. `Seq`, `Set` and `Map` work the same way.
-
-Both come from `micronaut-runtime-scala`, which must be on the runtime
-classpath — see <<quickStart, Quick Start>>. Remember that `List` and `Map` in
-Scala are not `java.util.List` and `java.util.Map`; both are supported, but a
-declaration means whichever one it names.
+These conversions require `micronaut-runtime-scala` on the runtime classpath.
+Scala `Seq`, `Set` and `Map` are also supported. A required parameter without
+a value or a default prevents the configuration bean from being created.
 
 == Bean introspection
 
-An *introspection* is compile-time reflection: for a type annotated
-`@Introspected`, the plugin generates a class that can read and write that
-type's properties and call its constructor, without `java.lang.reflect`. It is
-what validation, data binding and serialization read.
+`@Introspected` asks Micronaut to generate metadata for constructing a type and
+accessing its properties. Validation, data binding and serialization can use
+this metadata without discovering properties through reflection:
 
 snippet::io.micronaut.docs.introspection.Book[source=main,language=scala,tags=clazz]
 
-`BeanIntrospection.getIntrospection(classOf[Book])` then reports `title` and
-`pages` as properties and can instantiate the type from values. A case class
-needs nothing else: its constructor parameters are its properties, and the
-compiler-generated accessors are what the introspection reads.
+`BeanIntrospection.getIntrospection(classOf[Book])` exposes `title` and `pages`
+as properties and can instantiate `Book` from their values. The case class's
+constructor parameters supply its properties, and its generated accessors
+supply the getters.
 
-An ordinary class works too. What becomes a property is a `val` or `var`, or a
-getter and setter pair — the same rules as anywhere else in Scala, since a `val`
-is a private field with a generated accessor.
-
-NOTE: An introspection is generated only where you ask for one. This is
-deliberate: it is the difference between a framework that can see every class on
-the classpath and one that can see the classes you named.
+Ordinary classes can also be introspected. The plugin recognises Scala `val`
+and `var` accessors as well as getter and setter pairs. A `val` is read-only;
+a `var` can also be written through its setter.
 
 == Serialization
 
-Serialization is not part of the compiler plugin. It is
-https://micronaut-projects.github.io/micronaut-serde/latest/guide/[Micronaut
-Serialization] reading the introspection described above — which is why it works
-for Scala without anything Scala-specific. `@Serdeable` is `@Introspected` plus
-the instruction that the type may cross a serialization boundary:
+https://micronaut-projects.github.io/micronaut-serde/latest/guide/[Micronaut Serialization]
+uses generated introspections to read and write objects. Mark a case class
+with `@Serdeable` to enable both directions:
 
 snippet::io.micronaut.docs.serialization.Order[source=main,language=scala,tags=clazz]
 
-An injected `ObjectMapper` then writes that as `{"id":"A-1","quantity":3}` and
-reads it back through the constructor the introspection describes. Because the
-introspection is generated at compile time, no reflective access to the type is
-needed at runtime, and the type works under GraalVM native image without
-configuration.
+An injected `ObjectMapper` writes this example as
+`{"id":"A-1","quantity":3}` and reads it back through the case class constructor.
+Add `io.micronaut.serde:micronaut-serde-jackson` to use the Jackson-based
+implementation.
 
-The dependency is `io.micronaut.serde:micronaut-serde-jackson`, added the same
-way as in any other language.
-
-Scala's own types need one thing more. `Option`, the Scala collections and a
-Scala 3 `enum` are none of them types Micronaut Serialization ships a serializer
-for — a Scala `List` is not a `java.util.List`, and a Scala 3 `enum` is not a
-`java.lang.Enum` — so `micronaut-runtime-scala` supplies those, and must be on
-the runtime classpath. <<serialization, Serialization>> is the chapter on what
-each of them becomes in a document.
+For properties declared as Scala collections, `Option` or Scala 3 enums, also
+include `micronaut-runtime-scala`. See <<serialization, Serialization>> for
+JSON examples and the handling of missing optional fields.
 
 == Around advice
 
-*Aspect-oriented programming* (AOP) is how behaviour that is not specific to one
-method — timing, retry, caching, transactions, logging — is applied without
-writing it into every method. In Micronaut it is also compile-time: rather than
-generating a proxy at runtime, the plugin generates a subclass of your bean that
-overrides the advised methods, and the framework injects that subclass wherever
-the bean is asked for.
+*Aspect-oriented programming* (AOP) lets an interceptor add behaviour around a
+method call. Common uses include logging, retries and transactions. Micronaut
+generates the proxy classes during compilation.
 
-*Around advice* wraps a method call. It takes two declarations. First an
-annotation, marked `@Around`, that says "methods marked with this are advised":
+To define custom around advice, first declare an annotation marked with
+`@Around`:
 
 snippet::io.micronaut.docs.aop.OrderService[source=main,language=scala,tags=annotation]
 
-Then an interceptor — itself a bean — bound to that annotation. It receives the
-call, does whatever it does, and calls `proceed()` to run the original method:
+Then bind an interceptor to the annotation. The interceptor receives the call
+and invokes `proceed()` to continue to the original method:
 
 snippet::io.micronaut.docs.aop.OrderService[source=main,language=scala,tags=interceptor]
 
-Applying it is just the annotation. It can go on a single method or on the
-class, in which case every method is advised:
+Apply the annotation to the methods you want to intercept, or to a class to
+advise its eligible methods:
 
 snippet::io.micronaut.docs.aop.OrderService[source=main,language=scala,tags=bean]
 
-Calling `place` runs the interceptor and returns `ordered a book`; calling
-`quote` does not run the interceptor at all.
+Calling `place` runs the interceptor and returns `ordered a book`. Calling
+`quote` does not run the interceptor.
 
-Two Scala notes. The annotation extends `java.lang.annotation.Annotation` and
-overrides `annotationType()` because `@InterceptorBean` takes it as a
-`classOf[...]` argument — see <<annotations, Annotations>>. And the advised class
-must be extensible, because the generated subclass extends it: a `final class`,
-or a `final def` on an advised method, is a compile error rather than a bean
-that quietly loses its advice.
+The annotation extends `java.lang.annotation.Annotation` because
+`@InterceptorBean` accepts a `classOf[...]` argument with that bound. See
+<<annotations, Annotations>> for details.
+
+The generated proxy extends the advised class and overrides its advised
+methods. A `final` class or advised method therefore causes a compilation error.
 
 == Introduction advice
 
-*Introduction advice* is the other half of AOP, and the more surprising one. An
-around interceptor wraps a method that exists; an introduction interceptor
-*provides* methods that do not. You declare an abstract type with no
-implementation anywhere, and the interceptor supplies the behaviour — which is
-how Micronaut's declarative HTTP clients and repository interfaces work.
+*Introduction advice* supplies the implementation of abstract methods. This
+is how Micronaut implements declarative clients and repositories.
 
-The interceptor answers calls for the whole type, using the invocation context
-to decide what a given method should do:
+The interceptor uses the invocation context to decide how to answer each call:
 
 snippet::io.micronaut.docs.introduction.GreeterClient[source=main,language=scala,tags=interceptor]
 
-The annotation is marked `@Introduction` and names the interceptor with `@Type`:
+An annotation marked with `@Introduction` enables the advice. `@Type` identifies
+the interceptor:
 
 snippet::io.micronaut.docs.introduction.GreeterClient[source=main,language=scala,tags=annotation]
 
-Then an abstract type carrying that annotation becomes a bean, despite having no
-implementation:
+Apply the annotation to a trait or abstract class:
 
 snippet::io.micronaut.docs.introduction.GreeterClient[source=main,language=scala,tags=abstract]
 
-`getBean(classOf[Greeter]).greet("Scala")` returns `greet(Scala)` — the
-interceptor's answer. A trait or an abstract class both work; an abstract class
-may also have concrete methods, which run normally, and dependencies of its own,
-which are injected.
+`getBean(classOf[Greeter]).greet("Scala")` returns `greet(Scala)`, the value
+supplied by the interceptor. An abstract class can also have constructor
+dependencies and concrete methods; those methods keep their implementation.
 
-== Data access, which is all of the above at once
+== Data access
 
-Micronaut Data is worth meeting last, because a repository is introduction
-advice — the abstract type whose implementation you never write — applied to
-something you would otherwise write by hand.
-
-An entity is a case class. Its parameters are its columns, and `@Id` marks the
-one the database generates:
+Micronaut Data uses introduction advice to implement repositories. An entity
+can be a case class whose constructor parameters describe the mapped properties:
 
 snippet::io.micronaut.docs.data.Book[project=test-suite-scala-data,source=main,language=scala,tags=clazz]
 
-A repository is a trait. Extending `CrudRepository` supplies the usual
-operations, and any further method is a query derived from its own name — read
-`findByTitle` as `where title = ?`:
+In this example, `@Id` marks the identifier and `@GeneratedValue` asks the
+database to generate it.
+
+Declare a repository as a trait extending `CrudRepository`. Methods such as
+`findByTitle` describe queries through their names:
 
 snippet::io.micronaut.docs.data.BookRepository[project=test-suite-scala-data,source=main,language=scala,tags=clazz]
 
-There is no implementation of either anywhere, and none to write. At compile
-time the plugin generates the entity's introspection, Data reads it to work out
-the table and columns, derives the SQL for every method, and generates the class
-that runs it. Injecting `BookRepository` gives you that class.
+During compilation, Micronaut Data processes the entity and repository and
+records the SQL and query metadata. Micronaut generates a repository proxy
+whose interceptors execute those queries at runtime. You inject
+`BookRepository` without writing an implementation yourself.
 
-Three things from earlier chapters are load-bearing here, which is why this
-example is worth reading closely:
+Scala collections can be used for query results, but optional single results
+currently need `java.util.Optional`. See <<data, Micronaut Data>> for the
+processor dependency, supported signatures and a database configuration.
 
-* The entity's annotations are on *class parameters*. A Scala class parameter is
-  where the property is declared, so that is where `@Id` goes — the same rule as
-  <<idiomatic, Idiomatic Scala>> gives for configuration.
-* The repository is a *trait*, so it can be introduced. A class with a body
-  could not be.
-* `CrudRepository[Book, Long]` is a parameterized type from a library, and what
-  its inherited methods return is what Data generates against.
-
-Both types in the example are Scala's own — `Long` for the identifier, `scala.List`
-for the result — and both need a word of explanation, as does the one thing that
-has to be wired differently from a Java build. <<data, Micronaut Data>> is the
-chapter for that.
-
-NOTE: These examples live in `test-suite-scala` and `test-suite-scala-data`, are
-compiled by this repository's build with the plugin, and are executed by its
-tests — the repository above against an in-memory database, saving and querying
-real rows. Every behaviour described above is asserted there, so prose that stops
-matching the code fails the build.
+The examples in this chapter are compiled and exercised in `test-suite-scala`
+and `test-suite-scala-data`.

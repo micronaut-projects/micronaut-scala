@@ -1,11 +1,10 @@
-This project publishes three artifacts. They are not interchangeable, and the most
-common setup problem is using one where another is meant.
+Choose dependencies according to where they run:
 
 |===
-|Artifact |Where it goes |Crossed with the compiler version
+|Artifact |Where it goes |Compiler-version suffix
 
 |`micronaut-inject-scala_<scala version>`
-|Scala compiler plugin configuration only
+|Scala compiler plugin configuration
 |Yes
 
 |`micronaut-runtime-scala`
@@ -13,53 +12,51 @@ common setup problem is using one where another is meant.
 |No
 
 |`micronaut-inject-scala-test_<scala version>`
-|Test compile classpath of *this* kind of project only
+|Test compile classpath for compiler-integration tests
 |Yes
 |===
 
-== The compiler plugin
+== Compiler plugin
 
-`micronaut-inject-scala_3.9.0` runs inside the Scala compiler and generates bean
-definitions. It bundles the Micronaut and ASM classes it compiles against, at
-their original package paths, because a Scala compiler plugin is loaded in an
-isolated classloader that cannot see the compile classpath.
+`micronaut-inject-scala_3.9.0` runs inside the Scala compiler. It bundles the
+Micronaut and ASM classes it needs because the compiler loads plugins in an
+isolated classloader.
 
-That has two consequences worth knowing:
+Most bundled dependencies are omitted from the published POM to avoid resolving
+them again as separate plugin jars. Keep the compiler plugin on the compiler
+plugin configuration: putting it on an application's runtime classpath can
+introduce conflicting copies of Micronaut and ASM.
 
-* The published POM deliberately declares almost nothing. Its dependencies are
-  inside the jar, and declaring them as well would put every one of those classes
-  on a consumer's classpath twice.
-* It must not go on an application's runtime classpath. Doing so places a second
-  copy of Micronaut and ASM into the running application.
+== Runtime support
 
-== The runtime support
+`micronaut-runtime-scala` supplies converters for Scala collections and `Option`.
+It also provides serializers and deserializers when Micronaut Serialization is
+present. Include it at runtime when your application uses these features.
 
-`micronaut-runtime-scala` is an ordinary small library holding the converters that
-let Micronaut bind Scala collections and `scala.Option`. Without it on the runtime
-classpath, a bean that injects a `List[T]`, a `Map[String, T]` or an `Option[T]`
-will fail to bind at runtime even though it compiled.
+This artifact has no compiler-version suffix because it does not run inside the
+compiler.
 
-It is not crossed with the compiler version, because it is not a compiler plugin.
+== Compile-time visitors
 
-== Visitors on the compilation classpath
+The Scala plugin discovers `TypeElementVisitor` implementations through
+`ServiceLoader` on the compilation classpath. Processors from other Micronaut
+modules, such as validation or Data, must therefore be compile-time dependencies
+of the module containing your Scala sources.
 
-`TypeElementVisitor` implementations are discovered with `ServiceLoader` from the
-*compilation* classpath. A visitor supplied by another Micronaut module — for
-example the validation processor — therefore has to be a compile-time dependency
-of the module being compiled, not a runtime one.
+Adding a processor only to Gradle's `annotationProcessor` configuration makes it
+available to `javac`, not to the Scala plugin. Use `compileOnly` for a processor
+needed by Scala sources.
 
-A visitor and its dependencies are loaded from that classpath, ahead of anything
-the compiler process itself was started with. The only classes a visitor shares
-with the plugin are the JDK's, the compiler's, and what the plugin jar bundles:
-Micronaut's Element API and the annotations it ships. A library that both a
-visitor and the compiler's own toolchain depend on — Gradle starts the compiler
-with scaladoc, and so with scaladoc's Jackson and snakeyaml — is the version the
-module declares, never the toolchain's.
+Visitors load their dependencies from the compilation classpath in preference
+to the compiler process's own libraries. They share the JDK, Scala compiler
+classes and classes bundled with the plugin. This keeps libraries used by a
+visitor, such as Jackson or SnakeYAML, separate from versions used by the build
+tool's compiler infrastructure.
 
-== Version relationships
+== Versions
 
-The Scala version in the artifact name is the full compiler version, not the
-binary line. `_3.9.0` is correct; `_3` is not published. See
-<<introduction, Supported versions>> for why.
+The suffix identifies the full Scala compiler version. For example,
+`micronaut-inject-scala_3.9.0` is published; `micronaut-inject-scala_3` is not.
+See <<introduction, Supported versions>> for the available compiler variants.
 
-The project version is independent of the Micronaut Core version.
+The Micronaut Scala release version is independent of the Micronaut Core version.

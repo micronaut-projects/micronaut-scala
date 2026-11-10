@@ -1,31 +1,18 @@
-Several Micronaut features put your own prose into the files they generate. The
-descriptions in configuration metadata, the `description` of a schema in an
-OpenAPI definition or a JSON schema, the summary of an operation — none of that
-is written in an annotation. It is read from the doc comment above the
-declaration.
+The compiler plugin makes Scaladoc comments available to Micronaut's
+compile-time visitors. Those visitors can use the comments for descriptions in
+configuration metadata, OpenAPI definitions and JSON schemas.
 
-The compiler plugin reads Scaladoc for this, the way the Java integration reads
-Javadoc and the Kotlin one reads KDoc.
+== Write Scaladoc comments
 
-== What you have to configure
+No compiler flag or plugin option is needed. Use `/** ... */` comments above the
+declarations you want to document; ordinary `//` comments are not included.
 
-Nothing, in the compiler. Doc comments are kept by the Scala compiler without
-being asked, and the plugin reads them from there, so no flag, plugin option or
-build change is involved. What matters is how the comment is written.
-
-**Use a doc comment, not a line comment.** Only `/** … */` is a doc comment. A
-`//` comment above a declaration is invisible to the compiler by the time the
-plugin runs, however much it reads like documentation.
-
-**Document a property where its author can write it.** This is the one rule that
-is specific to Scala, and it follows from how Scala declares properties. A class
-parameter — the usual way to write a `@ConfigurationProperties` class — has no
-field and no accessor of its own to attach a comment to, so its description goes
-on the class as a `@param` tag:
+For a constructor property, write a class-level `@param` tag:
 
 snippet::io.micronaut.docs.documentation.MailerConfig[source=main,language=scala,tags=clazz]
 
-That is the same rule Java applies to a record, and it produces:
+The generated configuration metadata includes the class description and each
+parameter's description:
 
 [source,json]
 ----
@@ -44,8 +31,7 @@ That is the same rule Java applies to a record, and it produces:
 }
 ----
 
-A member declared in the class body is documented where it is declared, as you
-would expect:
+For a property declared in the class body, put the comment directly above it:
 
 [source,scala]
 ----
@@ -55,43 +41,31 @@ class MailerConfig:
   var batchSize: Int = 10
 ----
 
-**The first paragraphs are the description.** Everything before the first block
-tag is used; from the first `@param`, `@return`, `@throws` or any other tag
-onward is not. So the sentence that should appear in generated documentation
-belongs at the top of the comment, not after a tag.
+Place the main description before any block tags such as `@param`, `@return`
+or `@throws`. The description ends at the first block tag.
 
-== What each feature needs
+== Where descriptions appear
 
-The plugin's part is the same for all of them: it makes the documentation
-available to compile-time processing. What consumes it differs, and each brings
-its own dependency.
+Configuration metadata:: Compiling `@ConfigurationProperties` classes generates
+`META-INF/spring-configuration-metadata.json`. The class comment describes the
+configuration group, and property comments or `@param` tags describe its keys.
+IDEs can display these descriptions during configuration completion.
 
-Configuration metadata:: Built in. Compiling a `@ConfigurationProperties` class
-writes `META-INF/spring-configuration-metadata.json`, and every `description` in
-it comes from the doc comments. This is what an IDE shows when completing a
-configuration key, and what the configuration reference in generated
-documentation is built from.
+OpenAPI:: Add `micronaut-openapi` to the compilation classpath to generate an
+OpenAPI definition. Its visitor can use comments on controller methods and
+exposed types for operation and schema descriptions. Explicit descriptions in
+annotations such as `@Schema` take precedence.
 
-OpenAPI:: Add `micronaut-openapi`. Schema and property descriptions are taken
-from the doc comments of the types a controller exposes, so a documented
-`@Serdeable` type produces a documented schema without a single
-`@Schema(description = …)`.
+JSON schema:: A JSON schema generator can read the same documentation through
+Micronaut's element API. Add the generator required by your application to the
+compilation classpath.
 
-JSON schema:: Add the JSON schema generator. It reads the same descriptions
-through the same mechanism.
+== Comments from dependencies
 
-In each case the annotation still wins where you write one: an explicit
-`@Schema(description = …)` overrides what the comment says. Documentation is the
-default, not an override.
+The plugin reads comments from the sources being compiled. Class files from
+another module or library do not retain Scaladoc, so those types do not provide
+comments through this mechanism. If needed, document the member that exposes
+the dependency type in your own sources.
 
-== What is not covered
-
-Only what the compiler is compiling. A doc comment is in a source file, and a
-dependency arrives as a class file with its comments long gone — so a type from
-another module or a library contributes no descriptions, in Scala exactly as in
-Java and Kotlin. Where that type's description matters, write it on the member
-that exposes it, in the module being compiled.
-
-NOTE: The `MailerConfig` example above is compiled by this repository's build,
-and its generated metadata file is asserted by the tests, so the JSON shown here
-is what the plugin actually writes.
+`GuideExamplesSpec` checks the generated metadata for the `MailerConfig`
+example. OpenAPI examples and generation tests are in `test-suite-scala-openapi`.

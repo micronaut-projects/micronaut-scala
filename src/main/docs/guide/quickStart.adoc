@@ -1,22 +1,11 @@
-This project publishes a Scala compiler plugin for use by Scala 3 builds.
-The plugin must be selected for the exact Scala compiler version used by the
-application.
+To use Micronaut from Scala, add the compiler plugin to your build and the
+Scala runtime support to your application's runtime dependencies. Use JDK 25
+and choose a plugin artifact that matches your full Scala compiler version.
 
-There are two artifacts, and they are not interchangeable:
+== Add the dependencies
 
-`micronaut-inject-scala_<scala version>`:: The compiler plugin. It runs inside
-the Scala compiler and generates bean definitions. It is crossed with the full
-compiler version, and it bundles the Micronaut classes it compiles against, so
-it belongs on the compiler plugin configuration and nowhere else.
-
-`micronaut-runtime-scala`:: The application-side support: the converters that
-let Micronaut bind Scala collections and `Option`. It is a small ordinary
-library, is not crossed with the compiler version, and belongs on the runtime
-classpath.
-
-== Gradle
-
-For Scala 3.9.0:
+For a Gradle application using Scala 3.9.0, add these entries to your
+`dependencies` block:
 
 [source,kotlin]
 ----
@@ -24,50 +13,40 @@ scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAP
 runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
 ----
 
-WARNING: Do not put the compiler plugin on the application runtime classpath.
-It bundles Micronaut and ASM at their original package paths, so it would place
-a second copy of those classes in the running application.
+`micronaut-inject-scala_3.9.0` runs during compilation and generates the classes
+Micronaut needs to create and inject your beans. `micronaut-runtime-scala`
+provides converters and serialization support for Scala types at runtime.
 
-Use a released Micronaut Scala version in published applications. During
-development, the repository can be built against the Core SPI branch with
-IncludeGit or a local Core checkout:
+WARNING: Keep the compiler plugin off the application runtime classpath. Its jar
+bundles Micronaut and ASM classes that can conflict with the application's own
+dependencies.
 
-[source,bash]
-----
-./gradlew check -Plocal.git.micronaut-core=/path/to/micronaut-core
-----
+See <<buildTools, Build Tools>> for a fuller Gradle configuration and examples
+for Maven, sbt and Mill. Adding the plugin as an ordinary dependency does not
+register it with the Scala compiler.
 
-== Maven
+== Define and use a bean
 
-Use the full compiler-version artifact ID for the compiler plugin, and the
-uncrossed artifact for the runtime support:
+Define a dependency as a bean with `@Singleton`:
 
-[source,xml]
-----
-<dependency>
-  <groupId>io.micronaut.scala</groupId>
-  <artifactId>micronaut-inject-scala_3.9.0</artifactId>
-  <version>1.0.0-SNAPSHOT</version>
-  <scope>provided</scope>
-</dependency>
-<dependency>
-  <groupId>io.micronaut.scala</groupId>
-  <artifactId>micronaut-runtime-scala</artifactId>
-  <version>1.0.0-SNAPSHOT</version>
-  <scope>runtime</scope>
-</dependency>
-----
+snippet::io.micronaut.docs.helloworld.Translator[source=main,language=scala,tags=clazz]
 
-== sbt and Mill
+Then declare it as a constructor parameter in another bean:
 
-sbt builds should use `CrossVersion.full` so the complete Scala compiler
-version participates in the artifact coordinate. Mill builds should use the
-full-cross `:::` dependency syntax. In both tools, select the integration
-version independently from the Scala compiler version.
+snippet::io.micronaut.docs.helloworld.GreetingService[source=main,language=scala,tags=clazz]
 
-== Compiler compatibility
+Micronaut supplies `Translator` when it creates `GreetingService`. In an
+application context, calling `getBean(classOf[GreetingService]).greet("Scala")`
+returns `Hello, Scala`.
 
-Do not replace `_3.9.0` with a binary Scala line suffix. Compiler plugin APIs
-can change between compiler releases, so a plugin built for one full compiler
-version must not be assumed to work with another. See the
-https://docs.scala-lang.org/overviews/plugins/index.html#binary-compatibility-of-compiler-plugins[Scala compiler-plugin binary-compatibility guidance].
+See <<concepts, Micronaut for Scala Developers>> for more about bean creation,
+qualifiers and the other framework features.
+
+== Match the compiler version
+
+The suffix `_3.9.0` is the full Scala compiler version. Do not shorten it to
+`_3` or use it with a different compiler release. See
+<<introduction, Supported versions>> for the available variants.
+
+The examples use the development version `1.0.0-SNAPSHOT`. When using a
+released version, replace that version in both dependencies.

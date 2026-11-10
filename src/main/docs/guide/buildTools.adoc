@@ -1,8 +1,10 @@
-The compiler plugin is registered with the Scala compiler, not applied as a build
-plugin. Every build tool has its own way of doing that, and the artifact
-coordinate always carries the full compiler version.
+Register Micronaut Scala as a Scala compiler plugin. The configuration depends
+on your build tool, but the artifact name must always match the full Scala
+compiler version. The examples below use Scala 3.9.0 and JDK 25.
 
 == Gradle
+
+Use Gradle's `scalaCompilerPlugins` configuration for the plugin:
 
 [source,kotlin]
 ----
@@ -22,25 +24,30 @@ java {
 
 dependencies {
     implementation("org.scala-lang:scala3-library_3:3.9.0")
-    implementation("io.micronaut:micronaut-inject:5.2.0")
+    implementation("io.micronaut:micronaut-context:5.2.2")
 
     scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
     runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
 }
 
 tasks.withType<ScalaCompile>().configureEach {
+    options.release.set(25)
     scalaCompileOptions.additionalParameters.add("-J--add-modules=java.compiler")
 }
 ----
 
-The `-J--add-modules=java.compiler` argument is required: the plugin reaches
-Micronaut code that references `javax.lang.model`, and that module is not resolved
-by default in a JDK 9+ compiler process.
+The `java.compiler` module provides the `javax.lang.model` APIs used by
+Micronaut processing code. Pass `-J--add-modules=java.compiler` to make it
+available in the compiler process.
 
-NOTE: This is the build the repository's own functional test generates and runs
-(`ScalaGradlePluginFunctionalSpec`), so it is verified rather than illustrative.
+The repository's `ScalaGradlePluginFunctionalSpec` exercises plugin loading and
+bean generation through a separate Gradle build, using local jar files as
+dependencies.
 
 == Maven
+
+Register the compiler plugin in `scala-maven-plugin`'s `compilerPlugins`
+configuration. Add runtime support as an application dependency:
 
 [source,xml]
 ----
@@ -85,18 +92,19 @@ NOTE: This is the build the repository's own functional test generates and runs
 </build>
 ----
 
+This fragment assumes the rest of the application's Micronaut dependencies and
+the Scala Maven plugin version and compile executions are configured.
+
 == sbt
 
-`CrossVersion.full` is required so that the full compiler version participates in
-the coordinate; the default binary suffix would resolve `_3`, which this project
-does not publish.
+The example names the complete artifact ID explicitly:
 
 [source,scala]
 ----
 scalaVersion := "3.9.0"
 
 libraryDependencies ++= Seq(
-  "io.micronaut" % "micronaut-inject" % "5.2.0",
+  "io.micronaut" % "micronaut-context" % "5.2.2",
   "io.micronaut.scala" % "micronaut-runtime-scala" % "1.0.0-SNAPSHOT" % Runtime
 )
 
@@ -107,10 +115,12 @@ addCompilerPlugin(
 javacOptions ++= Seq("--add-modules", "java.compiler")
 ----
 
+If you use sbt's `cross` dependency notation instead, select `CrossVersion.full`.
+The default binary-version suffix `_3` does not identify a published plugin.
+
 == Mill
 
-Mill's full-cross dependency syntax is `:::`, which plays the same role as sbt's
-`CrossVersion.full`.
+Add the plugin to `scalacPluginIvyDeps`, using its full artifact ID:
 
 [source,scala]
 ----
@@ -118,7 +128,7 @@ object app extends ScalaModule {
   def scalaVersion = "3.9.0"
 
   def ivyDeps = Agg(
-    ivy"io.micronaut:micronaut-inject:5.2.0",
+    ivy"io.micronaut:micronaut-context:5.2.2",
     ivy"io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT"
   )
 
@@ -130,7 +140,9 @@ object app extends ScalaModule {
 }
 ----
 
-WARNING: Only the Gradle build above is exercised by this repository's tests. The
-Maven, sbt and Mill configurations follow each tool's documented mechanism for
-registering a compiler plugin, but they are not verified here. See
-<<troubleshooting, Troubleshooting>> if a build does not generate bean definitions.
+When using Mill's cross-version notation instead of an explicit suffix, use the
+full-cross `:::` form.
+
+NOTE: The repository tests the Gradle integration. The Maven, sbt and Mill
+fragments are not exercised here. If compilation produces no bean definitions,
+see <<troubleshooting, Troubleshooting>>.

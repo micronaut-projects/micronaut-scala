@@ -1,20 +1,19 @@
-The Micronaut Scala source code, issue tracker, and pull requests are hosted
-in the
-https://github.com/{githubSlug}[micronaut-projects/micronaut-scala repository].
+Source code, issues and pull requests are available in the
+https://github.com/{githubSlug}[Micronaut Scala repository].
 
-The repository is organized into shared implementation/test sources and
-compiler-versioned projects:
+The repository separates shared sources from compiler-specific builds:
 
-* `inject-scala` contains shared Scala processing implementation sources.
-* `inject-scala-test` contains shared parity and compiler test sources.
-* `inject-scala-compiler` publishes the selected Scala compiler plugin.
-* `inject-scala-test-compiler` publishes the matching compiler test support.
-* `micronaut-scala-bom` manages the published Scala artifacts.
+* `inject-scala` contains the compiler plugin implementation.
+* `inject-scala-test` contains the compiler test harness and parity tests.
+* `inject-scala-compiler` publishes the primary compiler plugin, and
+  `inject-scala-compiler-lts` builds the same sources for Scala 3.3.8.
+* `inject-scala-test-compiler` publishes the test harness and runs the compiler
+  integration tests.
+* `runtime-scala` contains converters and serialization support.
+* `test-suite-scala` contains the main guide examples. The `test-suite-scala-data`,
+  `test-suite-scala-serde` and `test-suite-scala-openapi` modules cover those
+  integrations.
+* `micronaut-scala-bom` manages the published artifact versions.
 
-The complete compiler version is intentionally part of each compiler-coupled
-artifact name. This keeps incompatible compiler-plugin APIs from being
-silently mixed.
-
-For the Core-side SPI and application documentation, see the
-https://github.com/micronaut-projects/micronaut-core/pull/12695[Core SPI change]
-and the related Scala documentation follow-up.
+See `CONTRIBUTING.md` in the repository for the JDK requirements, build commands
+and contribution process.
