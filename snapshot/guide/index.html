@@ -160,48 +160,46 @@
 
 
 <div class="paragraph">
-<p>Micronaut Scala provides the Scala 3 compiler plugin and the Scala-specific
-processing model that integrates Scala sources with Micronaut Framework.</p>
+<p>Micronaut Scala lets you use Micronaut Framework from Scala 3. Its compiler
+plugin generates bean definitions, introspections and AOP proxies from your
+Scala classes during compilation.</p>
 </div>
 <div class="paragraph">
-<p>The implementation is maintained separately from Micronaut Core. Core
-provides the language-neutral processing and runtime extension points, while
-this project owns the Scala compiler integration, Scala element model, and
-Scala-specific type handling.</p>
+<p>The plugin adapts Scala declarations to Micronaut&#8217;s compile-time APIs. Micronaut
+Core provides the shared processing and runtime infrastructure; this project
+provides the Scala compiler integration and runtime support for Scala types.</p>
 </div>
 <div class="sect1">
 <h2 id="_supported_versions">Supported versions</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Two Scala 3 LTS lines are supported, built from the same sources and published
-as separate artifacts. The compiler plugin API is not binary compatible across
-compiler releases, so the compiler version is part of the artifact name:</p>
+<p>The build supports Scala 3.9.0 and 3.3.8. Each compiler version has its own
+plugin artifact:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><code>io.micronaut.scala:micronaut-inject-scala_3.9.0</code> — current LTS</p>
+<p><code>io.micronaut.scala:micronaut-inject-scala_3.9.0</code></p>
 </li>
 <li>
-<p><code>io.micronaut.scala:micronaut-inject-scala_3.3.8</code> — previous LTS</p>
-</li>
-<li>
-<p><code>io.micronaut.scala:micronaut-inject-scala-test_3.9.0</code></p>
-</li>
-<li>
-<p><code>io.micronaut.scala:micronaut-runtime-scala</code> — application-side support, not
-crossed with the compiler version</p>
+<p><code>io.micronaut.scala:micronaut-inject-scala_3.3.8</code></p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>Selecting the wrong one does not fail gracefully: the 3.9.0 plugin loaded into
-the 3.3.8 compiler throws from inside the plugin phase and generates nothing.
-Match the artifact to the compiler exactly.</p>
+<p>Choose the artifact that exactly matches your Scala compiler version. Compiler
+plugin APIs can change between releases, so using a different version can fail
+during compilation.</p>
 </div>
 <div class="paragraph">
-<p>The repository version is independent of the Micronaut Core version. The
-initial development version is <code>1.0.0-SNAPSHOT</code>.</p>
+<p>The test harness is published as
+<code>io.micronaut.scala:micronaut-inject-scala-test_3.9.0</code>. Runtime support is
+published as <code>io.micronaut.scala:micronaut-runtime-scala</code> and does not have a
+compiler-version suffix.</p>
+</div>
+<div class="paragraph">
+<p>Micronaut Scala has its own version, independent of Micronaut Core. The current
+development version is <code>1.0.0-SNAPSHOT</code>. The build requires JDK 25.</p>
 </div>
 </div>
 </div>
@@ -209,19 +207,18 @@ initial development version is <code>1.0.0-SNAPSHOT</code>.</p>
 <h2 id="_what_is_included">What is included</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The compiler plugin connects Scala compiler phases to Micronaut compile-time
-visitors. The Scala processing model supports bean definitions, injection,
-introspection, AOP, configuration properties, annotation metadata, Scala
-collections, <code>Option</code>, <code>BeanRegistration</code>, and Scala 3 enum lookup.</p>
+<p>The integration supports dependency injection, bean introspection, AOP,
+configuration properties and annotation metadata. Runtime support includes
+converters for Scala collections and <code>Option</code>, along with Micronaut
+Serialization support for collections, <code>Option</code> and Scala 3 enums.</p>
 </div>
 <div class="paragraph">
-<p>Scala 2 is not currently supported.</p>
+<p>Scala 2 is not supported.</p>
 </div>
 <div class="paragraph">
-<p>If you are new to Micronaut, <a href="#concepts">Micronaut for Scala Developers</a>
-explains dependency injection, configuration, introspections, serialization and
-AOP from the beginning, in Scala. For the wider framework documentation, see the
-Micronaut Framework user guide.</p>
+<p>Start with <a href="#quickStart">Quick Start</a> to configure the plugin. If you are new
+to Micronaut, <a href="#concepts">Micronaut for Scala Developers</a> introduces the main
+framework features with Scala examples.</p>
 </div>
 </div>
 </div>
@@ -236,42 +233,27 @@ Micronaut Framework user guide.</p>
 
 
 <div class="paragraph">
-<p>This project publishes a Scala compiler plugin for use by Scala 3 builds.
-The plugin must be selected for the exact Scala compiler version used by the
-application.</p>
-</div>
-<div class="paragraph">
-<p>There are two artifacts, and they are not interchangeable:</p>
-</div>
-<div class="dlist">
-<dl>
-<dt class="hdlist1"><code>micronaut-inject-scala_&lt;scala version&gt;</code></dt>
-<dd>
-<p>The compiler plugin. It runs inside
-the Scala compiler and generates bean definitions. It is crossed with the full
-compiler version, and it bundles the Micronaut classes it compiles against, so
-it belongs on the compiler plugin configuration and nowhere else.</p>
-</dd>
-<dt class="hdlist1"><code>micronaut-runtime-scala</code></dt>
-<dd>
-<p>The application-side support: the converters that
-let Micronaut bind Scala collections and <code>Option</code>. It is a small ordinary
-library, is not crossed with the compiler version, and belongs on the runtime
-classpath.</p>
-</dd>
-</dl>
+<p>To use Micronaut from Scala, add the compiler plugin to your build and the
+Scala runtime support to your application&#8217;s runtime dependencies. Use JDK 25
+and choose a plugin artifact that matches your full Scala compiler version.</p>
 </div>
 <div class="sect1">
-<h2 id="_gradle">Gradle</h2>
+<h2 id="_add_the_dependencies">Add the dependencies</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>For Scala 3.9.0:</p>
+<p>For a Gradle application using Scala 3.9.0, add these entries to your
+<code>dependencies</code> block:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="kotlin">scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
 runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")</code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p><code>micronaut-inject-scala_3.9.0</code> runs during compilation and generates the classes
+Micronaut needs to create and inject your beans. <code>micronaut-runtime-scala</code>
+provides converters and serialization support for Scala types at runtime.</p>
 </div>
 <div class="admonitionblock warning">
 <table>
@@ -280,69 +262,65 @@ runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")</code><
 <i class="fa icon-warning" title="Warning"></i>
 </td>
 <td class="content">
-Do not put the compiler plugin on the application runtime classpath.
-It bundles Micronaut and ASM at their original package paths, so it would place
-a second copy of those classes in the running application.
+Keep the compiler plugin off the application runtime classpath. Its jar
+bundles Micronaut and ASM classes that can conflict with the application&#8217;s own
+dependencies.
 </td>
 </tr>
 </table>
 </div>
 <div class="paragraph">
-<p>Use a released Micronaut Scala version in published applications. During
-development, the repository can be built against the Core SPI branch with
-IncludeGit or a local Core checkout:</p>
+<p>See <a href="#buildTools">Build Tools</a> for a fuller Gradle configuration and examples
+for Maven, sbt and Mill. Adding the plugin as an ordinary dependency does not
+register it with the Scala compiler.</p>
 </div>
-<div class="listingblock">
+</div>
+</div>
+<div class="sect1">
+<h2 id="_define_and_use_a_bean">Define and use a bean</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Define a dependency as a bean with <code>@Singleton</code>:</p>
+</div>
+<div class="listingblock multi-language-sample">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-bash hljs" data-lang="bash">./gradlew check -Plocal.git.micronaut-core=/path/to/micronaut-core</code></pre>
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+class Translator:
+  def hello: String = "Hello"</code></pre>
 </div>
 </div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_maven">Maven</h2>
-<div class="sectionbody">
 <div class="paragraph">
-<p>Use the full compiler-version artifact ID for the compiler plugin, and the
-uncrossed artifact for the runtime support:</p>
+<p>Then declare it as a constructor parameter in another bean:</p>
 </div>
-<div class="listingblock">
+<div class="listingblock multi-language-sample">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="xml">&lt;dependency&gt;
-  &lt;groupId&gt;io.micronaut.scala&lt;/groupId&gt;
-  &lt;artifactId&gt;micronaut-inject-scala_3.9.0&lt;/artifactId&gt;
-  &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
-  &lt;scope&gt;provided&lt;/scope&gt;
-&lt;/dependency&gt;
-&lt;dependency&gt;
-  &lt;groupId&gt;io.micronaut.scala&lt;/groupId&gt;
-  &lt;artifactId&gt;micronaut-runtime-scala&lt;/artifactId&gt;
-  &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
-  &lt;scope&gt;runtime&lt;/scope&gt;
-&lt;/dependency&gt;</code></pre>
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+class GreetingService(translator: Translator):
+  def greet(name: String): String = s"${translator.hello}, $name"</code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>Micronaut supplies <code>Translator</code> when it creates <code>GreetingService</code>. In an
+application context, calling <code>getBean(classOf[GreetingService]).greet("Scala")</code>
+returns <code>Hello, Scala</code>.</p>
+</div>
+<div class="paragraph">
+<p>See <a href="#concepts">Micronaut for Scala Developers</a> for more about bean creation,
+qualifiers and the other framework features.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_sbt_and_mill">sbt and Mill</h2>
+<h2 id="_match_the_compiler_version">Match the compiler version</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>sbt builds should use <code>CrossVersion.full</code> so the complete Scala compiler
-version participates in the artifact coordinate. Mill builds should use the
-full-cross <code>:::</code> dependency syntax. In both tools, select the integration
-version independently from the Scala compiler version.</p>
+<p>The suffix <code>_3.9.0</code> is the full Scala compiler version. Do not shorten it to
+<code>_3</code> or use it with a different compiler release. See
+<a href="#introduction">Supported versions</a> for the available variants.</p>
 </div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_compiler_compatibility">Compiler compatibility</h2>
-<div class="sectionbody">
 <div class="paragraph">
-<p>Do not replace <code>_3.9.0</code> with a binary Scala line suffix. Compiler plugin APIs
-can change between compiler releases, so a plugin built for one full compiler
-version must not be assumed to work with another. See the
-<a href="https://docs.scala-lang.org/overviews/plugins/index.html#binary-compatibility-of-compiler-plugins">Scala compiler-plugin binary-compatibility guidance</a>.</p>
+<p>The examples use the development version <code>1.0.0-SNAPSHOT</code>. When using a
+released version, replace that version in both dependencies.</p>
 </div>
 </div>
 </div>
@@ -357,54 +335,31 @@ version must not be assumed to work with another. See the
 
 
 <div class="paragraph">
-<p>This chapter is for Scala developers meeting Micronaut for the first time. It
-explains what the framework does, in the order the pieces build on each other,
-and shows each in Scala. No prior Micronaut knowledge is assumed.</p>
+<p>Micronaut provides dependency injection, configuration binding, introspection
+and AOP. This chapter introduces those features through Scala examples.</p>
 </div>
 <div class="paragraph">
-<p>Everything here is ordinary Micronaut. What the Scala compiler plugin adds is
-that a Scala source file is a first-class input to it: the plugin runs inside
-<code>scalac</code> and produces the same generated classes the Java annotation processor
-does, from Scala declarations.</p>
+<p>The Scala compiler plugin runs Micronaut&#8217;s compile-time processing while your
+Scala sources are compiled. You use the same Micronaut annotations and runtime
+APIs as you would in a Java application.</p>
 </div>
 <div class="sect1">
-<h2 id="_what_micronaut_does_and_when">What Micronaut does, and when</h2>
+<h2 id="_compile_time_processing_and_runtime_bean_creation">Compile-time processing and runtime bean creation</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Most dependency injection frameworks decide at startup what to inject, by
-loading classes and reading their annotations with reflection. Micronaut decides
-at <strong>compile time</strong>. While your code is being compiled, the plugin reads your
-declarations and writes a <code>BeanDefinition</code> class beside each bean — a plain
-class holding the answers: what this bean&#8217;s dependencies are, how to construct
-it, what qualifies it.</p>
+<p>During compilation, the plugin generates a <code>BeanDefinition</code> for each bean. It
+records how to construct the bean, which dependencies it needs and which
+qualifiers apply. At runtime, Micronaut uses these definitions to create beans
+and resolve their dependencies, avoiding reflective discovery of that metadata.</p>
 </div>
 <div class="paragraph">
-<p>Three things follow from that, and they are the reason the rest of this chapter
-looks the way it does:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Startup does no classpath scanning and no reflection, so it is fast and its
-cost does not grow with the size of the application.</p>
-</li>
-<li>
-<p>Anything the framework needs to know must be visible in the source. A type it
-cannot see at compile time is a type it cannot inject.</p>
-</li>
-<li>
-<p>Mistakes are compile errors. A missing dependency or an unresolvable
-qualifier fails the build rather than the first request.</p>
-</li>
-</ul>
+<p>This does not mean every dependency problem is a compile error. A missing bean
+or an ambiguous qualifier can still cause an error when Micronaut tries to
+create the bean at runtime.</p>
 </div>
 <div class="paragraph">
-<p>Micronaut&#8217;s annotations are Java annotations, and Scala applies a Java
-annotation by rules of its own — a single value is not an array, and a
-positional argument does not go to <code>value</code>. Each difference is a compile error
-rather than a silent change in meaning, but the message names a type mismatch
-rather than the rule. <a href="#annotations">Annotations</a> lists them; it is worth
-reading before transcribing an example from Micronaut&#8217;s Java documentation.</p>
+<p>Scala also has different rules for Java annotation arguments. See
+<a href="#annotations">Annotations</a> when adapting an example from the Java guide.</p>
 </div>
 </div>
 </div>
@@ -412,12 +367,8 @@ reading before transcribing an example from Micronaut&#8217;s Java documentation
 <h2 id="_dependency_injection">Dependency injection</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>A <strong>bean</strong> is an object Micronaut creates and supplies to whatever needs it. You
-declare one by annotating a class; you never write code that constructs it.</p>
-</div>
-<div class="paragraph">
-<p>Start with something to inject. A trait describes what is needed, without
-saying which implementation provides it:</p>
+<p>A <strong>bean</strong> is an object managed by Micronaut. Start by defining a trait for a
+dependency:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -426,8 +377,8 @@ saying which implementation provides it:</p>
 </div>
 </div>
 <div class="paragraph">
-<p><code>@Singleton</code> on a class makes it a bean. Here two classes implement the same
-trait, so each is labelled with <code>@Named</code> to tell them apart:</p>
+<p>Annotate each implementation with <code>@Singleton</code> to make it a bean. Here,
+<code>@Named</code> distinguishes two implementations of the same trait:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -443,9 +394,8 @@ class V8Engine extends Engine:
 </div>
 </div>
 <div class="paragraph">
-<p>A bean&#8217;s constructor parameters are its dependencies. Nothing marks them as
-injected — being a bean&#8217;s constructor is enough. Where more than one bean could
-satisfy a parameter, a <strong>qualifier</strong> says which, and <code>@Named</code> is the simplest one:</p>
+<p>Declare the dependency as a constructor parameter. A <strong>qualifier</strong>, such as
+<code>@Named</code>, selects an implementation when several beans have the required type:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -455,9 +405,9 @@ class Vehicle(@Named("v8") engine: Engine):
 </div>
 </div>
 <div class="paragraph">
-<p><code>ApplicationContext.run().getBean(classOf[Vehicle])</code> returns a <code>Vehicle</code> with
-<code>V8Engine</code> supplied. Asking for a <code>Vehicle</code> without having declared <code>V8Engine</code> a
-bean is a compile error, not a startup failure.</p>
+<p><code>ApplicationContext.run().getBean(classOf[Vehicle])</code> creates a <code>Vehicle</code> with
+<code>V8Engine</code> supplied. If no matching engine bean is available, creating the
+<code>Vehicle</code> fails at runtime.</p>
 </div>
 <div class="admonitionblock tip">
 <table>
@@ -466,11 +416,9 @@ bean is a compile error, not a startup failure.</p>
 <i class="fa icon-tip" title="Tip"></i>
 </td>
 <td class="content">
-Constructor injection is the form to prefer, and it is the one that fits
-Scala best: the dependency arrives as a constructor parameter, so it can be a
-<code>val</code> and the class has no uninitialised state. Micronaut also supports
-injecting a field or a setter with <code>@Inject</code>, which is worth knowing when
-reading Java examples.
+Prefer constructor injection in Scala. Dependencies are available as soon
+as the class is constructed, and a unit test can supply them directly with
+<code>new</code>. Micronaut also supports field and setter injection with <code>@Inject</code>.
 </td>
 </tr>
 </table>
@@ -478,9 +426,9 @@ reading Java examples.
 <div class="sect2">
 <h3 id="_scopes">Scopes</h3>
 <div class="paragraph">
-<p>A <strong>scope</strong> decides how long a bean lives and how many exist. <code>@Singleton</code> means
-one instance for the whole application. <code>@Prototype</code> means a new instance for
-every injection point that asks for one:</p>
+<p>A <strong>scope</strong> controls a bean&#8217;s lifetime. <code>@Singleton</code> shares one instance within
+an application context. <code>@Prototype</code> creates a new instance for each injection
+or lookup:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -490,9 +438,8 @@ class Journey:
 </div>
 </div>
 <div class="paragraph">
-<p><code>@Singleton</code> is the common case. The others — <code>@Prototype</code>, <code>@Context</code>,
-<code>@Refreshable</code>, request scope in a server application — are all applied the same
-way.</p>
+<p>Other Micronaut scopes include <code>@Context</code>, <code>@Refreshable</code> and request scope in
+server applications.</p>
 </div>
 </div>
 </div>
@@ -501,10 +448,8 @@ way.</p>
 <h2 id="_configuration_properties">Configuration properties</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Applications are configured from outside: a YAML file, environment variables,
-system properties. <code>@ConfigurationProperties</code> binds a class to a section of that
-configuration, and the bound object is itself a bean, so it can be injected
-anywhere:</p>
+<p><code>@ConfigurationProperties</code> binds a class to a section of application
+configuration. The resulting object is a bean that other beans can inject:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -518,30 +463,15 @@ class EngineConfiguration(
 </div>
 </div>
 <div class="paragraph">
-<p>With <code>engine.manufacturer</code> set to <code>Ford</code> and <code>engine.cylinders</code> to a list, this
-bean is created with those values. The Scala types are the point of the example:</p>
-</div>
-<div class="dlist">
-<dl>
-<dt class="hdlist1"><code>Option[String]</code></dt>
-<dd>
-<p>An absent property binds to <code>None</code>. Without the <code>Option</code> an
-absent property is a missing value and the bean fails to be created, which is
-the right answer for something genuinely required and the wrong one for
-something optional.</p>
-</dd>
-<dt class="hdlist1"><code>List[Int]</code></dt>
-<dd>
-<p>A Scala collection binds from a list-valued property, converted
-element by element. <code>Seq</code>, <code>Set</code> and <code>Map</code> work the same way.</p>
-</dd>
-</dl>
+<p>Set <code>engine.manufacturer</code> to <code>Ford</code> and <code>engine.cylinders</code> to a list to supply
+the corresponding constructor values. <code>nickname</code> is optional: when its
+configuration property is absent, it binds to <code>None</code>. The <code>List[Int]</code> parameter
+receives a Scala list with each element converted to an integer.</p>
 </div>
 <div class="paragraph">
-<p>Both come from <code>micronaut-runtime-scala</code>, which must be on the runtime
-classpath — see <a href="#quickStart">Quick Start</a>. Remember that <code>List</code> and <code>Map</code> in
-Scala are not <code>java.util.List</code> and <code>java.util.Map</code>; both are supported, but a
-declaration means whichever one it names.</p>
+<p>These conversions require <code>micronaut-runtime-scala</code> on the runtime classpath.
+Scala <code>Seq</code>, <code>Set</code> and <code>Map</code> are also supported. A required parameter without
+a value or a default prevents the configuration bean from being created.</p>
 </div>
 </div>
 </div>
@@ -549,10 +479,9 @@ declaration means whichever one it names.</p>
 <h2 id="_bean_introspection">Bean introspection</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>An <strong>introspection</strong> is compile-time reflection: for a type annotated
-<code>@Introspected</code>, the plugin generates a class that can read and write that
-type&#8217;s properties and call its constructor, without <code>java.lang.reflect</code>. It is
-what validation, data binding and serialization read.</p>
+<p><code>@Introspected</code> asks Micronaut to generate metadata for constructing a type and
+accessing its properties. Validation, data binding and serialization can use
+this metadata without discovering properties through reflection:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -561,29 +490,15 @@ case class Book(title: String, pages: Int)</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p><code>BeanIntrospection.getIntrospection(classOf[Book])</code> then reports <code>title</code> and
-<code>pages</code> as properties and can instantiate the type from values. A case class
-needs nothing else: its constructor parameters are its properties, and the
-compiler-generated accessors are what the introspection reads.</p>
+<p><code>BeanIntrospection.getIntrospection(classOf[Book])</code> exposes <code>title</code> and <code>pages</code>
+as properties and can instantiate <code>Book</code> from their values. The case class&#8217;s
+constructor parameters supply its properties, and its generated accessors
+supply the getters.</p>
 </div>
 <div class="paragraph">
-<p>An ordinary class works too. What becomes a property is a <code>val</code> or <code>var</code>, or a
-getter and setter pair — the same rules as anywhere else in Scala, since a <code>val</code>
-is a private field with a generated accessor.</p>
-</div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-note" title="Note"></i>
-</td>
-<td class="content">
-An introspection is generated only where you ask for one. This is
-deliberate: it is the difference between a framework that can see every class on
-the classpath and one that can see the classes you named.
-</td>
-</tr>
-</table>
+<p>Ordinary classes can also be introspected. The plugin recognises Scala <code>val</code>
+and <code>var</code> accessors as well as getter and setter pairs. A <code>val</code> is read-only;
+a <code>var</code> can also be written through its setter.</p>
 </div>
 </div>
 </div>
@@ -591,11 +506,9 @@ the classpath and one that can see the classes you named.
 <h2 id="_serialization">Serialization</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Serialization is not part of the compiler plugin. It is
-<a href="https://micronaut-projects.github.io/micronaut-serde/latest/guide/">Micronaut
-Serialization</a> reading the introspection described above — which is why it works
-for Scala without anything Scala-specific. <code>@Serdeable</code> is <code>@Introspected</code> plus
-the instruction that the type may cross a serialization boundary:</p>
+<p><a href="https://micronaut-projects.github.io/micronaut-serde/latest/guide/">Micronaut Serialization</a>
+uses generated introspections to read and write objects. Mark a case class
+with <code>@Serdeable</code> to enable both directions:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -604,23 +517,15 @@ case class Order(id: String, quantity: Int)</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>An injected <code>ObjectMapper</code> then writes that as <code>{"id":"A-1","quantity":3}</code> and
-reads it back through the constructor the introspection describes. Because the
-introspection is generated at compile time, no reflective access to the type is
-needed at runtime, and the type works under GraalVM native image without
-configuration.</p>
+<p>An injected <code>ObjectMapper</code> writes this example as
+<code>{"id":"A-1","quantity":3}</code> and reads it back through the case class constructor.
+Add <code>io.micronaut.serde:micronaut-serde-jackson</code> to use the Jackson-based
+implementation.</p>
 </div>
 <div class="paragraph">
-<p>The dependency is <code>io.micronaut.serde:micronaut-serde-jackson</code>, added the same
-way as in any other language.</p>
-</div>
-<div class="paragraph">
-<p>Scala&#8217;s own types need one thing more. <code>Option</code>, the Scala collections and a
-Scala 3 <code>enum</code> are none of them types Micronaut Serialization ships a serializer
-for — a Scala <code>List</code> is not a <code>java.util.List</code>, and a Scala 3 <code>enum</code> is not a
-<code>java.lang.Enum</code> — so <code>micronaut-runtime-scala</code> supplies those, and must be on
-the runtime classpath. <a href="#serialization">Serialization</a> is the chapter on what
-each of them becomes in a document.</p>
+<p>For properties declared as Scala collections, <code>Option</code> or Scala 3 enums, also
+include <code>micronaut-runtime-scala</code>. See <a href="#serialization">Serialization</a> for
+JSON examples and the handling of missing optional fields.</p>
 </div>
 </div>
 </div>
@@ -628,16 +533,13 @@ each of them becomes in a document.</p>
 <h2 id="_around_advice">Around advice</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><strong>Aspect-oriented programming</strong> (AOP) is how behaviour that is not specific to one
-method — timing, retry, caching, transactions, logging — is applied without
-writing it into every method. In Micronaut it is also compile-time: rather than
-generating a proxy at runtime, the plugin generates a subclass of your bean that
-overrides the advised methods, and the framework injects that subclass wherever
-the bean is asked for.</p>
+<p><strong>Aspect-oriented programming</strong> (AOP) lets an interceptor add behaviour around a
+method call. Common uses include logging, retries and transactions. Micronaut
+generates the proxy classes during compilation.</p>
 </div>
 <div class="paragraph">
-<p><strong>Around advice</strong> wraps a method call. It takes two declarations. First an
-annotation, marked <code>@Around</code>, that says "methods marked with this are advised":</p>
+<p>To define custom around advice, first declare an annotation marked with
+<code>@Around</code>:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -650,8 +552,8 @@ class Audited extends StaticAnnotation, java.lang.annotation.Annotation:
 </div>
 </div>
 <div class="paragraph">
-<p>Then an interceptor — itself a bean — bound to that annotation. It receives the
-call, does whatever it does, and calls <code>proceed()</code> to run the original method:</p>
+<p>Then bind an interceptor to the annotation. The interceptor receives the call
+and invokes <code>proceed()</code> to continue to the original method:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -668,8 +570,8 @@ class AuditInterceptor extends MethodInterceptor[Object, Object]:
 </div>
 </div>
 <div class="paragraph">
-<p>Applying it is just the annotation. It can go on a single method or on the
-class, in which case every method is advised:</p>
+<p>Apply the annotation to the methods you want to intercept, or to a class to
+advise its eligible methods:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -682,16 +584,17 @@ class OrderService:
 </div>
 </div>
 <div class="paragraph">
-<p>Calling <code>place</code> runs the interceptor and returns <code>ordered a book</code>; calling
-<code>quote</code> does not run the interceptor at all.</p>
+<p>Calling <code>place</code> runs the interceptor and returns <code>ordered a book</code>. Calling
+<code>quote</code> does not run the interceptor.</p>
 </div>
 <div class="paragraph">
-<p>Two Scala notes. The annotation extends <code>java.lang.annotation.Annotation</code> and
-overrides <code>annotationType()</code> because <code>@InterceptorBean</code> takes it as a
-<code>classOf[&#8230;&#8203;]</code> argument — see <a href="#annotations">Annotations</a>. And the advised class
-must be extensible, because the generated subclass extends it: a <code>final class</code>,
-or a <code>final def</code> on an advised method, is a compile error rather than a bean
-that quietly loses its advice.</p>
+<p>The annotation extends <code>java.lang.annotation.Annotation</code> because
+<code>@InterceptorBean</code> accepts a <code>classOf[&#8230;&#8203;]</code> argument with that bound. See
+<a href="#annotations">Annotations</a> for details.</p>
+</div>
+<div class="paragraph">
+<p>The generated proxy extends the advised class and overrides its advised
+methods. A <code>final</code> class or advised method therefore causes a compilation error.</p>
 </div>
 </div>
 </div>
@@ -699,15 +602,11 @@ that quietly loses its advice.</p>
 <h2 id="_introduction_advice">Introduction advice</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><strong>Introduction advice</strong> is the other half of AOP, and the more surprising one. An
-around interceptor wraps a method that exists; an introduction interceptor
-<strong>provides</strong> methods that do not. You declare an abstract type with no
-implementation anywhere, and the interceptor supplies the behaviour — which is
-how Micronaut&#8217;s declarative HTTP clients and repository interfaces work.</p>
+<p><strong>Introduction advice</strong> supplies the implementation of abstract methods. This
+is how Micronaut implements declarative clients and repositories.</p>
 </div>
 <div class="paragraph">
-<p>The interceptor answers calls for the whole type, using the invocation context
-to decide what a given method should do:</p>
+<p>The interceptor uses the invocation context to decide how to answer each call:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -718,7 +617,8 @@ class GreeterIntroduction extends MethodInterceptor[AnyRef, Object]:
 </div>
 </div>
 <div class="paragraph">
-<p>The annotation is marked <code>@Introduction</code> and names the interceptor with <code>@Type</code>:</p>
+<p>An annotation marked with <code>@Introduction</code> enables the advice. <code>@Type</code> identifies
+the interceptor:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -730,8 +630,7 @@ class Stub extends StaticAnnotation</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Then an abstract type carrying that annotation becomes a bean, despite having no
-implementation:</p>
+<p>Apply the annotation to a trait or abstract class:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -741,24 +640,18 @@ trait Greeter:
 </div>
 </div>
 <div class="paragraph">
-<p><code>getBean(classOf[Greeter]).greet("Scala")</code> returns <code>greet(Scala)</code> — the
-interceptor&#8217;s answer. A trait or an abstract class both work; an abstract class
-may also have concrete methods, which run normally, and dependencies of its own,
-which are injected.</p>
+<p><code>getBean(classOf[Greeter]).greet("Scala")</code> returns <code>greet(Scala)</code>, the value
+supplied by the interceptor. An abstract class can also have constructor
+dependencies and concrete methods; those methods keep their implementation.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_data_access_which_is_all_of_the_above_at_once">Data access, which is all of the above at once</h2>
+<h2 id="_data_access">Data access</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Micronaut Data is worth meeting last, because a repository is introduction
-advice — the abstract type whose implementation you never write — applied to
-something you would otherwise write by hand.</p>
-</div>
-<div class="paragraph">
-<p>An entity is a case class. Its parameters are its columns, and <code>@Id</code> marks the
-one the database generates:</p>
+<p>Micronaut Data uses introduction advice to implement repositories. An entity
+can be a case class whose constructor parameters describe the mapped properties:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -777,9 +670,12 @@ case class Book(
 </div>
 </div>
 <div class="paragraph">
-<p>A repository is a trait. Extending <code>CrudRepository</code> supplies the usual
-operations, and any further method is a query derived from its own name — read
-<code>findByTitle</code> as <code>where title = ?</code>:</p>
+<p>In this example, <code>@Id</code> marks the identifier and <code>@GeneratedValue</code> asks the
+database to generate it.</p>
+</div>
+<div class="paragraph">
+<p>Declare a repository as a trait extending <code>CrudRepository</code>. Methods such as
+<code>findByTitle</code> describe queries through their names:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -798,53 +694,19 @@ trait BookRepository extends CrudRepository[Book, Long]:
 </div>
 </div>
 <div class="paragraph">
-<p>There is no implementation of either anywhere, and none to write. At compile
-time the plugin generates the entity&#8217;s introspection, Data reads it to work out
-the table and columns, derives the SQL for every method, and generates the class
-that runs it. Injecting <code>BookRepository</code> gives you that class.</p>
+<p>During compilation, Micronaut Data processes the entity and repository and
+records the SQL and query metadata. Micronaut generates a repository proxy
+whose interceptors execute those queries at runtime. You inject
+<code>BookRepository</code> without writing an implementation yourself.</p>
 </div>
 <div class="paragraph">
-<p>Three things from earlier chapters are load-bearing here, which is why this
-example is worth reading closely:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>The entity&#8217;s annotations are on <strong>class parameters</strong>. A Scala class parameter is
-where the property is declared, so that is where <code>@Id</code> goes — the same rule as
-<a href="#idiomatic">Idiomatic Scala</a> gives for configuration.</p>
-</li>
-<li>
-<p>The repository is a <strong>trait</strong>, so it can be introduced. A class with a body
-could not be.</p>
-</li>
-<li>
-<p><code>CrudRepository[Book, Long]</code> is a parameterized type from a library, and what
-its inherited methods return is what Data generates against.</p>
-</li>
-</ul>
+<p>Scala collections can be used for query results, but optional single results
+currently need <code>java.util.Optional</code>. See <a href="#data">Micronaut Data</a> for the
+processor dependency, supported signatures and a database configuration.</p>
 </div>
 <div class="paragraph">
-<p>Both types in the example are Scala&#8217;s own — <code>Long</code> for the identifier, <code>scala.List</code>
-for the result — and both need a word of explanation, as does the one thing that
-has to be wired differently from a Java build. <a href="#data">Micronaut Data</a> is the
-chapter for that.</p>
-</div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-note" title="Note"></i>
-</td>
-<td class="content">
-These examples live in <code>test-suite-scala</code> and <code>test-suite-scala-data</code>, are
-compiled by this repository&#8217;s build with the plugin, and are executed by its
-tests — the repository above against an in-memory database, saving and querying
-real rows. Every behaviour described above is asserted there, so prose that stops
-matching the code fails the build.
-</td>
-</tr>
-</table>
+<p>The examples in this chapter are compiled and exercised in <code>test-suite-scala</code>
+and <code>test-suite-scala-data</code>.</p>
 </div>
 </div>
 </div>
@@ -859,28 +721,16 @@ matching the code fails the build.
 
 
 <div class="paragraph">
-<p>Micronaut&#8217;s annotations came from Java, and its documentation is written in
-Java, so a Scala developer&#8217;s first application tends to read like transcribed
-Java: mutable fields, classes where a case class would do, <code>null</code> where there is
-an <code>Option</code>.</p>
-</div>
-<div class="paragraph">
-<p>None of that is necessary. The framework&#8217;s preferences and Scala&#8217;s happen to
-agree almost everywhere — Micronaut wants immutable, constructor-shaped beans,
-which is what Scala wants to write anyway. This chapter is what the Scala form
-of each idea looks like, and the few places where the two disagree.</p>
+<p>Micronaut works well with Scala constructor parameters, case classes and
+traits. The examples below show how to use those features for beans and
+configuration, with a few details to keep in mind when using Java APIs.</p>
 </div>
 <div class="sect1">
 <h2 id="_prefer_constructor_injection">Prefer constructor injection</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Micronaut can inject a constructor parameter, a field or a setter. Use the
-constructor.</p>
-</div>
-<div class="paragraph">
-<p>The reason is stronger in Scala than in Java. A constructor parameter is in
-scope for the whole class body, so anything derived from a dependency can be a
-<code>val</code> computed once, and the class has no state that is briefly <code>null</code>:</p>
+<p>Declare dependencies as constructor parameters so they are available throughout
+the class body, including when initialising a <code>val</code>:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -894,16 +744,9 @@ class ReportService(clock: Clock, config: ServerConfig):
 </div>
 </div>
 <div class="paragraph">
-<p>Field injection cannot do this. <code>@Inject var clock: Clock = null</code> gives a
-mutable field that is null between construction and injection, so any <code>val</code>
-derived from it has to become a <code>lazy val</code> or a <code>def</code>, and the type says
-<code>Clock</code> while admitting <code>null</code>. There is no upside to recover: constructor
-parameters are injected without any annotation at all.</p>
-</div>
-<div class="paragraph">
-<p>The other reason is testing. A bean whose dependencies are constructor
-parameters can be built directly with <code>new</code> in a unit test, with no container
-and no reflection.</p>
+<p>With field injection, a declaration such as <code>@Inject var clock: Clock = null</code>
+remains null until injection runs. Constructor injection avoids that intermediate
+state and lets unit tests construct the class directly with test dependencies.</p>
 </div>
 </div>
 </div>
@@ -911,8 +754,7 @@ and no reflection.</p>
 <h2 id="_case_classes_for_configuration">Case classes for configuration</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>@ConfigurationProperties</code> binds a class to a section of configuration. Use a
-case class:</p>
+<p>A case class makes a convenient immutable configuration bean:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -925,44 +767,32 @@ case class ServerConfig(
 )</code></pre>
 </div>
 </div>
-<div class="paragraph">
-<p>Four Scala things are doing work there, and each replaces something that would
-otherwise be an annotation or a convention:</p>
-</div>
 <div class="dlist">
 <dl>
 <dt class="hdlist1">Default parameter values</dt>
 <dd>
-<p>A parameter&#8217;s default <strong>is</strong> the configuration default.
-<code>host</code> is <code>localhost</code> unless <code>server.host</code> says otherwise. This is Scala&#8217;s own
-mechanism, not a framework one — there is no <code>@Value("${server.host:localhost}")</code>
-to write and no default duplicated in a string.</p>
+<p>The constructor default is used when the property is
+absent. Here, <code>host</code> defaults to <code>localhost</code>; <code>server.host</code> overrides it.</p>
 </dd>
 <dt class="hdlist1"><code>Option[String]</code></dt>
 <dd>
-<p>An absent property binds to <code>None</code>. Without it, an absent
-property means the bean cannot be created — which is the right answer for
-something genuinely required, and the wrong one for something optional.</p>
+<p>An optional property binds to <code>None</code> when absent.</p>
 </dd>
 <dt class="hdlist1"><code>List[String]</code></dt>
 <dd>
-<p>A Scala collection binds element by element from a list-valued
-property. <code>Seq</code>, <code>Set</code> and <code>Map</code> work the same way.</p>
+<p>A list-valued property binds to a Scala list, with element
+conversion. Scala <code>Seq</code>, <code>Set</code> and <code>Map</code> are also supported.</p>
 </dd>
 <dt class="hdlist1"><code>case</code></dt>
 <dd>
-<p>Equality, <code>copy</code> and <code>toString</code> come for free, which matters most in
-tests: a configuration object can be compared against an expected value, and
-printed usefully when it does not match.</p>
+<p>Generated equality and <code>toString</code> methods help when comparing
+configuration values in tests or inspecting them while debugging.</p>
 </dd>
 </dl>
 </div>
 <div class="paragraph">
-<p>One consequence of writing configuration this way is worth knowing: a class
-parameter has no field or accessor of its own to document, so its description
-goes on the class as a <code>@param</code> tag. That is where the generated configuration
-metadata takes it from — see <a href="#documentation">Documentation in Generated
-Files</a>.</p>
+<p>Use class-level Scaladoc <code>@param</code> tags to document constructor properties in
+generated configuration metadata. See <a href="#documentation">Documentation in Generated Files</a>.</p>
 </div>
 <div class="admonitionblock note">
 <table>
@@ -971,8 +801,8 @@ Files</a>.</p>
 <i class="fa icon-note" title="Note"></i>
 </td>
 <td class="content">
-<code>Option</code> and the Scala collections are bound by <code>micronaut-runtime-scala</code>,
-which must be on the runtime classpath. See <a href="#quickStart">Quick Start</a>.
+Binding <code>Option</code> and Scala collections requires <code>micronaut-runtime-scala</code>
+on the runtime classpath.
 </td>
 </tr>
 </table>
@@ -980,9 +810,8 @@ which must be on the runtime classpath. See <a href="#quickStart">Quick Start</a
 <div class="sect2">
 <h3 id="_repeated_configuration">Repeated configuration</h3>
 <div class="paragraph">
-<p>Where the same shape of configuration repeats under different names — data
-sources, clients, connection pools — <code>@EachProperty</code> creates one bean per entry,
-and <code>@Parameter</code> receives the name it was configured under:</p>
+<p>Use <code>@EachProperty</code> when the same configuration structure appears under several
+names, such as a set of data sources. <code>@Parameter</code> receives each entry&#8217;s name:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -991,18 +820,15 @@ case class DataSourceConfig(@Parameter name: String, url: String)</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Configuring <code>datasources.one.url</code> and <code>datasources.two.url</code> produces two
-<code>DataSourceConfig</code> beans. Each can be injected by name with <code>@Named</code>, and all of
-them together as a collection.</p>
+<p>Configuring <code>datasources.one.url</code> and <code>datasources.two.url</code> creates two
+<code>DataSourceConfig</code> beans. Inject one by name with <code>@Named</code>, or inject a
+collection to receive them all.</p>
 </div>
 </div>
 <div class="sect2">
 <h3 id="_enums_in_configuration">Enums in configuration</h3>
 <div class="paragraph">
-<p>This is the one place where the plain Scala form does not work. A value bound
-from configuration arrives as a string and has to be converted, and the
-conversion to an enum is defined for <code>java.lang.Enum</code>. A Scala 3 <code>enum</code> is not
-one unless it says so:</p>
+<p>For an enum bound from a configuration string, extend <code>java.lang.Enum</code>:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -1014,21 +840,21 @@ case class RunConfig(mode: Mode = Mode.Slow)</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>With <code>extends java.lang.Enum[Mode]</code> the binding works and the constructor
-default still applies when the property is absent. Without it the value cannot
-be converted, and the failure is reported as though the property were missing —
-which is a confusing message to debug, so it is worth writing the <code>extends</code>
-clause on any enum that a configuration class refers to.</p>
+<p>Configuration binding uses Micronaut&#8217;s Java enum converter. A plain Scala enum
+does not extend <code>java.lang.Enum</code>, so this conversion fails. The example above
+supports both a configured value and the constructor default when no value is
+set. JSON serialization has separate support for plain Scala enums; see
+<a href="#serialization">Serialization</a>.</p>
 </div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_traits_at_the_boundary_between_beans">Traits at the boundary between beans</h2>
+<h2 id="_use_traits_for_replaceable_dependencies">Use traits for replaceable dependencies</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Inject a trait, not a class. The bean asking for a dependency should name what
-it needs, and the container decides which implementation it gets:</p>
+<p>A trait lets a bean depend on an interface while Micronaut supplies an
+implementation:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -1048,10 +874,8 @@ class SmsNotifier extends Notifier:
 </div>
 </div>
 <div class="paragraph">
-<p>This is ordinary good design, but it also unlocks things in Micronaut that a
-concrete class cannot do. Where several beans implement the trait, a collection
-parameter receives all of them — useful for anything plugin-shaped, where the
-set of implementations is meant to grow:</p>
+<p>When several beans implement the trait, a collection parameter receives all of
+them:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -1062,9 +886,8 @@ class Broadcaster(notifiers: List[Notifier]):
 </div>
 </div>
 <div class="paragraph">
-<p>Where the dependency may not be there at all, an <code>Option</code> parameter is <code>None</code>
-rather than a failure, so a bean can adapt to an implementation being present
-without a <code>null</code> check:</p>
+<p>If a dependency is optional, declare an <code>Option</code> parameter. It receives <code>None</code>
+when no matching bean exists:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -1077,14 +900,13 @@ class AuditLog(archive: Option[Archive]):
 </div>
 </div>
 <div class="paragraph">
-<p>And a trait is what introduction advice needs: an abstract type with no
-implementation is the input to <code>@Introduction</code>, which is how declarative clients
-work. See <a href="#concepts">Micronaut for Scala Developers</a>.</p>
+<p>To select one of several implementations, use a qualifier such as <code>@Named</code> at
+the injection point. This also lets a test supply a different implementation
+without changing the consuming bean.</p>
 </div>
 <div class="paragraph">
-<p>Where exactly one implementation could serve but you want to choose between
-several, qualify with <code>@Named</code> at the injection point. Prefer that over injecting
-the concrete class, which removes the choice permanently.</p>
+<p>Traits can also declare abstract methods implemented by introduction advice,
+as described in <a href="#concepts">Micronaut for Scala Developers</a>.</p>
 </div>
 </div>
 </div>
@@ -1092,9 +914,8 @@ the concrete class, which removes the choice permanently.</p>
 <h2 id="_factories_for_types_you_do_not_own">Factories for types you do not own</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>A bean has to be a class the plugin compiled, which leaves out the JDK, Java
-libraries and the Scala standard library. <code>@Factory</code> closes that gap: a method
-annotated with a scope produces a bean of whatever it returns.</p>
+<p>Use <code>@Factory</code> to create beans from library types or to centralise construction
+logic. Each method annotated with a scope supplies a bean of its return type:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -1105,18 +926,15 @@ class Clocks:
 </div>
 </div>
 <div class="paragraph">
-<p><code>java.time.Clock</code> is now injectable anywhere, including into the
-<code>ReportService</code> above. This is also the right place for the construction logic
-of a type that needs assembling, so the beans that use it are not the ones
-building it.</p>
+<p>The <code>Clock</code> returned by this factory can be injected into <code>ReportService</code>.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_a_scala_object_is_a_bean_but_it_is_rarely_the_right_one">A Scala <code>object</code> is a bean, but it is rarely the right one</h2>
+<h2 id="_scala_objects_as_beans">Scala objects as beans</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>@Singleton</code> on an <code>object</code> works:</p>
+<p>A Scala <code>object</code> can be annotated with <code>@Singleton</code>:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -1130,55 +948,27 @@ class Banner(style: HouseStyle.type):
 </div>
 </div>
 <div class="paragraph">
-<p>The instinct is understandable — Micronaut&#8217;s <code>@Singleton</code> and Scala&#8217;s <code>object</code>
-both mean "one of these" — but they are not the same thing, and the injection
-point shows it: the parameter&#8217;s type is <code>HouseStyle.type</code>, the singleton type of
-that one object, which nothing else can inhabit. There is no substituting a test
-double, no alternative implementation, and no qualifier to choose between.
-Worse, the object can also be reached by name from anywhere, so the dependency
-stops being visible in the constructor.</p>
-</div>
-<div class="paragraph">
-<p>Prefer a <code>class</code> for anything with behaviour worth replacing, and keep <code>object</code>
-for what it is good at: constants and pure functions that nothing would ever
-want to inject differently.</p>
+<p>In this example, the injection point uses <code>HouseStyle.type</code>, the singleton type
+of that specific object. A test double cannot have the same singleton type.
+For behaviour you may want to replace, prefer a class injected through a trait.
+Objects remain useful for constants and pure helper functions.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_things_that_are_compile_errors_rather_than_surprises">Things that are compile errors rather than surprises</h2>
+<h2 id="_aop_and_annotation_rules">AOP and annotation rules</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Two Scala habits collide with how Micronaut applies AOP, and both are caught by
-the compiler rather than at runtime:</p>
+<p>AOP proxies extend your bean class and override advised methods. Keep advised
+classes and methods non-final so the compiler can generate those overrides.</p>
 </div>
-<div class="ulist">
-<ul>
-<li>
-<p>A <code>final class</code>, or a <code>final def</code> on an advised method, cannot be advised. The
-plugin generates a subclass that overrides advised methods, so this fails the
-build rather than producing a bean that silently loses its advice.</p>
-</li>
-<li>
-<p>An annotation is applied by Scala&#8217;s rules, not Java&#8217;s — a single value is not
-an array, and a positional argument does not go to <code>value</code>. See
-<a href="#annotations">Annotations</a>.</p>
-</li>
-</ul>
+<div class="paragraph">
+<p>Java annotation arguments also follow Scala&#8217;s rules: use explicit arrays for
+array-valued members and name annotation arguments. See <a href="#annotations">Annotations</a>
+for examples.</p>
 </div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-note" title="Note"></i>
-</td>
-<td class="content">
-Every example in this chapter is a compiled file in <code>test-suite-scala</code>,
-executed by this repository&#8217;s tests — including the enum that must extend
-<code>java.lang.Enum</code> and the defaults that come from the constructor.
-</td>
-</tr>
-</table>
+<div class="paragraph">
+<p>These examples are compiled and run by <code>GuideExamplesSpec</code> in <code>test-suite-scala</code>.</p>
 </div>
 </div>
 </div>
@@ -1193,13 +983,16 @@ executed by this repository&#8217;s tests — including the enum that must exten
 
 
 <div class="paragraph">
-<p>The compiler plugin is registered with the Scala compiler, not applied as a build
-plugin. Every build tool has its own way of doing that, and the artifact
-coordinate always carries the full compiler version.</p>
+<p>Register Micronaut Scala as a Scala compiler plugin. The configuration depends
+on your build tool, but the artifact name must always match the full Scala
+compiler version. The examples below use Scala 3.9.0 and JDK 25.</p>
 </div>
 <div class="sect1">
 <h2 id="_gradle">Gradle</h2>
 <div class="sectionbody">
+<div class="paragraph">
+<p>Use Gradle&#8217;s <code>scalaCompilerPlugins</code> configuration for the plugin:</p>
+</div>
 <div class="listingblock">
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="kotlin">plugins {
@@ -1218,40 +1011,37 @@ java {
 
 dependencies {
     implementation("org.scala-lang:scala3-library_3:3.9.0")
-    implementation("io.micronaut:micronaut-inject:5.2.0")
+    implementation("io.micronaut:micronaut-context:5.2.2")
 
     scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
     runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
 }
 
 tasks.withType&lt;ScalaCompile&gt;().configureEach {
+    options.release.set(25)
     scalaCompileOptions.additionalParameters.add("-J--add-modules=java.compiler")
 }</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>The <code>-J&#8212;&#8203;add-modules=java.compiler</code> argument is required: the plugin reaches
-Micronaut code that references <code>javax.lang.model</code>, and that module is not resolved
-by default in a JDK 9+ compiler process.</p>
+<p>The <code>java.compiler</code> module provides the <code>javax.lang.model</code> APIs used by
+Micronaut processing code. Pass <code>-J&#8212;&#8203;add-modules=java.compiler</code> to make it
+available in the compiler process.</p>
 </div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-note" title="Note"></i>
-</td>
-<td class="content">
-This is the build the repository&#8217;s own functional test generates and runs
-(<code>ScalaGradlePluginFunctionalSpec</code>), so it is verified rather than illustrative.
-</td>
-</tr>
-</table>
+<div class="paragraph">
+<p>The repository&#8217;s <code>ScalaGradlePluginFunctionalSpec</code> exercises plugin loading and
+bean generation through a separate Gradle build, using local jar files as
+dependencies.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
 <h2 id="_maven">Maven</h2>
 <div class="sectionbody">
+<div class="paragraph">
+<p>Register the compiler plugin in <code>scala-maven-plugin&#8217;s `compilerPlugins</code>
+configuration. Add runtime support as an application dependency:</p>
+</div>
 <div class="listingblock">
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="xml">&lt;properties&gt;
@@ -1295,22 +1085,24 @@ This is the build the repository&#8217;s own functional test generates and runs
 &lt;/build&gt;</code></pre>
 </div>
 </div>
+<div class="paragraph">
+<p>This fragment assumes the rest of the application&#8217;s Micronaut dependencies and
+the Scala Maven plugin version and compile executions are configured.</p>
+</div>
 </div>
 </div>
 <div class="sect1">
 <h2 id="_sbt">sbt</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>CrossVersion.full</code> is required so that the full compiler version participates in
-the coordinate; the default binary suffix would resolve <code>_3</code>, which this project
-does not publish.</p>
+<p>The example names the complete artifact ID explicitly:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">scalaVersion := "3.9.0"
 
 libraryDependencies ++= Seq(
-  "io.micronaut" % "micronaut-inject" % "5.2.0",
+  "io.micronaut" % "micronaut-context" % "5.2.2",
   "io.micronaut.scala" % "micronaut-runtime-scala" % "1.0.0-SNAPSHOT" % Runtime
 )
 
@@ -1321,14 +1113,17 @@ addCompilerPlugin(
 javacOptions ++= Seq("--add-modules", "java.compiler")</code></pre>
 </div>
 </div>
+<div class="paragraph">
+<p>If you use sbt&#8217;s <code>cross</code> dependency notation instead, select <code>CrossVersion.full</code>.
+The default binary-version suffix <code>_3</code> does not identify a published plugin.</p>
+</div>
 </div>
 </div>
 <div class="sect1">
 <h2 id="_mill">Mill</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Mill&#8217;s full-cross dependency syntax is <code>:::</code>, which plays the same role as sbt&#8217;s
-<code>CrossVersion.full</code>.</p>
+<p>Add the plugin to <code>scalacPluginIvyDeps</code>, using its full artifact ID:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1336,7 +1131,7 @@ javacOptions ++= Seq("--add-modules", "java.compiler")</code></pre>
   def scalaVersion = "3.9.0"
 
   def ivyDeps = Agg(
-    ivy"io.micronaut:micronaut-inject:5.2.0",
+    ivy"io.micronaut:micronaut-context:5.2.2",
     ivy"io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT"
   )
 
@@ -1348,17 +1143,20 @@ javacOptions ++= Seq("--add-modules", "java.compiler")</code></pre>
 }</code></pre>
 </div>
 </div>
-<div class="admonitionblock warning">
+<div class="paragraph">
+<p>When using Mill&#8217;s cross-version notation instead of an explicit suffix, use the
+full-cross <code>:::</code> form.</p>
+</div>
+<div class="admonitionblock note">
 <table>
 <tr>
 <td class="icon">
-<i class="fa icon-warning" title="Warning"></i>
+<i class="fa icon-note" title="Note"></i>
 </td>
 <td class="content">
-Only the Gradle build above is exercised by this repository&#8217;s tests. The
-Maven, sbt and Mill configurations follow each tool&#8217;s documented mechanism for
-registering a compiler plugin, but they are not verified here. See
-<a href="#troubleshooting">Troubleshooting</a> if a build does not generate bean definitions.
+The repository tests the Gradle integration. The Maven, sbt and Mill
+fragments are not exercised here. If compilation produces no bean definitions,
+see <a href="#troubleshooting">Troubleshooting</a>.
 </td>
 </tr>
 </table>
@@ -1384,20 +1182,20 @@ registering a compiler plugin, but they are not verified here. See
 </div>
 </div>
 <div class="paragraph">
-<p>An option given without <code>=</code> is set to <code>"true"</code>.</p>
+<p>An option without <code>=</code> has the value <code>"true"</code>.</p>
 </div>
 <div class="sect1">
-<h2 id="_what_the_options_are">What the options are</h2>
+<h2 id="_available_options">Available options</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The plugin does not define an option vocabulary of its own. Every option is placed
-into <code>VisitorContext.getOptions()</code>, which Micronaut itself and any
-<code>TypeElementVisitor</code> on the compilation classpath may read. The set is therefore
-open, and an unrecognised key is accepted rather than rejected — the same contract
-as <code>javac&#8217;s `-A</code> options.</p>
+<p>The plugin passes options to <code>VisitorContext.getOptions()</code>. Micronaut processing
+code and any <code>TypeElementVisitor</code> on the compilation classpath can read them,
+so visitors may accept additional keys beyond those listed here.</p>
 </div>
 <div class="paragraph">
-<p><code>-P:micronaut-scala:help</code> prints this list.</p>
+<p>The table lists the well-known keys in the plugin&#8217;s help. Their effect depends
+on the processing code that reads them. Use <code>-P:micronaut-scala:help</code> to print
+the help.</p>
 </div>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1413,7 +1211,8 @@ as <code>javac&#8217;s `-A</code> options.</p>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.processing.incremental</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code> or <code>false</code>. Whether incremental processing is enabled.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Incremental processing hint (<code>true</code> or <code>false</code>). This does not make build tools
+track generated bean definitions; see <a href="#limitations">Limitations</a>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.processing.group</code></p></td>
@@ -1425,15 +1224,16 @@ as <code>javac&#8217;s `-A</code> options.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.processing.project.dir</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The project directory, used to locate generated configuration metadata.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The project directory passed to processing code.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.processing.annotations</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Comma-separated package prefixes to restrict annotation processing to.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Comma-separated package prefixes for processors that support annotation filtering.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.processing.use.context.classloader</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code> or <code>false</code>. Whether to load visitors from the context classloader.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Micronaut&#8217;s context-classloader switch. The Scala integration enables context
+classloader lookup internally while processing.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1462,9 +1262,8 @@ as <code>javac&#8217;s `-A</code> options.</p>
 <i class="fa icon-note" title="Note"></i>
 </td>
 <td class="content">
-Because unrecognised keys are accepted silently, a misspelled option is not
-an error. If an option appears to have no effect, check the spelling against the
-table above first.
+The plugin accepts unknown keys. Check the spelling if an option has no
+effect; a typo does not cause a compilation error.
 </td>
 </tr>
 </table>
@@ -1482,17 +1281,16 @@ table above first.
 
 
 <div class="paragraph">
-<p>Micronaut&#8217;s annotations are Java annotations, and Scala applies a Java annotation
-by different rules to Java&#8217;s own. Each difference below is a compile error rather
-than a silent change in meaning, so nothing gets past the compiler — but the
-message names a type mismatch, not the rule behind it, which is hard to act on if
-you are transcribing an example from Micronaut&#8217;s Java documentation.</p>
+<p>Micronaut uses Java annotations. When applying them in Scala, use explicit
+arrays, name the arguments and write repeatable-annotation containers yourself.
+These differences matter when adapting examples from Java.</p>
 </div>
 <div class="sect1">
-<h2 id="_a_single_value_is_not_an_array">A single value is not an array</h2>
+<h2 id="_array_valued_members">Array-valued members</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Java lets a one-element array member be written without braces. Scala does not:</p>
+<p>Java allows a single value for an array-valued annotation member. Scala requires
+an array, even for one element. This does not compile:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1507,7 +1305,7 @@ Required: Array[io.micronaut.core.annotation.Introspected.AccessKind]</pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Wrap it, whether it holds one element or several:</p>
+<p>Wrap the value in <code>Array(&#8230;&#8203;)</code>:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -1518,13 +1316,12 @@ class Vehicle(val make: String)</code></pre>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_name_the_member">Name the member</h2>
+<h2 id="_named_arguments">Named arguments</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>In Java, a single unnamed argument goes to the member called <code>value</code>. Scala binds
-a positional argument by <strong>declaration order</strong> instead, which is the order the
-members appear in the annotation&#8217;s class file and is rarely the one you want. For
-<code>jakarta.validation.constraints.Min</code>, whose first declared member is <code>message</code>:</p>
+<p>Use named arguments for Java annotation members. A positional argument can bind
+to the first declared member rather than <code>value</code>. For example, <code>@Min(10)</code> binds
+to the <code>message</code> member of <code>jakarta.validation.constraints.Min</code> and fails:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1538,7 +1335,7 @@ Required: String</pre>
 </div>
 </div>
 <div class="paragraph">
-<p>The habit that always works is to name every member, even when there is only one:</p>
+<p>Name the member explicitly:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -1549,19 +1346,9 @@ class Part:
   def partNumber_=(value: String): Unit = ()</code></pre>
 </div>
 </div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-note" title="Note"></i>
-</td>
-<td class="content">
-An annotation whose only member is <code>value</code> accepts a positional argument,
-because declaration order and the <code>value</code> convention agree. Relying on that means
-the same expression breaks when a member is added ahead of it.
-</td>
-</tr>
-</table>
+<div class="paragraph">
+<p>An annotation whose only member is <code>value</code> also accepts a positional argument.
+Naming it still makes the intent clear.</p>
 </div>
 </div>
 </div>
@@ -1569,8 +1356,8 @@ the same expression breaks when a member is added ahead of it.
 <h2 id="_repeatable_annotations">Repeatable annotations</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Scala has no repeatable annotations. Writing one twice is an error, so the
-container Java would generate has to be written out, with <code>new</code> on each entry:</p>
+<p>Scala does not accept repeated applications of the same annotation. Use the
+container annotation declared by Java&#8217;s <code>@Repeatable</code>, with <code>new</code> for each entry:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -1586,9 +1373,9 @@ class Managed extends StaticAnnotation, java.lang.annotation.Annotation:
 </div>
 </div>
 <div class="paragraph">
-<p>Micronaut&#8217;s repeatable annotations each name their container in <code>@Repeatable</code> —
-<code>@Requires</code> uses <code>@Requirements</code>, <code>@InterceptorBinding</code> uses
-<code>@InterceptorBindingDefinitions</code>, <code>@Property</code> uses <code>@PropertySource</code>.</p>
+<p>For Micronaut annotations, common pairs are <code>@Requires</code> and <code>@Requirements</code>,
+<code>@InterceptorBinding</code> and <code>@InterceptorBindingDefinitions</code>, and <code>@Property</code> and
+<code>@PropertySource</code>.</p>
 </div>
 </div>
 </div>
@@ -1596,9 +1383,9 @@ class Managed extends StaticAnnotation, java.lang.annotation.Annotation:
 <h2 id="_declaring_an_annotation">Declaring an annotation</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>A Scala annotation extends <code>scala.annotation.StaticAnnotation</code>, and its members
-are constructor parameters. Give it <code>@Retention(RetentionPolicy.RUNTIME)</code> so
-Micronaut can read it, and <code>@Target</code> to say where it may be written:</p>
+<p>A Scala annotation extends <code>scala.annotation.StaticAnnotation</code> and declares its
+members as constructor parameters. Use <code>@Retention(RetentionPolicy.RUNTIME)</code>
+for Micronaut annotation processing and <code>@Target</code> to specify where it applies:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -1611,24 +1398,25 @@ class Invoice(val total: Long)</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>An annotation used as a <code>classOf[&#8230;&#8203;]</code> argument — <code>@InterceptorBean</code>, <code>@Type</code>,
-<code>@Introduction(interfaces = &#8230;&#8203;)</code> — must also extend
-<code>java.lang.annotation.Annotation</code> and override <code>annotationType()</code>, because those
-members are declared as <code>Class[? &lt;: Annotation]</code>. The <code>Managed</code> example above
-shows the full form.</p>
+<p>If another annotation accepts your annotation type as a <code>classOf[&#8230;&#8203;]</code> argument
+bounded by <code>Annotation</code>, also extend <code>java.lang.annotation.Annotation</code> and
+implement <code>annotationType()</code>, as <code>Managed</code> does above. Examples of such arguments
+include those of <code>@InterceptorBean</code>, <code>@Type</code> and <code>@Introduction(interfaces = &#8230;&#8203;)</code>.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_types_that_are_not_the_java_type_of_the_same_name">Types that are not the Java type of the same name</h2>
+<h2 id="_scala_and_java_type_names">Scala and Java type names</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>StringBuilder</code> in Scala is <code>scala.collection.mutable.StringBuilder</code>, a different
-type from <code>java.lang.StringBuilder</code>. An injection point or a bean method that
-means the Java one has to say so. The same applies to <code>Seq</code>, <code>List</code> and <code>Map</code>,
-which are Scala collections rather than <code>java.util</code> ones — both are supported,
-and <code>micronaut-runtime-scala</code> binds the Scala forms, but they are not
-interchangeable at a type level.</p>
+<p>Check which type a short name refers to. Scala&#8217;s <code>StringBuilder</code> is
+<code>scala.collection.mutable.StringBuilder</code>; use <code>java.lang.StringBuilder</code> when a
+Java API or injection point needs that type.</p>
+</div>
+<div class="paragraph">
+<p>Similarly, Scala <code>Seq</code>, <code>List</code> and <code>Map</code> differ from Java collections. The
+runtime support converts between supported collection types, but the types are
+not interchangeable in method signatures.</p>
 </div>
 </div>
 </div>
@@ -1643,35 +1431,19 @@ interchangeable at a type level.</p>
 
 
 <div class="paragraph">
-<p>Several Micronaut features put your own prose into the files they generate. The
-descriptions in configuration metadata, the <code>description</code> of a schema in an
-OpenAPI definition or a JSON schema, the summary of an operation — none of that
-is written in an annotation. It is read from the doc comment above the
-declaration.</p>
-</div>
-<div class="paragraph">
-<p>The compiler plugin reads Scaladoc for this, the way the Java integration reads
-Javadoc and the Kotlin one reads KDoc.</p>
+<p>The compiler plugin makes Scaladoc comments available to Micronaut&#8217;s
+compile-time visitors. Those visitors can use the comments for descriptions in
+configuration metadata, OpenAPI definitions and JSON schemas.</p>
 </div>
 <div class="sect1">
-<h2 id="_what_you_have_to_configure">What you have to configure</h2>
+<h2 id="_write_scaladoc_comments">Write Scaladoc comments</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Nothing, in the compiler. Doc comments are kept by the Scala compiler without
-being asked, and the plugin reads them from there, so no flag, plugin option or
-build change is involved. What matters is how the comment is written.</p>
+<p>No compiler flag or plugin option is needed. Use <code>/** &#8230;&#8203; */</code> comments above the
+declarations you want to document; ordinary <code>//</code> comments are not included.</p>
 </div>
 <div class="paragraph">
-<p><strong>Use a doc comment, not a line comment.</strong> Only <code>/** … */</code> is a doc comment. A
-<code>//</code> comment above a declaration is invisible to the compiler by the time the
-plugin runs, however much it reads like documentation.</p>
-</div>
-<div class="paragraph">
-<p><strong>Document a property where its author can write it.</strong> This is the one rule that
-is specific to Scala, and it follows from how Scala declares properties. A class
-parameter — the usual way to write a <code>@ConfigurationProperties</code> class — has no
-field and no accessor of its own to attach a comment to, so its description goes
-on the class as a <code>@param</code> tag:</p>
+<p>For a constructor property, write a class-level <code>@param</code> tag:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -1685,7 +1457,8 @@ case class MailerConfig(host: String = "localhost", port: Int = 25)</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>That is the same rule Java applies to a record, and it produces:</p>
+<p>The generated configuration metadata includes the class description and each
+parameter&#8217;s description:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1705,8 +1478,7 @@ case class MailerConfig(host: String = "localhost", port: Int = 25)</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>A member declared in the class body is documented where it is declared, as you
-would expect:</p>
+<p>For a property declared in the class body, put the comment directly above it:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1717,75 +1489,52 @@ class MailerConfig:
 </div>
 </div>
 <div class="paragraph">
-<p><strong>The first paragraphs are the description.</strong> Everything before the first block
-tag is used; from the first <code>@param</code>, <code>@return</code>, <code>@throws</code> or any other tag
-onward is not. So the sentence that should appear in generated documentation
-belongs at the top of the comment, not after a tag.</p>
+<p>Place the main description before any block tags such as <code>@param</code>, <code>@return</code>
+or <code>@throws</code>. The description ends at the first block tag.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_what_each_feature_needs">What each feature needs</h2>
+<h2 id="_where_descriptions_appear">Where descriptions appear</h2>
 <div class="sectionbody">
-<div class="paragraph">
-<p>The plugin&#8217;s part is the same for all of them: it makes the documentation
-available to compile-time processing. What consumes it differs, and each brings
-its own dependency.</p>
-</div>
 <div class="dlist">
 <dl>
 <dt class="hdlist1">Configuration metadata</dt>
 <dd>
-<p>Built in. Compiling a <code>@ConfigurationProperties</code> class
-writes <code>META-INF/spring-configuration-metadata.json</code>, and every <code>description</code> in
-it comes from the doc comments. This is what an IDE shows when completing a
-configuration key, and what the configuration reference in generated
-documentation is built from.</p>
+<p>Compiling <code>@ConfigurationProperties</code> classes generates
+<code>META-INF/spring-configuration-metadata.json</code>. The class comment describes the
+configuration group, and property comments or <code>@param</code> tags describe its keys.
+IDEs can display these descriptions during configuration completion.</p>
 </dd>
 <dt class="hdlist1">OpenAPI</dt>
 <dd>
-<p>Add <code>micronaut-openapi</code>. Schema and property descriptions are taken
-from the doc comments of the types a controller exposes, so a documented
-<code>@Serdeable</code> type produces a documented schema without a single
-<code>@Schema(description = …)</code>.</p>
+<p>Add <code>micronaut-openapi</code> to the compilation classpath to generate an
+OpenAPI definition. Its visitor can use comments on controller methods and
+exposed types for operation and schema descriptions. Explicit descriptions in
+annotations such as <code>@Schema</code> take precedence.</p>
 </dd>
 <dt class="hdlist1">JSON schema</dt>
 <dd>
-<p>Add the JSON schema generator. It reads the same descriptions
-through the same mechanism.</p>
+<p>A JSON schema generator can read the same documentation through
+Micronaut&#8217;s element API. Add the generator required by your application to the
+compilation classpath.</p>
 </dd>
 </dl>
-</div>
-<div class="paragraph">
-<p>In each case the annotation still wins where you write one: an explicit
-<code>@Schema(description = …)</code> overrides what the comment says. Documentation is the
-default, not an override.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_what_is_not_covered">What is not covered</h2>
+<h2 id="_comments_from_dependencies">Comments from dependencies</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Only what the compiler is compiling. A doc comment is in a source file, and a
-dependency arrives as a class file with its comments long gone — so a type from
-another module or a library contributes no descriptions, in Scala exactly as in
-Java and Kotlin. Where that type&#8217;s description matters, write it on the member
-that exposes it, in the module being compiled.</p>
+<p>The plugin reads comments from the sources being compiled. Class files from
+another module or library do not retain Scaladoc, so those types do not provide
+comments through this mechanism. If needed, document the member that exposes
+the dependency type in your own sources.</p>
 </div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-note" title="Note"></i>
-</td>
-<td class="content">
-The <code>MailerConfig</code> example above is compiled by this repository&#8217;s build,
-and its generated metadata file is asserted by the tests, so the JSON shown here
-is what the plugin actually writes.
-</td>
-</tr>
-</table>
+<div class="paragraph">
+<p><code>GuideExamplesSpec</code> checks the generated metadata for the <code>MailerConfig</code>
+example. OpenAPI examples and generation tests are in <code>test-suite-scala-openapi</code>.</p>
 </div>
 </div>
 </div>
@@ -1800,11 +1549,10 @@ is what the plugin actually writes.
 
 
 <div class="paragraph">
-<p>Serialization is <a href="https://micronaut-projects.github.io/micronaut-serde/latest/guide/">Micronaut
-Serialization</a> reading the introspection the compiler plugin generates. A case class needs
-nothing Scala-specific for that: its parameters are its properties, its constructor is what the
-introspection instantiates, and <code>@Serdeable</code> is <code>@Introspected</code> plus the instruction that the
-type may cross a serialization boundary.</p>
+<p><a href="https://micronaut-projects.github.io/micronaut-serde/latest/guide/">Micronaut Serialization</a>
+uses the introspections generated by the compiler plugin to read and write Scala
+objects. Annotate a case class with <code>@Serdeable</code> to enable serialization and
+deserialization:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -1814,16 +1562,28 @@ case class Line(sku: String, quantity: Int)</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>That writes as <code>{"sku":"sku-1","quantity":2}</code> and reads back through the same constructor. No
-reflective access to the type is needed at runtime, so it works under GraalVM native image
-without configuration.</p>
+<p>This example writes as <code>{"sku":"sku-1","quantity":2}</code>. Deserialization calls the
+case class constructor with the property values.</p>
 </div>
 <div class="paragraph">
-<p>Where Scala needs help is its own vocabulary. <code>Option</code> is a presence JSON has no word for, the
-Scala collections are not <code>java.util</code> collections, and a Scala 3 <code>enum</code> is not a
-<code>java.lang.Enum</code> — so none of the serializers Micronaut Serialization ships apply to any of
-them. <code>micronaut-runtime-scala</code> supplies those, so it must be on the runtime classpath for any of
-this chapter to hold:</p>
+<p>Add the serialization implementation and Scala runtime support:</p>
+</div>
+<div class="paragraph">
+<p>        <div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">implementation(<span class="hljs-string">"io.micronaut.serde:micronaut-serde-jackson")</span></code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="maven">&lt;dependency&gt;
+    &lt;groupId&gt;io.micronaut.serde&lt;/groupId&gt;
+    &lt;artifactId&gt;micronaut-serde-jackson&lt;/artifactId&gt;
+&lt;/dependency&gt;</code></pre>
+</div>
+</div>
+</p>
 </div>
 <div class="paragraph">
 <p>        <div class="listingblock multi-language-sample">
@@ -1844,28 +1604,15 @@ this chapter to hold:</p>
 </p>
 </div>
 <div class="paragraph">
-<p>alongside the serialization implementation itself:</p>
-</div>
-<div class="paragraph">
-<p>        <div class="listingblock multi-language-sample">
-<div class="title"></div>
-<div class="content">
-<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">implementation(<span class="hljs-string">"io.micronaut.serde:micronaut-serde-jackson")</span></code></pre>
-</div>
-</div>
-<div class="listingblock multi-language-sample">
-<div class="content">
-<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="maven">&lt;dependency&gt;
-    &lt;groupId&gt;io.micronaut.serde&lt;/groupId&gt;
-    &lt;artifactId&gt;micronaut-serde-jackson&lt;/artifactId&gt;
-&lt;/dependency&gt;</code></pre>
-</div>
-</div>
-</p>
+<p>The runtime module supplies serializers and deserializers for Scala <code>Option</code>,
+collections and enums.</p>
 </div>
 <div class="sect1">
 <h2 id="_a_worked_example">A worked example</h2>
 <div class="sectionbody">
+<div class="paragraph">
+<p>The following order combines these types:</p>
+</div>
 <div class="listingblock multi-language-sample">
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">/** A customer order.
@@ -1887,7 +1634,7 @@ case class Order(
 </div>
 </div>
 <div class="paragraph">
-<p>With every member supplied, that writes as:</p>
+<p>An order with one line and all optional values supplied writes as:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1900,21 +1647,19 @@ case class Order(
 }</code></pre>
 </div>
 </div>
-<div class="paragraph">
-<p>The rest of this chapter is what each of those members is doing.</p>
-</div>
 </div>
 </div>
 <div class="sect1">
 <h2 id="_option">Option</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>A <code>Some</code> is written as the value itself, with no trace of the wrapper. A <code>None</code> is <strong>absence</strong>:
-the field is left out of the document rather than written as <code>null</code>, because that is what the
-type says.</p>
+<p><code>Some(value)</code> writes the contained value without a wrapper. With the default
+inclusion settings, a property containing <code>None</code> is omitted. The serializer
+reports an empty option as absent; if it is written explicitly, it writes as
+JSON <code>null</code>.</p>
 </div>
 <div class="paragraph">
-<p>Reading is where a Scala author has to make one decision. Give the member a default:</p>
+<p>Give optional constructor parameters a default of <code>None</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1922,33 +1667,20 @@ type says.</p>
 </div>
 </div>
 <div class="paragraph">
-<p>The default is what a document that omits the field falls back to. Without it the member is
-<code>null</code> — not <code>None</code> — which is a value the Scala type says cannot exist.</p>
+<p>When the JSON omits the property, Micronaut Serialization uses the constructor
+default. Without that default, an omitted <code>Option</code> property currently receives
+<code>null</code>. An explicit JSON <code>null</code>, however, deserializes to <code>None</code> even without a
+constructor default.</p>
 </div>
 <div class="paragraph">
-<p>That is not a limitation of the plugin. Micronaut Serialization decides whether to ask a type
-for a default from a fixed list, and the list is <code>java.util.Optional</code> and its primitive
-variants; a <code>Deserializer</code> cannot add itself to it. Tracked upstream as
+<p>This missing-property behaviour is covered by the serialization tests and is
+tracked in
 <a href="https://github.com/micronaut-projects/micronaut-serialization/issues/1416">micronaut-serialization#1416</a>.</p>
 </div>
-<div class="admonitionblock tip">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-tip" title="Tip"></i>
-</td>
-<td class="content">
-Write <code>= None</code> regardless of serialization. It is the idiomatic declaration anyway — it
-makes the member optional at the call site as well as in the document, so <code>Order("A-2",
-Status.Shipped, lines)</code> compiles and the two agree about what "optional" means. The same applies
-to a defaulted collection: <code>labels: Map[String, String] = Map.empty</code>.
-</td>
-</tr>
-</table>
-</div>
 <div class="paragraph">
-<p>An explicit <code>null</code> in the document reads as <code>None</code>, with no default required. Only an absent
-field needs one.</p>
+<p>Defaults also work for collections. For example,
+<code>labels: Map[String, String] = Map.empty</code> gives an omitted <code>labels</code> property an
+empty map.</p>
 </div>
 </div>
 </div>
@@ -1956,33 +1688,22 @@ field needs one.</p>
 <h2 id="_collections">Collections</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>List</code>, <code>Seq</code>, <code>Set</code>, <code>Vector</code>, <code>IndexedSeq</code> and their mutable counterparts are all written as
-JSON arrays, and each is read back as <strong>the type the member declares</strong> rather than one shape for
-all of them. <code>Map</code> is written as a JSON object, keyed by the map&#8217;s own keys, the same way
-<code>java.util.Map</code> is.</p>
+<p>Scala collections such as <code>List</code>, <code>Seq</code>, <code>Set</code>, <code>Vector</code> and <code>IndexedSeq</code> write
+as JSON arrays. Maps write as JSON objects, with their keys represented as
+strings. During deserialization, elements, keys and values are read using the
+declared type arguments. For example, <code>List[Line]</code> uses the <code>Line</code> deserializer
+for each element, and <code>Map[Int, String]</code> converts JSON property names to integers.</p>
 </div>
 <div class="paragraph">
-<p>Nothing has to name a concrete implementation. Write <code>Seq[String]</code> and a <code>Seq</code> comes back; write
-<code>Vector[Int]</code> and a <code>Vector</code> does.</p>
-</div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-note" title="Note"></i>
-</td>
-<td class="content">
-The element type is read from the declaration, so a collection of an introspected type
-round-trips through that type&#8217;s own serializer — <code>List[Line]</code> and <code>Map[String, Line]</code> both work,
-and so does <code>Option[Line]</code>.
-</td>
-</tr>
-</table>
+<p>The result matches the declared collection type: <code>Vector[Int]</code> produces a
+<code>Vector</code>, while <code>Seq[String]</code> produces a compatible sequence. Supported mutable
+collection interfaces include <code>mutable.Seq</code>, <code>mutable.Set</code>, <code>mutable.Buffer</code>,
+<code>mutable.IndexedSeq</code> and <code>mutable.Map</code>.</p>
 </div>
 <div class="paragraph">
-<p>Reading relies on the collection converters <code>micronaut-runtime-scala</code> registers, which are the
-same ones that bind configuration properties and injection points. A collection outside that set
-has to be reached through one that is in it.</p>
+<p>Deserialization uses the collection converters registered by
+<code>micronaut-runtime-scala</code>. A custom collection type needs a converter that can
+produce that type.</p>
 </div>
 </div>
 </div>
@@ -1990,8 +1711,7 @@ has to be reached through one that is in it.</p>
 <h2 id="_scala_3_enums">Scala 3 enums</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>An <code>enum</code> whose cases take no parameters is written as its case name and read back through the
-<code>valueOf</code> the compiler generates on it:</p>
+<p>An enum with parameterless cases writes as its case name:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -2001,39 +1721,31 @@ enum Status:
 </div>
 </div>
 <div class="paragraph">
-<p>A name the enum does not have is rejected where it is read, rather than becoming a <code>null</code> the
-caller meets somewhere else.</p>
+<p>Deserialization looks up the name using the compiler-generated <code>valueOf</code> method.
+Unknown names cause a deserialization error. Serialization uses the case name
+even if the enum overrides <code>toString</code>.</p>
 </div>
 <div class="paragraph">
-<p>The enum does not need <code>@Serdeable</code> of its own. An enum whose cases take parameters is a sum
-type rather than a set of names, has no <code>valueOf</code>, and is not covered — model it as a sealed
-hierarchy of <code>@Serdeable</code> case classes instead.</p>
+<p>The enum does not need its own <code>@Serdeable</code> annotation. Enums with parameterised
+cases do not have the required <code>valueOf</code> method and are not supported by this
+serializer. Model those values with a suitably configured serializable hierarchy
+or provide a custom serializer.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_what_is_not_scala_specific">What is not Scala-specific</h2>
+<h2 id="_other_serialization_features">Other serialization features</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Everything else is ordinary Micronaut Serialization, and its own documentation applies
-unchanged: <code>@JsonProperty</code> and the other Jackson annotations it understands, naming strategies,
-views, <code>@Serdeable.Serializable</code> and <code>@Serdeable.Deserializable</code> for read-only or write-only
-types, and custom serializers of your own. Remember only that Scala applies a Java annotation by
-rules of its own — see <a href="#annotations">Annotations</a>.</p>
+<p>Micronaut Serialization&#8217;s documentation covers supported Jackson annotations,
+naming strategies, views and custom serializers. Use
+<code>@Serdeable.Serializable</code> for serialization only and <code>@Serdeable.Deserializable</code>
+for deserialization only. See <a href="#annotations">Annotations</a> for Scala&#8217;s rules
+when supplying Java annotation arguments.</p>
 </div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-note" title="Note"></i>
-</td>
-<td class="content">
-The examples in this chapter live in <code>test-suite-scala-serde</code>, are compiled by this
-repository&#8217;s build with the plugin, and are round-tripped through a real <code>ObjectMapper</code> by its
-tests. Every document shown above is asserted there.
-</td>
-</tr>
-</table>
+<div class="paragraph">
+<p>The examples in this chapter are compiled and tested with an <code>ObjectMapper</code> in
+<code>test-suite-scala-serde</code>.</p>
 </div>
 </div>
 </div>
@@ -2048,22 +1760,18 @@ tests. Every document shown above is asserted there.
 
 
 <div class="paragraph">
-<p><a href="https://micronaut-projects.github.io/micronaut-data/latest/guide/">Micronaut Data</a> generates
-a repository&#8217;s implementation at compile time from the shape of its methods, and it reads more
-of the compile-time model than anything else Micronaut ships to do it. A repository is
-introduction advice over an abstract type; the queries come from method names and from the
-resolved return types of a parameterized library supertype; the entity is mapped from a case
-class whose annotations sit on constructor parameters. All of that works from Scala, and this
-chapter is what it looks like and what has to be wired for it to happen.</p>
+<p><a href="https://micronaut-projects.github.io/micronaut-data/latest/guide/">Micronaut Data</a>
+generates query metadata at compile time and implements repository methods
+through introduction advice. Scala entities can be case classes, and repositories
+can be traits or abstract classes.</p>
 </div>
 <div class="sect1">
 <h2 id="_dependencies">Dependencies</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Micronaut Data does its work in a <code>TypeElementVisitor</code>, and the compiler plugin discovers
-visitors from the <strong>compilation</strong> classpath — see <a href="#dependencies">Artifacts and Dependencies</a>.
-So the processor is a compile-time dependency of the module holding the entities and
-repositories:</p>
+<p>Add the Data processor to the compilation classpath of the module containing
+your Scala entities and repositories. The Scala plugin discovers its
+<code>TypeElementVisitor</code> through that classpath:</p>
 </div>
 <div class="paragraph">
 <p>        <div class="listingblock multi-language-sample">
@@ -2090,20 +1798,20 @@ repositories:</p>
 <i class="fa icon-warning" title="Warning"></i>
 </td>
 <td class="content">
-Not <code>annotationProcessor</code>. That configuration feeds <code>javac</code>, and the Scala compiler
-never sees it. The build still succeeds and the repository still injects — it is introduction
-advice, and the plugin generates that regardless — but the first call fails with
-<code>IllegalStateException: Micronaut Data method is missing compilation time query information.
-Ensure that the Micronaut Data annotation processors are declared in your build</code>. That advice
-is written for Java; for Scala sources the answer is the compile-time dependency above. A
-module holding both Java and Scala entities needs it in both configurations.
+An <code>annotationProcessor</code> dependency alone is insufficient for Scala.
+That configuration is used by <code>javac</code>. A module with both Java and Scala entities
+needs the processor in both configurations.
 </td>
 </tr>
 </table>
 </div>
 <div class="paragraph">
-<p>Then the ordinary runtime pieces — the JDBC implementation, a connection pool and a driver.
-For the in-memory database this chapter uses:</p>
+<p>Without the processor on the Scala compilation classpath, a repository proxy may
+still be generated, but calling it can fail with
+<code>Micronaut Data method is missing compilation time query information</code>.</p>
+</div>
+<div class="paragraph">
+<p>For JDBC access to the in-memory H2 database used here, add:</p>
 </div>
 <div class="paragraph">
 <p>        <div class="listingblock multi-language-sample">
@@ -2159,8 +1867,7 @@ For the in-memory database this chapter uses:</p>
 </p>
 </div>
 <div class="paragraph">
-<p>And <code>micronaut-runtime-scala</code>, which is what lets a repository method return a Scala
-collection — more on that below:</p>
+<p>Also add the runtime converters for Scala collection results:</p>
 </div>
 <div class="paragraph">
 <p>        <div class="listingblock multi-language-sample">
@@ -2180,14 +1887,17 @@ collection — more on that below:</p>
 </div>
 </p>
 </div>
+<div class="paragraph">
+<p>See <a href="#dependencies">Artifacts and Dependencies</a> for more about visitor loading.</p>
+</div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_an_entity">An entity</h2>
+<h2 id="_define_an_entity">Define an entity</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>An entity is a case class. Its parameters are its columns, and <code>@Id</code> marks the one the
-database assigns:</p>
+<p>Annotate a case class with <code>@MappedEntity</code>. Put the property annotations on its
+constructor parameters:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -2206,25 +1916,23 @@ case class Book(
 </div>
 </div>
 <div class="paragraph">
-<p>The annotations are on the <strong>class parameters</strong>, because that is where a Scala property is
-declared. The plugin carries them to the property the introspection exposes, so Micronaut Data
-sees the same thing it would see on a Java record — the rule <a href="#idiomatic">Idiomatic Scala</a>
-gives for configuration applies here unchanged.</p>
+<p>The plugin makes those annotations available on the properties Micronaut Data
+processes. <code>@Id</code> marks the identifier, and <code>@GeneratedValue</code> requests a
+database-generated value.</p>
 </div>
 <div class="paragraph">
-<p>The identifier is Scala&#8217;s <code>Long</code>, which is the primitive. An entity that has not been saved yet
-has <code>id</code> of <code>0</code>, not <code>null</code> — the same convention a Java entity with a <code>long</code> identifier
-follows, and what <code>save</code> returns has the identifier the database assigned.</p>
+<p>The identifier uses Scala <code>Long</code>, which maps to Java&#8217;s primitive <code>long</code>. A new
+entity starts with <code>id</code> set to <code>0</code>; the entity returned by <code>save</code> contains the
+generated identifier.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_a_repository">A repository</h2>
+<h2 id="_define_a_repository">Define a repository</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>A repository is a trait. Extending <code>CrudRepository</code> supplies the usual operations; any further
-method is a query derived from its own name — read <code>findByTitle</code> as <code>where title = ?</code> and
-<code>countByPagesGreaterThan</code> as <code>select count(*) … where pages &gt; ?</code>:</p>
+<p>Extend <code>CrudRepository</code> to inherit the standard persistence operations. Add
+methods whose names describe queries:</p>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
@@ -2243,40 +1951,33 @@ trait BookRepository extends CrudRepository[Book, Long]:
 </div>
 </div>
 <div class="paragraph">
-<p>There is no implementation of either type anywhere, and none to write. At compile time the
-plugin generates the entity&#8217;s introspection, Micronaut Data reads it to work out the table and
-columns, derives the SQL for every method including the inherited ones, and generates the
-class that runs it. Injecting <code>BookRepository</code> gives you that class.</p>
+<p><code>findByTitle</code> finds matching rows, and <code>countByPagesGreaterThan</code> counts rows with
+a larger page count. The type arguments in <code>CrudRepository[Book, Long]</code> tell
+Micronaut Data which entity and identifier types the inherited operations use.</p>
 </div>
 <div class="paragraph">
-<p>It has to be a trait or an abstract class. A concrete class has a body of its own and cannot
-be introduced; a trait can have concrete methods too, which run as written.</p>
-</div>
-<div class="paragraph">
-<p><code>@JdbcRepository(dialect = Dialect.H2)</code> is written exactly as in Java — a Java annotation with
-a named enum argument — and <code>CrudRepository[Book, Long]</code> is the parameterized library
-supertype whose inherited methods Micronaut Data resolves against the entity.</p>
+<p>The compiler plugin and Data processor generate the proxy and query metadata.
+Inject <code>BookRepository</code> to use it; you do not need to implement the abstract
+methods. Concrete methods on the trait or abstract class retain their own
+implementation.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_scala_types_in_signatures">Scala types in signatures</h2>
+<h2 id="_scala_types_in_method_signatures">Scala types in method signatures</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>findByTitle</code> returns <code>List[Book]</code> — Scala&#8217;s <code>List</code>, not <code>java.util.List</code>. Micronaut Data asks
-at compile time whether a declared return type stands in for an <code>Iterable</code> so that it knows to
-generate a many-row query, and the plugin answers yes for a Scala collection. At runtime the
-rows arrive as a Java collection and <code>micronaut-runtime-scala&#8217;s converters produce the
-declared one, so the caller gets `scala.List</code> back. Write the Scala type and you get the Scala
+<p><code>findByTitle</code> returns a Scala <code>List[Book]</code>. At compile time, the plugin identifies
+Scala collections as iterable results so Data can process a multi-row query.
+At runtime, the Scala converters turn the result collection into the declared
 type.</p>
 </div>
 <div class="paragraph">
-<p><code>Long</code> return types are the primitive, as <code>countByPagesGreaterThan</code> shows.</p>
+<p><code>countByPagesGreaterThan</code> returns Scala <code>Long</code>, represented as a primitive.</p>
 </div>
 <div class="paragraph">
-<p>A query that may find nothing is declared as <code>java.util.Optional</code>, as <code>findFirstByTitle</code>
-does — not <code>Option</code>. Micronaut Data recognises the single-result containers from a list of its
-own (<code>Optional</code>, the reactive types) and rejects anything else at compile time:</p>
+<p>For an optional single result, use <code>java.util.Optional</code>, as <code>findFirstByTitle</code>
+does. Micronaut Data currently rejects <code>scala.Option</code> for this signature:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -2285,8 +1986,8 @@ Query results in a type [Book] whilst method returns an incompatible type: scala
 </div>
 </div>
 <div class="paragraph">
-<p>Convert at the call site with <code>.toScala</code> from <code>scala.jdk.OptionConverters</code> if an <code>Option</code> is
-wanted.</p>
+<p>To convert the result to Scala <code>Option</code>, import <code>scala.jdk.OptionConverters.*</code>
+and call <code>.toScala</code>.</p>
 </div>
 </div>
 </div>
@@ -2294,8 +1995,8 @@ wanted.</p>
 <h2 id="_configuration_and_testing">Configuration and testing</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The repository binds to the default data source, so the ordinary Micronaut Data configuration
-applies. For an in-memory H2 database that creates its own schema:</p>
+<p>The example repository uses the default data source. Configure an in-memory H2
+database with schema creation enabled:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -2310,24 +2011,12 @@ applies. For an in-memory H2 database that creates its own schema:</p>
 </div>
 </div>
 <div class="paragraph">
-<p>That is all a test needs: start an <code>ApplicationContext</code> with those properties, inject the
-repository, and call it. Nothing about testing is Scala-specific.</p>
+<p>In a test, start an <code>ApplicationContext</code> with these properties, retrieve the
+repository and call its methods.</p>
 </div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-note" title="Note"></i>
-</td>
-<td class="content">
-The types in this chapter live in <code>test-suite-scala-data</code>, are compiled by this
-repository&#8217;s build with the plugin, and are executed by its tests against exactly that
-configuration — saving rows, deriving queries, counting in SQL. The module also compiles a
-Java repository of the same shape with Micronaut Data&#8217;s own annotation processor, and what the
-two generate is compared; that comparison is how the Scala path was made to match.
-</td>
-</tr>
-</table>
+<div class="paragraph">
+<p>The examples are compiled and run against H2 in <code>test-suite-scala-data</code>. That
+module also compares generated query metadata with an equivalent Java repository.</p>
 </div>
 </div>
 </div>
@@ -2342,8 +2031,7 @@ two generate is compared; that comparison is how the Scala path was made to matc
 
 
 <div class="paragraph">
-<p>This project publishes three artifacts. They are not interchangeable, and the most
-common setup problem is using one where another is meant.</p>
+<p>Choose dependencies according to where they run:</p>
 </div>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -2355,13 +2043,13 @@ common setup problem is using one where another is meant.</p>
 <tr>
 <th class="tableblock halign-left valign-top">Artifact</th>
 <th class="tableblock halign-left valign-top">Where it goes</th>
-<th class="tableblock halign-left valign-top">Crossed with the compiler version</th>
+<th class="tableblock halign-left valign-top">Compiler-version suffix</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut-inject-scala_&lt;scala version&gt;</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Scala compiler plugin configuration only</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Scala compiler plugin configuration</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
 </tr>
 <tr>
@@ -2371,82 +2059,74 @@ common setup problem is using one where another is meant.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut-inject-scala-test_&lt;scala version&gt;</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Test compile classpath of <strong>this</strong> kind of project only</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Test compile classpath for compiler-integration tests</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
 </tr>
 </tbody>
 </table>
 <div class="sect1">
-<h2 id="_the_compiler_plugin">The compiler plugin</h2>
+<h2 id="_compiler_plugin">Compiler plugin</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>micronaut-inject-scala_3.9.0</code> runs inside the Scala compiler and generates bean
-definitions. It bundles the Micronaut and ASM classes it compiles against, at
-their original package paths, because a Scala compiler plugin is loaded in an
-isolated classloader that cannot see the compile classpath.</p>
+<p><code>micronaut-inject-scala_3.9.0</code> runs inside the Scala compiler. It bundles the
+Micronaut and ASM classes it needs because the compiler loads plugins in an
+isolated classloader.</p>
 </div>
 <div class="paragraph">
-<p>That has two consequences worth knowing:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>The published POM deliberately declares almost nothing. Its dependencies are
-inside the jar, and declaring them as well would put every one of those classes
-on a consumer&#8217;s classpath twice.</p>
-</li>
-<li>
-<p>It must not go on an application&#8217;s runtime classpath. Doing so places a second
-copy of Micronaut and ASM into the running application.</p>
-</li>
-</ul>
+<p>Most bundled dependencies are omitted from the published POM to avoid resolving
+them again as separate plugin jars. Keep the compiler plugin on the compiler
+plugin configuration: putting it on an application&#8217;s runtime classpath can
+introduce conflicting copies of Micronaut and ASM.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_the_runtime_support">The runtime support</h2>
+<h2 id="_runtime_support">Runtime support</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>micronaut-runtime-scala</code> is an ordinary small library holding the converters that
-let Micronaut bind Scala collections and <code>scala.Option</code>. Without it on the runtime
-classpath, a bean that injects a <code>List[T]</code>, a <code>Map[String, T]</code> or an <code>Option[T]</code>
-will fail to bind at runtime even though it compiled.</p>
+<p><code>micronaut-runtime-scala</code> supplies converters for Scala collections and <code>Option</code>.
+It also provides serializers and deserializers when Micronaut Serialization is
+present. Include it at runtime when your application uses these features.</p>
 </div>
 <div class="paragraph">
-<p>It is not crossed with the compiler version, because it is not a compiler plugin.</p>
+<p>This artifact has no compiler-version suffix because it does not run inside the
+compiler.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_visitors_on_the_compilation_classpath">Visitors on the compilation classpath</h2>
+<h2 id="_compile_time_visitors">Compile-time visitors</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>TypeElementVisitor</code> implementations are discovered with <code>ServiceLoader</code> from the
-<strong>compilation</strong> classpath. A visitor supplied by another Micronaut module — for
-example the validation processor — therefore has to be a compile-time dependency
-of the module being compiled, not a runtime one.</p>
+<p>The Scala plugin discovers <code>TypeElementVisitor</code> implementations through
+<code>ServiceLoader</code> on the compilation classpath. Processors from other Micronaut
+modules, such as validation or Data, must therefore be compile-time dependencies
+of the module containing your Scala sources.</p>
 </div>
 <div class="paragraph">
-<p>A visitor and its dependencies are loaded from that classpath, ahead of anything
-the compiler process itself was started with. The only classes a visitor shares
-with the plugin are the JDK&#8217;s, the compiler&#8217;s, and what the plugin jar bundles:
-Micronaut&#8217;s Element API and the annotations it ships. A library that both a
-visitor and the compiler&#8217;s own toolchain depend on — Gradle starts the compiler
-with scaladoc, and so with scaladoc&#8217;s Jackson and snakeyaml — is the version the
-module declares, never the toolchain&#8217;s.</p>
+<p>Adding a processor only to Gradle&#8217;s <code>annotationProcessor</code> configuration makes it
+available to <code>javac</code>, not to the Scala plugin. Use <code>compileOnly</code> for a processor
+needed by Scala sources.</p>
+</div>
+<div class="paragraph">
+<p>Visitors load their dependencies from the compilation classpath in preference
+to the compiler process&#8217;s own libraries. They share the JDK, Scala compiler
+classes and classes bundled with the plugin. This keeps libraries used by a
+visitor, such as Jackson or SnakeYAML, separate from versions used by the build
+tool&#8217;s compiler infrastructure.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_version_relationships">Version relationships</h2>
+<h2 id="_versions">Versions</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The Scala version in the artifact name is the full compiler version, not the
-binary line. <code>_3.9.0</code> is correct; <code>_3</code> is not published. See
-<a href="#introduction">Supported versions</a> for why.</p>
+<p>The suffix identifies the full Scala compiler version. For example,
+<code>micronaut-inject-scala_3.9.0</code> is published; <code>micronaut-inject-scala_3</code> is not.
+See <a href="#introduction">Supported versions</a> for the available compiler variants.</p>
 </div>
 <div class="paragraph">
-<p>The project version is independent of the Micronaut Core version.</p>
+<p>The Micronaut Scala release version is independent of the Micronaut Core version.</p>
 </div>
 </div>
 </div>
@@ -2461,16 +2141,17 @@ binary line. <code>_3.9.0</code> is correct; <code>_3</code> is not published. S
 
 
 <div class="paragraph">
-<p><code>micronaut-inject-scala-test_&lt;scala version&gt;</code> provides the harness this repository
-uses to compile Scala sources in-process and inspect the result: the element model,
-the generated bean definitions, or a running <code>ApplicationContext</code>.</p>
+<p><code>micronaut-inject-scala-test_&lt;scala version&gt;</code> provides a harness for compiling
+Scala sources in-process and inspecting the resulting elements, bean definitions
+and introspections. It can also start an <code>ApplicationContext</code> from the compiled
+classes.</p>
 </div>
 <div class="paragraph">
-<p>It is intended for projects that extend the Scala integration itself. An
-application does not need it to test its own beans.</p>
+<p>Use this harness when developing the Scala integration or a compile-time visitor.
+Application tests can use the normal Micronaut testing APIs without it.</p>
 </div>
 <div class="sect1">
-<h2 id="_adding_it">Adding it</h2>
+<h2 id="_add_the_harness">Add the harness</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>        <div class="listingblock multi-language-sample">
@@ -2491,18 +2172,17 @@ application does not need it to test its own beans.</p>
 </p>
 </div>
 <div class="paragraph">
-<p>The artifact name carries the full Scala compiler version, as every compiler-side
-artifact here does — see <a href="#dependencies">Artifacts and Dependencies</a>.</p>
+<p>The artifact suffix must match the full Scala compiler version. See
+<a href="#dependencies">Artifacts and Dependencies</a>.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_required_system_properties">Required system properties</h2>
+<h2 id="_set_the_system_properties">Set the system properties</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The harness compiles by invoking the Scala compiler directly, so it has to be told
-where the plugin and the compilation classpath are. Both are required, and the
-harness fails immediately if either is missing.</p>
+<p>The harness invokes the Scala compiler directly. Supply both of these properties
+so it can locate the plugin and resolve the compiled source&#8217;s dependencies:</p>
 </div>
 <table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -2522,10 +2202,13 @@ harness fails immediately if either is missing.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.scala.test.classpath</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The classpath compiled sources are resolved against, usually the test runtime classpath.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Classpath for the compiled sources, usually the test runtime classpath.</p></td>
 </tr>
 </tbody>
 </table>
+<div class="paragraph">
+<p>For a Gradle test task, with <code>pluginJar</code> referring to the built plugin jar:</p>
+</div>
 <div class="listingblock">
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="kotlin">tasks.withType&lt;Test&gt;().configureEach {
@@ -2540,41 +2223,41 @@ harness fails immediately if either is missing.</p>
 </div>
 </div>
 <div class="paragraph">
-<p>The properties are set in <code>doFirst</code> rather than at configuration time so that
-resolving the classpath does not happen during configuration.</p>
+<p>Using <code>doFirst</code> defers classpath resolution until the test task runs. The harness
+reports an error if either required property is missing.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_what_the_harness_offers">What the harness offers</h2>
+<h2 id="_compile_and_inspect_sources">Compile and inspect sources</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>AbstractScalaTypeElementSpec</code> exposes the operations the specs in this repository
-are written against:</p>
+<p><code>AbstractScalaTypeElementSpec</code> provides these helpers:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><code>buildClassElement(name, source)</code> — compile a source and return its <code>ClassElement</code></p>
+<p><code>buildClassElement(name, source)</code> compiles source and returns its <code>ClassElement</code>.</p>
 </li>
 <li>
-<p><code>buildBeanDefinition(name, source)</code> — compile and load the generated definition</p>
+<p><code>buildBeanDefinition(name, source)</code> compiles and loads a bean definition.</p>
 </li>
 <li>
-<p><code>buildBeanIntrospection(name, source)</code> — compile and load the generated introspection</p>
+<p><code>buildBeanIntrospection(name, source)</code> compiles and loads an introspection.</p>
 </li>
 <li>
-<p><code>buildContext(source, properties, includeAllBeans)</code> — compile and start an <code>ApplicationContext</code></p>
+<p><code>buildContext(source, properties, includeAllBeans)</code> compiles source and starts
+an <code>ApplicationContext</code>.</p>
 </li>
 <li>
-<p><code>buildClassLoader(name, source)</code> — compile and return a classloader over the output</p>
+<p><code>buildClassLoader(name, source)</code> compiles source and returns a classloader for
+the output.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>A visitor can be installed for the duration of one compilation to capture the
-<code>VisitorContext</code>, which is how the specs assert against elements the compiler
-produced rather than against elements they constructed.</p>
+<p>A test can install a visitor for a compilation to capture the <code>VisitorContext</code>
+and inspect the elements produced by the compiler.</p>
 </div>
 </div>
 </div>
@@ -2589,70 +2272,61 @@ produced rather than against elements they constructed.</p>
 
 
 <div class="paragraph">
-<p>Known gaps, with the reason for each. Anything not listed here is either supported
-or has not been established either way.</p>
+<p>This chapter describes known limitations and Scala bytecode details that can
+affect compile-time visitors.</p>
 </div>
 <div class="sect1">
 <h2 id="_incremental_compilation">Incremental compilation</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Bean definitions are written into the class output directory by the compiler
-plugin, not through the compiler&#8217;s own output mechanism, so the build tool does
-not record them as products of the source that produced them.</p>
+<p>Generated bean definitions are written directly into the class output directory.
+Build tools do not track them as outputs belonging to a particular source file.
+Deleting or renaming a bean&#8217;s source can therefore leave its generated definition
+and registration marker behind.</p>
 </div>
 <div class="paragraph">
-<p>The visible consequence is that <strong>deleting a bean&#8217;s source does not remove its bean
-definition</strong>. The generated <code>$Foo$Definition.class</code> and its
-<code>META-INF/micronaut/io.micronaut.inject.BeanDefinitionReference/</code> marker both
-survive the rebuild, so a deleted bean is still a bean at runtime. The same
-applies to a definition left behind by a compilation that later failed.</p>
+<p>For example, <code>$Foo$Definition.class</code> and its marker under
+<code>META-INF/micronaut/io.micronaut.inject.BeanDefinitionReference/</code> may survive an
+incremental rebuild. The application can then still discover the old bean.
+A compilation that fails after generating files can also leave stale output.</p>
 </div>
 <div class="paragraph">
-<p>Run a clean build after deleting or renaming a bean.</p>
+<p>Run a clean build after deleting or renaming a bean, or when stale generated
+classes remain after a failed compilation.</p>
 </div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-note" title="Note"></i>
-</td>
-<td class="content">
-A partial recompile does <strong>not</strong> lose the definitions of sources it did not
-recompile. Each implementation gets its own empty marker file named for the class,
-so there is no shared service file for a partial run to truncate.
-</td>
-</tr>
-</table>
+<div class="paragraph">
+<p>Recompiling only some sources does retain the definitions for unchanged sources.
+Each bean has its own registration marker, so a partial compilation does not
+replace a shared list of all beans.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_not_defects">Not defects</h2>
+<h2 id="_scala_bytecode_and_the_element_model">Scala bytecode and the element model</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Listed because they look like gaps and are not:</p>
+<p>When writing a visitor, keep these differences from Java source in mind:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>Varargs.</strong> <code>def f(xs: String*)</code> compiles to a single method taking
-<code>scala.collection.immutable.Seq</code> with <code>ACC_VARARGS</code> unset, so the parameter type
-and <code>isVarArgs() == false</code> are both accurate.</p>
+<p>A repeated parameter such as <code>def f(xs: String*)</code> is represented as a single
+<code>scala.collection.immutable.Seq</code> parameter. The method has no JVM varargs flag,
+so <code>isVarArgs()</code> returns <code>false</code>.</p>
 </li>
 <li>
-<p><strong><code>protected</code>.</strong> Scala <code>protected</code> and <code>protected[pkg]</code> compile to public
-members, and the model reports what the bytecode contains.</p>
+<p>Scala <code>protected</code> and <code>protected[pkg]</code> members can be public in the bytecode.
+The element model reports that JVM visibility.</p>
 </li>
 <li>
-<p><strong>Field visibility.</strong> Every Scala <code>val</code> and <code>var</code> is a private field behind
-accessors, so queries that select public fields return nothing. The fields are
-present; they are not accessible.</p>
-</li>
-<li>
-<p><strong>Trait parameters, <code>inline</code>, and extension methods declared in a class body</strong>
-are all modelled.</p>
+<p>Scala <code>val</code> and <code>var</code> properties have private backing fields and accessor
+methods. A query for public fields will not find those backing fields.</p>
 </li>
 </ul>
+</div>
+<div class="paragraph">
+<p>The model also includes trait parameters, <code>inline</code> methods and extension
+methods declared in a class body.</p>
 </div>
 </div>
 </div>
@@ -2670,21 +2344,20 @@ are all modelled.</p>
 <h2 id="_no_bean_definitions_are_generated">No bean definitions are generated</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The compilation succeeds and no <code>$*$Definition</code> classes appear.</p>
+<p>If compilation succeeds but produces no <code>$*$Definition</code> classes, check that the
+plugin is registered with the Scala compiler. Use <code>scalaCompilerPlugins</code>,
+<code>addCompilerPlugin</code>, <code>scalacPluginIvyDeps</code> or Maven&#8217;s <code>compilerPlugins</code>, as shown
+in <a href="#buildTools">Build Tools</a>. An ordinary application dependency does not load
+the plugin.</p>
 </div>
 <div class="paragraph">
-<p>The plugin is not being applied. A Scala compiler plugin has to be registered with
-the compiler itself, not added as a dependency — check that it is on the compiler
-plugin configuration (<code>scalaCompilerPlugins</code>, <code>addCompilerPlugin</code>,
-<code>scalacPluginIvyDeps</code>, or <code>&lt;compilerPlugins&gt;</code>) and not on <code>implementation</code>.</p>
-</div>
-<div class="paragraph">
-<p>Run the compiler with <code>-Xplugin-list</code> to see which plugins actually loaded.</p>
+<p>Run the compiler with <code>-Xplugin-list</code> to check which plugins loaded. Also check
+that the source declares a bean, for example with <code>@Singleton</code>.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_noclassdeffounderror_from_inside_the_compiler"><code>NoClassDefFoundError</code> from inside the compiler</h2>
+<h2 id="_noclassdeffounderror_inside_the_compiler"><code>NoClassDefFoundError</code> inside the compiler</h2>
 <div class="sectionbody">
 <div class="listingblock">
 <div class="content">
@@ -2692,19 +2365,15 @@ plugin configuration (<code>scalaCompilerPlugins</code>, <code>addCompilerPlugin
 </div>
 </div>
 <div class="paragraph">
-<p>The plugin jar has been stripped of the classes it bundles, or replaced with one
-that never had them.</p>
+<p>Check that you are using the published compiler plugin jar with its bundled
+dependencies. A jar containing only this project&#8217;s classes lacks the Micronaut
+and ASM classes needed during processing.</p>
 </div>
 <div class="paragraph">
-<p>A Scala compiler plugin is loaded in a classloader built from <strong>its own</strong>
-<code>-Xplugin</code> argument, and that classloader cannot see the compile classpath. The
-published jar therefore carries the Micronaut and ASM classes it needs. Repacking
-it, or substituting a jar of only this project&#8217;s classes, removes exactly the
-classes the plugin loads first.</p>
-</div>
-<div class="paragraph">
-<p>Declaring the dependencies separately does not help: build tools pass each
-resolved file as its own <code>-Xplugin</code> argument, so each gets its own classloader.</p>
+<p>The Scala compiler loads a plugin from its <code>-Xplugin</code> path in a separate
+classloader. In Gradle, each resolved plugin jar gets its own <code>-Xplugin</code>
+argument, so adding the missing dependencies as separate plugin entries does
+not make them visible to the plugin. Use the complete bundled jar.</p>
 </div>
 </div>
 </div>
@@ -2717,10 +2386,13 @@ resolved file as its own <code>-Xplugin</code> argument, so each gets its own cl
 </div>
 </div>
 <div class="paragraph">
-<p>Something is passing more jars to <code>-Xplugin</code> than intended, usually transitive
-resolution of the compiler plugin configuration. The warnings are harmless — a jar
-without a plugin descriptor is skipped — but they indicate the configuration is
-resolving more than the one artifact it needs.</p>
+<p>A jar passed to <code>-Xplugin</code> has no plugin descriptor. This can happen when the
+build tool resolves transitive dependencies into the compiler plugin
+configuration. The compiler skips those jars.</p>
+</div>
+<div class="paragraph">
+<p>Check the resolved plugin configuration. The Micronaut Scala plugin jar itself
+must contain <code>plugin.properties</code> at its root.</p>
 </div>
 </div>
 </div>
@@ -2728,7 +2400,7 @@ resolving more than the one artifact it needs.</p>
 <h2 id="_errors_mentioning_javax_lang_model">Errors mentioning <code>javax.lang.model</code></h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The <code>java.compiler</code> module is not resolved in the compiler process. Add:</p>
+<p>Make the <code>java.compiler</code> module available in the compiler process:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -2736,7 +2408,7 @@ resolving more than the one artifact it needs.</p>
 </div>
 </div>
 <div class="paragraph">
-<p>to the Scala compiler arguments. See <a href="#buildTools">Build Tools</a> for where it goes in each tool.</p>
+<p>See <a href="#buildTools">Build Tools</a> for the compiler configuration examples.</p>
 </div>
 </div>
 </div>
@@ -2744,27 +2416,27 @@ resolving more than the one artifact it needs.</p>
 <h2 id="_could_not_find_3version"><code>Could not find &#8230;&#8203;_3:&lt;version&gt;</code></h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The artifact coordinate is using the binary Scala line rather than the full
-compiler version. This project publishes <code>micronaut-inject-scala_3.9.0</code>, not
-<code>micronaut-inject-scala_3</code>, because compiler plugin APIs can change between
-compiler releases.</p>
+<p>Use the full Scala compiler version in the plugin artifact name. For example,
+this project publishes <code>micronaut-inject-scala_3.9.0</code>, not
+<code>micronaut-inject-scala_3</code>.</p>
 </div>
 <div class="paragraph">
-<p>In sbt use <code>CrossVersion.full</code>; in Mill use the <code>:::</code> syntax; in Gradle and Maven
-write the full version into the artifact ID.</p>
+<p>With cross-version notation, use <code>CrossVersion.full</code> in sbt or <code>:::</code> in Mill.
+With explicit coordinates, write the full suffix in the artifact ID.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_scala_collections_or_option_fail_to_bind_at_runtime">Scala collections or <code>Option</code> fail to bind at runtime</h2>
+<h2 id="_scala_collections_or_option_fail_to_bind">Scala collections or <code>Option</code> fail to bind</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The code compiles, and injecting a <code>List[T]</code>, <code>Map[String, T]</code> or <code>Option[T]</code>
-fails when the application starts.</p>
+<p>If configuration binding or injection involving a Scala collection or <code>Option</code>
+fails at runtime, check that <code>micronaut-runtime-scala</code> is on the runtime
+classpath. Its converters are separate from the compiler plugin. Also check
+that the configured values can be converted to the declared element type.</p>
 </div>
 <div class="paragraph">
-<p><code>micronaut-runtime-scala</code> is missing from the runtime classpath. The converters
-live there rather than in the compiler plugin — see <a href="#dependencies">Artifacts and Dependencies</a>.</p>
+<p>See <a href="#dependencies">Artifacts and Dependencies</a>.</p>
 </div>
 </div>
 </div>
@@ -2777,32 +2449,30 @@ live there rather than in the compiler plugin — see <a href="#dependencies">Ar
 </div>
 </div>
 <div class="paragraph">
-<p>A dependency-resolution rule is forcing the Scala 3 version onto Gradle&#8217;s own Zinc
-configuration. Zinc is built for Scala 2.13 and needs the 2.13 <code>scala-library</code> and
-<code>scala-reflect</code>; it is Gradle&#8217;s toolchain, not the project&#8217;s. Exempt the <code>zinc</code>
-configuration from any Scala pinning rule.</p>
+<p>Check whether a dependency-resolution rule is applying your Scala 3 version to
+Gradle&#8217;s <code>zinc</code> configuration. Zinc needs its own Scala 2.13 <code>scala-library</code> and
+<code>scala-reflect</code> dependencies. Exempt that configuration from application Scala
+version pinning.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_a_deleted_bean_is_still_being_injected">A deleted bean is still being injected</h2>
+<h2 id="_a_deleted_bean_is_still_available">A deleted bean is still available</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The source was deleted or renamed, and the application still resolves the old bean.</p>
-</div>
-<div class="paragraph">
-<p>Bean definitions are not registered with the build tool as products of their
-source, so it does not clean them when the source goes. Run a clean build. See
-<a href="#limitations">Limitations</a>.</p>
+<p>Run a clean build after deleting or renaming a bean. Build tools do not track
+the generated bean definition as an output of its source, so an incremental
+build can leave the definition behind. See <a href="#limitations">Limitations</a>.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_a_pmicronaut_scala_option_appears_to_do_nothing">A <code>-P:micronaut-scala:</code> option appears to do nothing</h2>
+<h2 id="_a_plugin_option_has_no_effect">A plugin option has no effect</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Options are passed through to <code>VisitorContext.getOptions()</code> and the set is open, so
-an unrecognised key is accepted rather than rejected. Check the spelling against
+<p>The plugin passes <code>-P:micronaut-scala:</code> options to
+<code>VisitorContext.getOptions()</code> and accepts unknown keys. Check the spelling and
+confirm that the visitor using the option is on the compilation classpath. See
 <a href="#configuration">Configuration Options</a>.</p>
 </div>
 </div>
@@ -2818,42 +2488,44 @@ an unrecognised key is accepted rather than rejected. Check the spelling against
 
 
 <div class="paragraph">
-<p>The Micronaut Scala source code, issue tracker, and pull requests are hosted
-in the
-<a href="https://github.com/micronaut-projects/micronaut-scala">micronaut-projects/micronaut-scala repository</a>.</p>
+<p>Source code, issues and pull requests are available in the
+<a href="https://github.com/micronaut-projects/micronaut-scala">Micronaut Scala repository</a>.</p>
 </div>
 <div class="paragraph">
-<p>The repository is organized into shared implementation/test sources and
-compiler-versioned projects:</p>
+<p>The repository separates shared sources from compiler-specific builds:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><code>inject-scala</code> contains shared Scala processing implementation sources.</p>
+<p><code>inject-scala</code> contains the compiler plugin implementation.</p>
 </li>
 <li>
-<p><code>inject-scala-test</code> contains shared parity and compiler test sources.</p>
+<p><code>inject-scala-test</code> contains the compiler test harness and parity tests.</p>
 </li>
 <li>
-<p><code>inject-scala-compiler</code> publishes the selected Scala compiler plugin.</p>
+<p><code>inject-scala-compiler</code> publishes the primary compiler plugin, and
+<code>inject-scala-compiler-lts</code> builds the same sources for Scala 3.3.8.</p>
 </li>
 <li>
-<p><code>inject-scala-test-compiler</code> publishes the matching compiler test support.</p>
+<p><code>inject-scala-test-compiler</code> publishes the test harness and runs the compiler
+integration tests.</p>
 </li>
 <li>
-<p><code>micronaut-scala-bom</code> manages the published Scala artifacts.</p>
+<p><code>runtime-scala</code> contains converters and serialization support.</p>
+</li>
+<li>
+<p><code>test-suite-scala</code> contains the main guide examples. The <code>test-suite-scala-data</code>,
+<code>test-suite-scala-serde</code> and <code>test-suite-scala-openapi</code> modules cover those
+integrations.</p>
+</li>
+<li>
+<p><code>micronaut-scala-bom</code> manages the published artifact versions.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>The complete compiler version is intentionally part of each compiler-coupled
-artifact name. This keeps incompatible compiler-plugin APIs from being
-silently mixed.</p>
-</div>
-<div class="paragraph">
-<p>For the Core-side SPI and application documentation, see the
-<a href="https://github.com/micronaut-projects/micronaut-core/pull/12695">Core SPI change</a>
-and the related Scala documentation follow-up.</p>
+<p>See <code>CONTRIBUTING.md</code> in the repository for the JDK requirements, build commands
+and contribution process.</p>
 </div>
 
 <h1 id="releaseHistory"><a class="anchor" href="#releaseHistory"></a>16 Release History</h1>
@@ -2866,22 +2538,17 @@ and the related Scala documentation follow-up.</p>
 
 
 <div class="paragraph">
-<p>Release notes and published versions are available from:</p>
+<p>Published versions and release notes are listed on the
+<a href="https://github.com/micronaut-projects/micronaut-scala/releases">Micronaut Scala releases page</a>.</p>
 </div>
 <div class="paragraph">
-<p><a href="https://github.com/micronaut-projects/micronaut-scala/releases">the Micronaut Scala releases page</a>.</p>
+<p>Micronaut Scala has its own release version, independent of Micronaut Core.
+Development versions use the <code>-SNAPSHOT</code> suffix.</p>
 </div>
 <div class="paragraph">
-<p>The project uses an independent version line from Micronaut Core. Snapshot
-versions are used while the Core SPI and Scala implementation are developed
-together. A <code>1.0.0</code> release is published only after a released Micronaut Core
-version contains the required SPI.</p>
-</div>
-<div class="paragraph">
-<p>Each Scala compiler-plugin release remains coupled to its full Scala compiler
-version. For example, Scala 3.9.0 uses
-<code>micronaut-inject-scala_3.9.0</code>; future compiler releases receive parallel
-artifacts rather than replacing this coordinate.</p>
+<p>Each compiler plugin artifact targets a full Scala compiler version. For example,
+Scala 3.9.0 uses <code>micronaut-inject-scala_3.9.0</code>. Check the supported compiler
+variants when upgrading either Scala or the plugin.</p>
 </div>
 
     </div>
