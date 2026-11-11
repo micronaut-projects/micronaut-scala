@@ -173,16 +173,16 @@ provides the Scala compiler integration and runtime support for Scala types.</p>
 <h2 id="_supported_versions">Supported versions</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The build supports Scala 3.9.0 and 3.3.8. Each compiler version has its own
+<p>The build supports Scala 3.10.0 and 3.3.9. Each compiler version has its own
 plugin artifact:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><code>io.micronaut.scala:micronaut-inject-scala_3.9.0</code></p>
+<p><code>io.micronaut.scala:micronaut-inject-scala_3.10.0</code></p>
 </li>
 <li>
-<p><code>io.micronaut.scala:micronaut-inject-scala_3.3.8</code></p>
+<p><code>io.micronaut.scala:micronaut-inject-scala_3.3.9</code></p>
 </li>
 </ul>
 </div>
@@ -193,7 +193,7 @@ during compilation.</p>
 </div>
 <div class="paragraph">
 <p>The test harness is published as
-<code>io.micronaut.scala:micronaut-inject-scala-test_3.9.0</code>. Runtime support is
+<code>io.micronaut.scala:micronaut-inject-scala-test_3.10.0</code>. Runtime support is
 published as <code>io.micronaut.scala:micronaut-runtime-scala</code> and does not have a
 compiler-version suffix.</p>
 </div>
@@ -241,17 +241,17 @@ and choose a plugin artifact that matches your full Scala compiler version.</p>
 <h2 id="_add_the_dependencies">Add the dependencies</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>For a Gradle application using Scala 3.9.0, add these entries to your
+<p>For a Gradle application using Scala 3.10.0, add these entries to your
 <code>dependencies</code> block:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="kotlin">scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="kotlin">scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.10.0:1.0.0-SNAPSHOT")
 runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p><code>micronaut-inject-scala_3.9.0</code> runs during compilation and generates the classes
+<p><code>micronaut-inject-scala_3.10.0</code> runs during compilation and generates the classes
 Micronaut needs to create and inject your beans. <code>micronaut-runtime-scala</code>
 provides converters and serialization support for Scala types at runtime.</p>
 </div>
@@ -314,7 +314,7 @@ qualifiers and the other framework features.</p>
 <h2 id="_match_the_compiler_version">Match the compiler version</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The suffix <code>_3.9.0</code> is the full Scala compiler version. Do not shorten it to
+<p>The suffix <code>_3.10.0</code> is the full Scala compiler version. Do not shorten it to
 <code>_3</code> or use it with a different compiler release. See
 <a href="#introduction">Supported versions</a> for the available variants.</p>
 </div>
@@ -985,7 +985,7 @@ for examples.</p>
 <div class="paragraph">
 <p>Register Micronaut Scala as a Scala compiler plugin. The configuration depends
 on your build tool, but the artifact name must always match the full Scala
-compiler version. The examples below use Scala 3.9.0 and JDK 25.</p>
+compiler version. The examples below use Scala 3.10.0 and JDK 25.</p>
 </div>
 <div class="sect1">
 <h2 id="_gradle">Gradle</h2>
@@ -1010,10 +1010,10 @@ java {
 }
 
 dependencies {
-    implementation("org.scala-lang:scala3-library_3:3.9.0")
+    implementation("org.scala-lang:scala3-library_3:3.10.0")
     implementation("io.micronaut:micronaut-context:5.2.2")
 
-    scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
+    scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.10.0:1.0.0-SNAPSHOT")
     runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
 }
 
@@ -1045,7 +1045,7 @@ configuration. Add runtime support as an application dependency:</p>
 <div class="listingblock">
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="xml">&lt;properties&gt;
-  &lt;scala.version&gt;3.9.0&lt;/scala.version&gt;
+  &lt;scala.version&gt;3.10.0&lt;/scala.version&gt;
   &lt;micronaut.scala.version&gt;1.0.0-SNAPSHOT&lt;/micronaut.scala.version&gt;
 &lt;/properties&gt;
 
@@ -1075,7 +1075,7 @@ configuration. Add runtime support as an application dependency:</p>
         &lt;compilerPlugins&gt;
           &lt;compilerPlugin&gt;
             &lt;groupId&gt;io.micronaut.scala&lt;/groupId&gt;
-            &lt;artifactId&gt;micronaut-inject-scala_3.9.0&lt;/artifactId&gt;
+            &lt;artifactId&gt;micronaut-inject-scala_3.10.0&lt;/artifactId&gt;
             &lt;version&gt;${micronaut.scala.version}&lt;/version&gt;
           &lt;/compilerPlugin&gt;
         &lt;/compilerPlugins&gt;
@@ -1099,7 +1099,7 @@ the Scala Maven plugin version and compile executions are configured.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">scalaVersion := "3.9.0"
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">scalaVersion := "3.10.0"
 
 libraryDependencies ++= Seq(
   "io.micronaut" % "micronaut-context" % "5.2.2",
@@ -1107,7 +1107,7 @@ libraryDependencies ++= Seq(
 )
 
 addCompilerPlugin(
-  "io.micronaut.scala" % "micronaut-inject-scala_3.9.0" % "1.0.0-SNAPSHOT"
+  "io.micronaut.scala" % "micronaut-inject-scala_3.10.0" % "1.0.0-SNAPSHOT"
 )
 
 javacOptions ++= Seq("--add-modules", "java.compiler")</code></pre>
@@ -1128,7 +1128,7 @@ The default binary-version suffix <code>_3</code> does not identify a published 
 <div class="listingblock">
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">object app extends ScalaModule {
-  def scalaVersion = "3.9.0"
+  def scalaVersion = "3.10.0"
 
   def ivyDeps = Agg(
     ivy"io.micronaut:micronaut-context:5.2.2",
@@ -1136,7 +1136,7 @@ The default binary-version suffix <code>_3</code> does not identify a published 
   )
 
   def scalacPluginIvyDeps = Agg(
-    ivy"io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT"
+    ivy"io.micronaut.scala:micronaut-inject-scala_3.10.0:1.0.0-SNAPSHOT"
   )
 
   def scalacOptions = Seq("-J--add-modules=java.compiler")
@@ -2068,7 +2068,7 @@ module also compares generated query metadata with an equivalent Java repository
 <h2 id="_compiler_plugin">Compiler plugin</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>micronaut-inject-scala_3.9.0</code> runs inside the Scala compiler. It bundles the
+<p><code>micronaut-inject-scala_3.10.0</code> runs inside the Scala compiler. It bundles the
 Micronaut and ASM classes it needs because the compiler loads plugins in an
 isolated classloader.</p>
 </div>
@@ -2122,7 +2122,7 @@ tool&#8217;s compiler infrastructure.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>The suffix identifies the full Scala compiler version. For example,
-<code>micronaut-inject-scala_3.9.0</code> is published; <code>micronaut-inject-scala_3</code> is not.
+<code>micronaut-inject-scala_3.10.0</code> is published; <code>micronaut-inject-scala_3</code> is not.
 See <a href="#introduction">Supported versions</a> for the available compiler variants.</p>
 </div>
 <div class="paragraph">
@@ -2157,14 +2157,14 @@ Application tests can use the normal Micronaut testing APIs without it.</p>
 <p>        <div class="listingblock multi-language-sample">
 <div class="title"></div>
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">testImplementation(<span class="hljs-string">"io.micronaut.scala:micronaut-inject-scala-test_3.9.0")</span></code></pre>
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">testImplementation(<span class="hljs-string">"io.micronaut.scala:micronaut-inject-scala-test_3.10.0")</span></code></pre>
 </div>
 </div>
 <div class="listingblock multi-language-sample">
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="maven">&lt;dependency&gt;
     &lt;groupId&gt;io.micronaut.scala&lt;/groupId&gt;
-    &lt;artifactId&gt;micronaut-inject-scala-test_3.9.0&lt;/artifactId&gt;
+    &lt;artifactId&gt;micronaut-inject-scala-test_3.10.0&lt;/artifactId&gt;
     &lt;scope&gt;test&lt;/scope&gt;
 &lt;/dependency&gt;</code></pre>
 </div>
@@ -2417,7 +2417,7 @@ must contain <code>plugin.properties</code> at its root.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>Use the full Scala compiler version in the plugin artifact name. For example,
-this project publishes <code>micronaut-inject-scala_3.9.0</code>, not
+this project publishes <code>micronaut-inject-scala_3.10.0</code>, not
 <code>micronaut-inject-scala_3</code>.</p>
 </div>
 <div class="paragraph">
@@ -2504,7 +2504,7 @@ confirm that the visitor using the option is on the compilation classpath. See
 </li>
 <li>
 <p><code>inject-scala-compiler</code> publishes the primary compiler plugin, and
-<code>inject-scala-compiler-lts</code> builds the same sources for Scala 3.3.8.</p>
+<code>inject-scala-compiler-lts</code> builds the same sources for Scala 3.3.9.</p>
 </li>
 <li>
 <p><code>inject-scala-test-compiler</code> publishes the test harness and runs the compiler
@@ -2547,7 +2547,7 @@ Development versions use the <code>-SNAPSHOT</code> suffix.</p>
 </div>
 <div class="paragraph">
 <p>Each compiler plugin artifact targets a full Scala compiler version. For example,
-Scala 3.9.0 uses <code>micronaut-inject-scala_3.9.0</code>. Check the supported compiler
+Scala 3.10.0 uses <code>micronaut-inject-scala_3.10.0</code>. Check the supported compiler
 variants when upgrading either Scala or the plugin.</p>
 </div>
 
