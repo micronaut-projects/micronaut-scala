@@ -18,6 +18,7 @@ def scalaTestProjectPath = ":micronaut-inject-scala-test-compiler"
 // packaging question below: what gets shaded in, and which service descriptors
 // collide while it is merged.
 def scalaLtsPluginProjectPath = ":micronaut-inject-scala-compiler-lts"
+def scalaLatestPluginProjectPath = ":micronaut-inject-scala-compiler-latest"
 def pluginBundled = project(scalaPluginProjectPath).configurations.named("bundled")
 
 tasks.register("verifyCompilerArtifacts") {
@@ -26,6 +27,8 @@ tasks.register("verifyCompilerArtifacts") {
         "${scalaPluginProjectPath}:generatePomFileForMavenPublication",
         "${scalaLtsPluginProjectPath}:jar",
         "${scalaLtsPluginProjectPath}:generatePomFileForMavenPublication",
+        "${scalaLatestPluginProjectPath}:jar",
+        "${scalaLatestPluginProjectPath}:generatePomFileForMavenPublication",
         "${scalaTestProjectPath}:jar",
         "${scalaTestProjectPath}:generatePomFileForMavenPublication",
         ":micronaut-scala-bom:generatePomFileForMavenPublication"
@@ -71,6 +74,23 @@ tasks.register("verifyCompilerArtifacts") {
             .findAll { it.name.startsWith("scala3-") }
         assert ltsScalaJars.every { it.name.contains(ltsScalaVersion) }:
             "${ltsArtifactId} bundles Scala artifacts from another release: ${ltsScalaJars*.name}"
+
+        def latestScalaVersion = libs.versions.scalaLatest.get()
+        def latestArtifactId = "micronaut-inject-scala_${latestScalaVersion}"
+        def latestProject = project(scalaLatestPluginProjectPath)
+        def latestJar = latestProject.layout.buildDirectory.file("libs/${latestArtifactId}-${project.version}.jar").get().asFile
+        def latestPom = latestProject.layout.buildDirectory.file("publications/maven/pom-default.xml").get().asFile.text
+        assert latestJar.isFile(): "Missing ${latestJar}"
+        assert latestPom.contains("<artifactId>${latestArtifactId}</artifactId>")
+        assert bomPom.contains("<artifactId>${latestArtifactId}</artifactId>")
+        assert !zipTree(latestJar).matching { include("plugin.properties") }.files.empty:
+            "plugin.properties is missing from the root of ${latestJar.name}"
+        assert latestScalaVersion != scalaVersion && latestScalaVersion != ltsScalaVersion:
+            "The latest variant must use a distinct Scala version"
+        def latestScalaJars = latestProject.configurations.named("bundled").get().resolve()
+            .findAll { it.name.startsWith("scala3-") }
+        assert latestScalaJars.every { it.name.contains(latestScalaVersion) }:
+            "${latestArtifactId} bundles Scala artifacts from another release: ${latestScalaJars*.name}"
 
         assert bomPom.contains("<artifactId>${testArtifactId}</artifactId>")
         assert !bomPom.contains("<artifactId>${scalaPluginProjectPath.substring(1)}</artifactId>")

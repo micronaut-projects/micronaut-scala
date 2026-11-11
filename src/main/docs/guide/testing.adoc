@@ -8,7 +8,7 @@ Application tests can use the normal Micronaut testing APIs without it.
 
 == Add the harness
 
-dependency:io.micronaut.scala:micronaut-inject-scala-test_3.10.0[scope="testImplementation"]
+dependency:io.micronaut.scala:micronaut-inject-scala-test_3.9.0[scope="testImplementation"]
 
 The artifact suffix must match the full Scala compiler version. See
 <<dependencies, Artifacts and Dependencies>>.
