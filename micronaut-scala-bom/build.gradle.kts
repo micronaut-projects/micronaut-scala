@@ -7,6 +7,7 @@ version = properties["projectVersion"].toString()
 
 val scalaCompilerProject = "inject-scala-compiler"
 val scalaLtsCompilerProject = "inject-scala-compiler-lts"
+val scalaLatestCompilerProject = "inject-scala-compiler-latest"
 val scalaTestCompilerProject = "inject-scala-test-compiler"
 
 micronautBuild {
@@ -21,11 +22,13 @@ micronautBom {
         "inject-scala",
         scalaCompilerProject,
         scalaLtsCompilerProject,
+        scalaLatestCompilerProject,
         "inject-scala-test",
         scalaTestCompilerProject,
         "micronaut-inject-scala",
         "micronaut-$scalaCompilerProject",
         "micronaut-$scalaLtsCompilerProject",
+        "micronaut-$scalaLatestCompilerProject",
         "micronaut-inject-scala-test",
         "micronaut-$scalaTestCompilerProject"
     )
@@ -36,11 +39,12 @@ micronautBom {
 
 // The build plugin derives managed artifact IDs from Gradle project names. The
 // compiler version is intentionally encoded with dots in the Maven coordinates,
-// so declare the two fully-crossed publications explicitly in the platform.
+// so declare the fully-crossed publications explicitly in the platform.
 dependencies {
     constraints {
         add("api", "io.micronaut.scala:micronaut-inject-scala_${libs.versions.scala3.get()}:${project.version}")
         add("api", "io.micronaut.scala:micronaut-inject-scala_${libs.versions.scalaLts.get()}:${project.version}")
+        add("api", "io.micronaut.scala:micronaut-inject-scala_${libs.versions.scalaLatest.get()}:${project.version}")
         add("api", "io.micronaut.scala:micronaut-inject-scala-test_${libs.versions.scala3.get()}:${project.version}")
     }
 }

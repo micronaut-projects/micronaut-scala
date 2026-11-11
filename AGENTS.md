@@ -7,9 +7,9 @@ and update it when the build or module layout changes.
 
 ## Repository Shape
 
-Sources and published artifacts are deliberately separated. The two
-`*-compiler` projects own the published, fully-crossed Maven coordinates; the
-two source projects apply only the `base` plugin and publish nothing.
+Sources and published artifacts are deliberately separated. The compiler
+projects own the published, fully-crossed Maven coordinates; the two source
+projects apply only the `base` plugin and publish nothing.
 
 - `inject-scala/` — the plugin implementation. `src/main/scala` holds the dotty
   driver and model extractor (`MicronautScalaCompilerPlugin.scala`);
@@ -18,7 +18,10 @@ two source projects apply only the `base` plugin and publish nothing.
 - `inject-scala-test/` — the test harness (`ScalaCompiler`, the Spock base spec,
   the always-on test visitors) and the Spock parity suites.
 - `inject-scala-compiler/` — compiles the `inject-scala` source trees and
-  publishes `io.micronaut.scala:micronaut-inject-scala_<scalaVersion>`.
+  publishes the primary Scala 3.9.0 LTS plugin.
+- `inject-scala-compiler-lts/` and `inject-scala-compiler-latest/` — compile
+  the same sources for Scala 3.3.9 and non-LTS 3.10.0, publishing separate
+  `io.micronaut.scala:micronaut-inject-scala_<scalaVersion>` artifacts.
 - `inject-scala-test-compiler/` — compiles the `inject-scala-test` source trees,
   publishes `micronaut-inject-scala-test_<scalaVersion>`, and **runs the test
   suite**.
@@ -31,10 +34,10 @@ two source projects apply only the `base` plugin and publish nothing.
   prefix the other projects carry.
 - `micronaut-scala-bom/` — the published platform.
 
-The Scala compiler version comes from one place, `gradle/libs.versions.toml`
-(`scala3`), and is crossed into the artifact IDs because compiler-plugin APIs
-are not binary compatible across compiler releases. Gradle project names stay
-version-free: Core enables `TYPESAFE_PROJECT_ACCESSORS` across the whole
+The supported Scala compiler versions come from `gradle/libs.versions.toml`
+(`scala3`, `scalaLts`, and `scalaLatest`) and are crossed into artifact IDs
+because compiler-plugin APIs are not binary compatible across compiler releases.
+Gradle project names stay version-free: Core enables `TYPESAFE_PROJECT_ACCESSORS` across the whole
 composite, and it rejects project names containing a dot.
 
 Micronaut Build's `useStandardizedProjectNames` prefixes every project with
