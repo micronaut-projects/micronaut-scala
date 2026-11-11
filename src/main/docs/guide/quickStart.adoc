@@ -4,16 +4,16 @@ and choose a plugin artifact that matches your full Scala compiler version.
 
 == Add the dependencies
 
-For a Gradle application using Scala 3.9.0, add these entries to your
+For a Gradle application using Scala 3.10.0, add these entries to your
 `dependencies` block:
 
 [source,kotlin]
 ----
-scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
+scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.10.0:1.0.0-SNAPSHOT")
 runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
 ----
 
-`micronaut-inject-scala_3.9.0` runs during compilation and generates the classes
+`micronaut-inject-scala_3.10.0` runs during compilation and generates the classes
 Micronaut needs to create and inject your beans. `micronaut-runtime-scala`
 provides converters and serialization support for Scala types at runtime.
 
@@ -44,7 +44,7 @@ qualifiers and the other framework features.
 
 == Match the compiler version
 
-The suffix `_3.9.0` is the full Scala compiler version. Do not shorten it to
+The suffix `_3.10.0` is the full Scala compiler version. Do not shorten it to
 `_3` or use it with a different compiler release. See
 <<introduction, Supported versions>> for the available variants.
 

@@ -11,7 +11,7 @@ import org.gradle.api.tasks.scala.ScalaCompile
  * declares only which compiler it is for:
  *
  *     scalaCompilerVariant {
- *         scalaVersion = "3.3.8"
+ *         scalaVersion = "3.3.9"
  *     }
  *
  * Everything below is identical for every variant and deliberately lives in one place: the

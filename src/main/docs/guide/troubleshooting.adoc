@@ -50,7 +50,7 @@ See <<buildTools, Build Tools>> for the compiler configuration examples.
 == `Could not find ..._3:<version>`
 
 Use the full Scala compiler version in the plugin artifact name. For example,
-this project publishes `micronaut-inject-scala_3.9.0`, not
+this project publishes `micronaut-inject-scala_3.10.0`, not
 `micronaut-inject-scala_3`.
 
 With cross-version notation, use `CrossVersion.full` in sbt or `:::` in Mill.
