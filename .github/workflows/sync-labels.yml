@@ -1,0 +1,24 @@
+name: Sync organization labels
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/sync-labels.yml
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  sync-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync labels from the Micronaut catalog
+        uses: EndBug/label-sync@52074158190acb45f3077f9099fea818aa43f97a # v2.3.3
+        with:
+          config-file: https://raw.githubusercontent.com/micronaut-projects/micronaut-build/master/labels.yml
+          delete-other-labels: false
