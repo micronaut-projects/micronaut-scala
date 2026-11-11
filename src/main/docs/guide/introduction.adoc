@@ -9,12 +9,12 @@ provides the Scala compiler integration and runtime support for Scala types.
 == Supported versions
 
 Scala 3.9.0 is the primary LTS compiler release. The build also supports
-Scala 3.3.9 (previous LTS) and Scala 3.10.0 (non-LTS). Each compiler version
+Scala 3.3.9 (previous LTS) and Scala 3.10.1 (non-LTS). Each compiler version
 has its own plugin artifact:
 
 * `io.micronaut.scala:micronaut-inject-scala_3.9.0`
 * `io.micronaut.scala:micronaut-inject-scala_3.3.9`
-* `io.micronaut.scala:micronaut-inject-scala_3.10.0`
+* `io.micronaut.scala:micronaut-inject-scala_3.10.1`
 
 Choose the artifact that exactly matches your Scala compiler version. Compiler
 plugin APIs can change between releases, so using a different version can fail

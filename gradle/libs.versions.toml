@@ -1,43 +1,43 @@
 [versions]
-asm = "9.10.1"
-caffeine = "2.9.3"
+asm = "9.11.1"
+caffeine = "3.2.4"
 scala3 = "3.9.0"
 # The previous Scala 3 LTS. Published as a second compiler-plugin variant from the same
 # sources; see the `scala-compiler-variant` convention plugin. Named to avoid nesting under
 # `scala3`, which would turn `libs.versions.scala3` into a group accessor.
 scalaLts = "3.3.9"
 # Scala 3.10 is a non-LTS compiler release and is published as an additional variant.
-scalaLatest = "3.10.0"
-micronaut = "5.2.2"
+scalaLatest = "3.10.1"
+micronaut = "5.2.21"
 
 htmlsanitycheck = "1.1.6"
 japicmp-gradle-plugin="0.4.6"
-junit-platform="1.12.2"
-micronaut-test = "5.1.0"
-micronaut-validation = "5.1.0"
-micronaut-serde = "3.1.1"
-micronaut-openapi = "7.1.3"
+junit-platform="6.1.3"
+micronaut-test = "5.2.0"
+micronaut-validation = "5.2.1"
+micronaut-serde = "3.2.2"
+micronaut-openapi = "7.2.0"
 micronaut-json-schema = "2.2.0"
-micronaut-data = "5.1.3"
-micronaut-sql = "7.1.0"
-h2 = "2.4.240"
-jackson = "3.1.6"
-native-gradle-plugin = "0.11.4"
-slf4j = "2.0.17"
-spock = "2.4-groovy-5.0"
-tomlj="1.1.1"
-errorprone-gradle-plugin = "4.4.0"
-nullaway = "0.13.8"
-error_prone_core = "2.48.0"
+micronaut-data = "5.2.0"
+micronaut-sql = "7.2.0"
+h2 = "2.5.252"
+jackson = "3.2.2"
+native-gradle-plugin = "1.1.18"
+slf4j = "2.0.20"
+spock = "2.5-groovy-6.0"
+tomlj="2.2.0"
+errorprone-gradle-plugin = "5.1.1"
+nullaway = "0.14.3"
+error_prone_core = "2.52.0"
 
 #
 # Versions which start with managed- are managed by Micronaut in the sense
 # that they will appear in the Micronaut BOM as <properties>
 #
 # be sure to update graal version in gradle.properties as well
-managed-graal = "25.0.3"
-managed-groovy = "5.0.8"
-sonatype-scan = "3.1.5"
+managed-graal = "25.5.5.0.3"
+managed-groovy = "6.0.0"
+sonatype-scan = "4.1.1-01"
 micronaut-docs = "3.0.0"
 
 [libraries]
@@ -89,9 +89,9 @@ test-boms-micronaut-serde = { module = "io.micronaut.serde:micronaut-serde-bom",
 micronaut-serde-jackson = { module = "io.micronaut.serde:micronaut-serde-jackson" }
 micronaut-serde-api = { module = "io.micronaut.serde:micronaut-serde-api" }
 micronaut-serde-processor = { module = "io.micronaut.serde:micronaut-serde-processor" }
-micronaut-sourcegen-annotations = { module = "io.micronaut.sourcegen:micronaut-sourcegen-annotations", version = "2.0.0" }
-micronaut-sourcegen-generator = { module = "io.micronaut.sourcegen:micronaut-sourcegen-generator", version = "2.0.0" }
-micronaut-sourcegen-generator-java = { module = "io.micronaut.sourcegen:micronaut-sourcegen-generator-java", version = "2.0.0" }
+micronaut-sourcegen-annotations = { module = "io.micronaut.sourcegen:micronaut-sourcegen-annotations", version = "2.2.1" }
+micronaut-sourcegen-generator = { module = "io.micronaut.sourcegen:micronaut-sourcegen-generator", version = "2.2.1" }
+micronaut-sourcegen-generator-java = { module = "io.micronaut.sourcegen:micronaut-sourcegen-generator-java", version = "2.2.1" }
 micronaut-openapi = { module = "io.micronaut.openapi:micronaut-openapi", version.ref = "micronaut-openapi" }
 micronaut-openapi-annotations = { module = "io.micronaut.openapi:micronaut-openapi-annotations", version.ref = "micronaut-openapi" }
 micronaut-json-schema-annotations = { module = "io.micronaut.jsonschema:micronaut-json-schema-annotations", version.ref = "micronaut-json-schema" }

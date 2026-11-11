@@ -7,7 +7,7 @@ The repository separates shared sources from compiler-specific builds:
 * `inject-scala-test` contains the compiler test harness and parity tests.
 * `inject-scala-compiler` publishes the primary compiler plugin, and
   `inject-scala-compiler-lts` and `inject-scala-compiler-latest` build the same
-  sources for Scala 3.3.9 and 3.10.0 respectively.
+  sources for Scala 3.3.9 and 3.10.1 respectively.
 * `inject-scala-test-compiler` publishes the test harness and runs the compiler
   integration tests.
 * `runtime-scala` contains converters and serialization support.

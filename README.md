@@ -7,7 +7,7 @@
 
 Micronaut Scala contains the Scala 3 compiler plugin and its parity test
 harness. Scala 3.9.0 is the primary LTS compiler release. Separate plugin
-variants support Scala 3.3.9 (previous LTS) and Scala 3.10.0 (non-LTS).
+variants support Scala 3.3.9 (previous LTS) and Scala 3.10.1 (non-LTS).
 
 Compiler-plugin APIs are not binary compatible across all Scala compiler
 releases. The complete compiler version is therefore part of the artifact
@@ -16,7 +16,7 @@ coordinates:
 * `io.micronaut.scala:micronaut-inject-scala_3.9.0`
 * `io.micronaut.scala:micronaut-inject-scala-test_3.9.0`
 * `io.micronaut.scala:micronaut-inject-scala_3.3.9`
-* `io.micronaut.scala:micronaut-inject-scala_3.10.0`
+* `io.micronaut.scala:micronaut-inject-scala_3.10.1`
 
 The Micronaut Scala version is independent of the Micronaut Core version.
 
@@ -46,7 +46,7 @@ clones the Core `5.2.x` branch (override with `-PmicronautCoreBranch=`) instead
 of using a local checkout.
 
 Neither include is required: the catalog pins a released Core version
-(`micronaut` in `gradle/libs.versions.toml`, currently `5.2.2`), which a
+(`micronaut` in `gradle/libs.versions.toml`, currently `5.2.21`), which a
 standalone `./gradlew check` resolves from Maven Central. The includes exist
 for developing against Core changes that are not released yet.
 

@@ -20,7 +20,7 @@ projects apply only the `base` plugin and publish nothing.
 - `inject-scala-compiler/` — compiles the `inject-scala` source trees and
   publishes the primary Scala 3.9.0 LTS plugin.
 - `inject-scala-compiler-lts/` and `inject-scala-compiler-latest/` — compile
-  the same sources for Scala 3.3.9 and non-LTS 3.10.0, publishing separate
+  the same sources for Scala 3.3.9 and non-LTS 3.10.1, publishing separate
   `io.micronaut.scala:micronaut-inject-scala_<scalaVersion>` artifacts.
 - `inject-scala-test-compiler/` — compiles the `inject-scala-test` source trees,
   publishes `micronaut-inject-scala-test_<scalaVersion>`, and **runs the test
