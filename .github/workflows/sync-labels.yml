@@ -17,8 +17,29 @@ jobs:
   sync-labels:
     runs-on: ubuntu-latest
     steps:
+      - name: Fetch and normalize the Micronaut label catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .github
+          curl --fail --silent --show-error \
+            https://raw.githubusercontent.com/micronaut-projects/micronaut-build/master/labels.yml \
+            --output .github/labels.yml
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          labels_file = Path(".github/labels.yml")
+          labels = labels_file.read_text(encoding="utf-8")
+          labels = re.sub(
+              r"(?m)^([ \t]*(?:-[ \t]+)?color:[ \t]*)(?!['\"])([^# \t\r\n]+)([ \t]*(?:#.*)?)$",
+              r'\1"\2"\3',
+              labels,
+          )
+          labels_file.write_text(labels, encoding="utf-8")
+          PY
       - name: Sync labels from the Micronaut catalog
         uses: EndBug/label-sync@52074158190acb45f3077f9099fea818aa43f97a # v2.3.3
         with:
-          config-file: https://raw.githubusercontent.com/micronaut-projects/micronaut-build/master/labels.yml
+          config-file: .github/labels.yml
           delete-other-labels: false
