@@ -24,7 +24,7 @@ import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
  * to proxy a method, whether it needs an implementation, and whether a bean satisfies an
  * injection point from exactly these answers.
  *
- * <p>A concrete trait method really is a Java default method: dotty 3.9.0 compiles
+ * <p>A concrete trait method really is a Java default method: dotty 3.10.0 compiles
  * {@code trait Greeter { def greet(): String = ... }} to
  * {@code public default java.lang.String greet();} on the interface.</p>
  */

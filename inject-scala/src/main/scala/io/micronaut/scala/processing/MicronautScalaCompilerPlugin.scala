@@ -73,6 +73,7 @@ import java.net.URL
 import java.net.URLClassLoader
 import java.util.LinkedHashMap
 import java.util.LinkedHashSet
+import java.util.Locale
 import java.util.IdentityHashMap as JIdentityHashMap
 import java.util.Map as JMap
 import scala.collection.mutable.ListBuffer
@@ -425,7 +426,7 @@ private final class BeanDefinitionPhase(state: ProcessingState) extends PluginPh
  *
  * A value class is unboxed exactly at the top level of a signature -- a field, a parameter, a
  * return type -- and stays boxed everywhere it is nested inside another type. Checked with
- * `javap` on dotty 3.9.0 output for `class UserId(val value: String) extends AnyVal`:
+ * `javap` on dotty 3.10.0 output for `class UserId(val value: String) extends AnyVal`:
  * `def ret(): UserId` compiles to `java.lang.String ret()`, while `def list():
  * java.util.List[UserId]` compiles to `java.util.List<probe3.UserId> list()` and
  * `def arr(): Array[UserId]` to `probe3.UserId[] arr()`.
@@ -1644,7 +1645,7 @@ private object ScalaModelExtractor:
       case other =>
         val file = symbol.associatedFile
         val parsed =
-          if file == null || !file.hasExtension("class") then None
+          if file == null || !file.name.toLowerCase(Locale.ROOT).endsWith(".class") then None
           else
             try Some(ClassFileParameterAnnotations.parse(file.toByteArray))
             catch case _: Exception => None

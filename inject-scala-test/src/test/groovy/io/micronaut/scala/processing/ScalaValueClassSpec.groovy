@@ -25,7 +25,7 @@ import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
  * the bytecode does not use.
  *
  * <p>The expected values are what {@code javap} reports for the same declarations compiled
- * by dotty 3.9.0.</p>
+ * by dotty 3.10.0.</p>
  */
 class ScalaValueClassSpec extends AbstractScalaTypeElementSpec {
 

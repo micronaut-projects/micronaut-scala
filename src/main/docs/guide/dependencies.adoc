@@ -18,7 +18,7 @@ Choose dependencies according to where they run:
 
 == Compiler plugin
 
-`micronaut-inject-scala_3.9.0` runs inside the Scala compiler. It bundles the
+`micronaut-inject-scala_3.10.0` runs inside the Scala compiler. It bundles the
 Micronaut and ASM classes it needs because the compiler loads plugins in an
 isolated classloader.
 
@@ -56,7 +56,7 @@ tool's compiler infrastructure.
 == Versions
 
 The suffix identifies the full Scala compiler version. For example,
-`micronaut-inject-scala_3.9.0` is published; `micronaut-inject-scala_3` is not.
+`micronaut-inject-scala_3.10.0` is published; `micronaut-inject-scala_3` is not.
 See <<introduction, Supported versions>> for the available compiler variants.
 
 The Micronaut Scala release version is independent of the Micronaut Core version.

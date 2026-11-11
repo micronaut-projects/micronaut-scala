@@ -41,7 +41,7 @@ Neither include is needed for an ordinary build: the catalog pins a released
 Core version, and a release must pin one.
 
 The compiler plugin is coupled to the full Scala compiler version. Keep
-`_3.9.0` in the initial artifact IDs and use `CrossVersion.full` in sbt or
+`_3.10.0` in the current artifact IDs and use `CrossVersion.full` in sbt or
 the full-cross `:::` form in Mill. Do not assume a plugin compiled for one
 Scala compiler release is binary compatible with another.
 

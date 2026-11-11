@@ -5,5 +5,5 @@ Micronaut Scala has its own release version, independent of Micronaut Core.
 Development versions use the `-SNAPSHOT` suffix.
 
 Each compiler plugin artifact targets a full Scala compiler version. For example,
-Scala 3.9.0 uses `micronaut-inject-scala_3.9.0`. Check the supported compiler
+Scala 3.10.0 uses `micronaut-inject-scala_3.10.0`. Check the supported compiler
 variants when upgrading either Scala or the plugin.

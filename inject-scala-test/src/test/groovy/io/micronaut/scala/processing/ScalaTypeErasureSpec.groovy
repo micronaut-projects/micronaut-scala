@@ -28,7 +28,7 @@ import io.micronaut.scala.processing.test.AbstractScalaTypeElementSpec
  * written from that names types no bytecode carries.
  *
  * <p>The expected values here are what {@code javap} reports for the same declarations
- * compiled by dotty 3.9.0.</p>
+ * compiled by dotty 3.10.0.</p>
  */
 class ScalaTypeErasureSpec extends AbstractScalaTypeElementSpec {
 

@@ -8,18 +8,18 @@ provides the Scala compiler integration and runtime support for Scala types.
 
 == Supported versions
 
-The build supports Scala 3.9.0 and 3.3.8. Each compiler version has its own
+The build supports Scala 3.10.0 and 3.3.9. Each compiler version has its own
 plugin artifact:
 
-* `io.micronaut.scala:micronaut-inject-scala_3.9.0`
-* `io.micronaut.scala:micronaut-inject-scala_3.3.8`
+* `io.micronaut.scala:micronaut-inject-scala_3.10.0`
+* `io.micronaut.scala:micronaut-inject-scala_3.3.9`
 
 Choose the artifact that exactly matches your Scala compiler version. Compiler
 plugin APIs can change between releases, so using a different version can fail
 during compilation.
 
 The test harness is published as
-`io.micronaut.scala:micronaut-inject-scala-test_3.9.0`. Runtime support is
+`io.micronaut.scala:micronaut-inject-scala-test_3.10.0`. Runtime support is
 published as `io.micronaut.scala:micronaut-runtime-scala` and does not have a
 compiler-version suffix.
 
