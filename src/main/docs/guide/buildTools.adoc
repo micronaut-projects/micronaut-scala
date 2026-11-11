@@ -1,6 +1,6 @@
 Register Micronaut Scala as a Scala compiler plugin. The configuration depends
 on your build tool, but the artifact name must always match the full Scala
-compiler version. The examples below use Scala 3.10.0 and JDK 25.
+compiler version. The examples below use Scala 3.9.0 and JDK 25.
 
 == Gradle
 
@@ -23,10 +23,10 @@ java {
 }
 
 dependencies {
-    implementation("org.scala-lang:scala3-library_3:3.10.0")
+    implementation("org.scala-lang:scala3-library_3:3.9.0")
     implementation("io.micronaut:micronaut-context:5.2.2")
 
-    scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.10.0:1.0.0-SNAPSHOT")
+    scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
     runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
 }
 
@@ -52,7 +52,7 @@ configuration. Add runtime support as an application dependency:
 [source,xml]
 ----
 <properties>
-  <scala.version>3.10.0</scala.version>
+  <scala.version>3.9.0</scala.version>
   <micronaut.scala.version>1.0.0-SNAPSHOT</micronaut.scala.version>
 </properties>
 
@@ -82,7 +82,7 @@ configuration. Add runtime support as an application dependency:
         <compilerPlugins>
           <compilerPlugin>
             <groupId>io.micronaut.scala</groupId>
-            <artifactId>micronaut-inject-scala_3.10.0</artifactId>
+            <artifactId>micronaut-inject-scala_3.9.0</artifactId>
             <version>${micronaut.scala.version}</version>
           </compilerPlugin>
         </compilerPlugins>
@@ -101,7 +101,7 @@ The example names the complete artifact ID explicitly:
 
 [source,scala]
 ----
-scalaVersion := "3.10.0"
+scalaVersion := "3.9.0"
 
 libraryDependencies ++= Seq(
   "io.micronaut" % "micronaut-context" % "5.2.2",
@@ -109,7 +109,7 @@ libraryDependencies ++= Seq(
 )
 
 addCompilerPlugin(
-  "io.micronaut.scala" % "micronaut-inject-scala_3.10.0" % "1.0.0-SNAPSHOT"
+  "io.micronaut.scala" % "micronaut-inject-scala_3.9.0" % "1.0.0-SNAPSHOT"
 )
 
 javacOptions ++= Seq("--add-modules", "java.compiler")
@@ -125,7 +125,7 @@ Add the plugin to `scalacPluginIvyDeps`, using its full artifact ID:
 [source,scala]
 ----
 object app extends ScalaModule {
-  def scalaVersion = "3.10.0"
+  def scalaVersion = "3.9.0"
 
   def ivyDeps = Agg(
     ivy"io.micronaut:micronaut-context:5.2.2",
@@ -133,7 +133,7 @@ object app extends ScalaModule {
   )
 
   def scalacPluginIvyDeps = Agg(
-    ivy"io.micronaut.scala:micronaut-inject-scala_3.10.0:1.0.0-SNAPSHOT"
+    ivy"io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT"
   )
 
   def scalacOptions = Seq("-J--add-modules=java.compiler")

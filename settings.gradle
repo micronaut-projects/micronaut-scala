@@ -47,6 +47,7 @@ enableFeaturePreview('TYPESAFE_PROJECT_ACCESSORS')
 include 'inject-scala'
 include 'inject-scala-compiler'
 include 'inject-scala-compiler-lts'
+include 'inject-scala-compiler-latest'
 include 'inject-scala-test'
 include 'inject-scala-test-compiler'
 include 'runtime-scala'
