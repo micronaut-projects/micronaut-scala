@@ -49,6 +49,8 @@ final class ScalaContainerTypes {
     }
 
     /**
+     * Whether a type acts as a container for beans of its element type.
+     *
      * @param element The element
      * @return Whether beans of this type contribute their elements as beans
      */

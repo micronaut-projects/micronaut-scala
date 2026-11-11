@@ -437,6 +437,8 @@ public final class ClassFileParameterAnnotations {
         public static final MethodAnnotations NONE = new MethodAnnotations(List.of(), List.of());
 
         /**
+         * Whether this method has any annotations recorded in its class file.
+         *
          * @return Whether anything was read
          */
         public boolean isEmpty() {

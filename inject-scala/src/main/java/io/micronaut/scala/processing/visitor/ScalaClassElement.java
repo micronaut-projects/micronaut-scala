@@ -395,6 +395,8 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
     }
 
     /**
+     * Compiler data extracted for this class during the current compilation.
+     *
      * @return The extracted compiler data for this class, or {@code null} when it is a
      *     classpath type rather than one being compiled
      */
@@ -495,6 +497,8 @@ public class ScalaClassElement extends AbstractScalaElement implements Arrayable
     }
 
     /**
+     * Collects inherited properties while applying the type arguments bound along the hierarchy.
+     *
      * @param element The element whose supertypes are walked
      * @param substitutions The type arguments bound so far on the way down to `element`, so
      *     that a property `Base[T]` declares is reported as `String` through

@@ -63,6 +63,8 @@ final class ScalaAnnotationServices {
     private @Nullable AnnotatedElementValidator elementValidator;
 
     /**
+     * Creates annotation services for a compilation.
+     *
      * @param classLoader The compilation's processing classloader
      */
     ScalaAnnotationServices(ClassLoader classLoader) {

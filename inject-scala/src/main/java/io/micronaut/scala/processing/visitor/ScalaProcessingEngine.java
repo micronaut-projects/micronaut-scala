@@ -100,6 +100,8 @@ public final class ScalaProcessingEngine {
     private @Nullable ScalaVisitorContext visitorContext;
 
     /**
+     * Runs Micronaut's Scala annotation processing pipeline for a compilation.
+     *
      * @param outputDirectory The compiler class output directory
      * @param classpath The compilation classpath
      * @param options Micronaut processing options
