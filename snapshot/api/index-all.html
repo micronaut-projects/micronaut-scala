@@ -797,9 +797,13 @@ return type and parameter types.</div>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaPropertyElement.html#getField()" class="member-name-link">getField()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaPropertyElement.html" title="class in io.micronaut.scala.processing.visitor">ScalaPropertyElement</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/scala/processing/test/ScalaAnnotationDefaultsRecordingVisitor.Recording.html#getFromAnnotation()" class="member-name-link">getFromAnnotation()</a> - Method in class io.micronaut.scala.processing.test.<a href="io/micronaut/scala/processing/test/ScalaAnnotationDefaultsRecordingVisitor.Recording.html" title="class in io.micronaut.scala.processing.test">ScalaAnnotationDefaultsRecordingVisitor.Recording</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">Defaults carried by <code>AnnotationValue.getDefaultValues()</code>.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/test/ScalaAnnotationDefaultsRecordingVisitor.Recording.html#getFromContext()" class="member-name-link">getFromContext()</a> - Method in class io.micronaut.scala.processing.test.<a href="io/micronaut/scala/processing/test/ScalaAnnotationDefaultsRecordingVisitor.Recording.html" title="class in io.micronaut.scala.processing.test">ScalaAnnotationDefaultsRecordingVisitor.Recording</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">Defaults reported by <code>VisitorContext.getAnnotationDefaultValues(String)</code>.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaMethodElement.html#getGenericReturnType()" class="member-name-link">getGenericReturnType()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaMethodElement.html" title="class in io.micronaut.scala.processing.visitor">ScalaMethodElement</a></dt>
 <dd>
 <div class="block">The return type with the declaring type's variables bound as they were where the method
@@ -817,9 +821,13 @@ reached: <code>Book</code> for the <code>E</code> of a method inherited through
 <code>Repo[Book, Long]</code>.</div>
 </dd>
 <dt><a href="io/micronaut/scala/processing/test/ScalaInheritedPropertyMutationVisitor.Recording.html#getIgnoredFields()" class="member-name-link">getIgnoredFields()</a> - Method in class io.micronaut.scala.processing.test.<a href="io/micronaut/scala/processing/test/ScalaInheritedPropertyMutationVisitor.Recording.html" title="class in io.micronaut.scala.processing.test">ScalaInheritedPropertyMutationVisitor.Recording</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">Names of the annotated fields, grouped by the type through which they were read.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/test/ScalaInheritedPropertyMutationVisitor.Recording.html#getIgnoredProperties()" class="member-name-link">getIgnoredProperties()</a> - Method in class io.micronaut.scala.processing.test.<a href="io/micronaut/scala/processing/test/ScalaInheritedPropertyMutationVisitor.Recording.html" title="class in io.micronaut.scala.processing.test">ScalaInheritedPropertyMutationVisitor.Recording</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">Names of the annotated properties, grouped by the type through which they were read.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaClassElement.html#getInterfaces()" class="member-name-link">getInterfaces()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaClassElement.html" title="class in io.micronaut.scala.processing.visitor">ScalaClassElement</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaVisitorContext.html#getLanguage()" class="member-name-link">getLanguage()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaVisitorContext.html" title="class in io.micronaut.scala.processing.visitor">ScalaVisitorContext</a></dt>
@@ -1172,7 +1180,9 @@ array.</div>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaMethodElement.html#isDefault()" class="member-name-link">isDefault()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaMethodElement.html" title="class in io.micronaut.scala.processing.visitor">ScalaMethodElement</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ClassFileParameterAnnotations.MethodAnnotations.html#isEmpty()" class="member-name-link">isEmpty()</a> - Method in record class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ClassFileParameterAnnotations.MethodAnnotations.html" title="class in io.micronaut.scala.processing.visitor">ClassFileParameterAnnotations.MethodAnnotations</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">Whether this method has any annotations recorded in its class file.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaClassElement.html#isEnum()" class="member-name-link">isEnum()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaClassElement.html" title="class in io.micronaut.scala.processing.visitor">ScalaClassElement</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaPropertyElement.html#isExcluded()" class="member-name-link">isExcluded()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaPropertyElement.html" title="class in io.micronaut.scala.processing.visitor">ScalaPropertyElement</a></dt>
@@ -1613,17 +1623,29 @@ the language allows no other, and the compiler recognises a record the same way.
 <h2 class="title" id="I:R">R</h2>
 <dl class="index">
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaClassElement.html#rawDocumentation()" class="member-name-link">rawDocumentation()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaClassElement.html" title="class in io.micronaut.scala.processing.visitor">ScalaClassElement</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">The raw Scaladoc comment written on this element, if one exists.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaConstructorElement.html#rawDocumentation()" class="member-name-link">rawDocumentation()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaConstructorElement.html" title="class in io.micronaut.scala.processing.visitor">ScalaConstructorElement</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">The raw Scaladoc comment written on this element, if one exists.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaFieldElement.html#rawDocumentation()" class="member-name-link">rawDocumentation()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaFieldElement.html" title="class in io.micronaut.scala.processing.visitor">ScalaFieldElement</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">The raw Scaladoc comment written on this element, if one exists.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaMethodElement.html#rawDocumentation()" class="member-name-link">rawDocumentation()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaMethodElement.html" title="class in io.micronaut.scala.processing.visitor">ScalaMethodElement</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">The raw Scaladoc comment written on this element, if one exists.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaParameterElement.html#rawDocumentation()" class="member-name-link">rawDocumentation()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaParameterElement.html" title="class in io.micronaut.scala.processing.visitor">ScalaParameterElement</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">The raw Scaladoc comment written on this element, if one exists.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaPropertyElement.html#rawDocumentation()" class="member-name-link">rawDocumentation()</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaPropertyElement.html" title="class in io.micronaut.scala.processing.visitor">ScalaPropertyElement</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">The raw Scaladoc comment written on this element, if one exists.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaAnnotationMetadataBuilder.html#readAnnotationDefaultValues(java.lang.String,java.lang.Object)" class="member-name-link">readAnnotationDefaultValues(String, Object)</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaAnnotationMetadataBuilder.html" title="class in io.micronaut.scala.processing.visitor">ScalaAnnotationMetadataBuilder</a></dt>
 <dd>&nbsp;</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaAnnotationMetadataBuilder.html#readAnnotationDefaultValues(java.lang.String,java.lang.Object,boolean)" class="member-name-link">readAnnotationDefaultValues(String, Object, boolean)</a> - Method in class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaAnnotationMetadataBuilder.html" title="class in io.micronaut.scala.processing.visitor">ScalaAnnotationMetadataBuilder</a></dt>
@@ -2147,13 +2169,17 @@ compilation classpath, searched before the plugin for everything a visitor does 
 share with it.</div>
 </dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaProcessingClassLoader.html#%3Cinit%3E(java.net.URL%5B%5D,java.lang.ClassLoader,java.net.URL)" class="member-name-link">ScalaProcessingClassLoader(URL[], ClassLoader, URL)</a> - Constructor for class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaProcessingClassLoader.html" title="class in io.micronaut.scala.processing.visitor">ScalaProcessingClassLoader</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">Creates a classloader for compiler output and the compilation classpath.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaProcessingEngine.html" class="type-name-link" title="class in io.micronaut.scala.processing.visitor">ScalaProcessingEngine</a> - Class in <a href="io/micronaut/scala/processing/visitor/package-summary.html">io.micronaut.scala.processing.visitor</a></dt>
 <dd>
 <div class="block">Executes Micronaut's visitor and bean-definition pipeline for Scala compiler data.</div>
 </dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaProcessingEngine.html#%3Cinit%3E(java.io.File,java.util.Collection,java.util.Map,java.util.function.Function,java.util.function.Function,java.util.function.BiConsumer,java.util.function.BiConsumer,java.util.function.BiConsumer)" class="member-name-link">ScalaProcessingEngine(File, Collection, Map, Function, Function, BiConsumer, BiConsumer, BiConsumer)</a> - Constructor for class io.micronaut.scala.processing.visitor.<a href="io/micronaut/scala/processing/visitor/ScalaProcessingEngine.html" title="class in io.micronaut.scala.processing.visitor">ScalaProcessingEngine</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">Runs Micronaut's Scala annotation processing pipeline for a compilation.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/visitor/ScalaPropertyData.html" class="type-name-link" title="class in io.micronaut.scala.processing.visitor">ScalaPropertyData</a> - Record Class in <a href="io/micronaut/scala/processing/visitor/package-summary.html">io.micronaut.scala.processing.visitor</a></dt>
 <dd>
 <div class="block">A Scala property backed by an accessor method and, optionally, a setter and field.</div>
@@ -2447,7 +2473,9 @@ to be synthesised from a mapper's output rather than read from source.</div>
 <div class="block">Returns the mapped value.</div>
 </dd>
 <dt><a href="io/micronaut/scala/processing/test/annotation/ScalaRepeatableSource.html#value()" class="member-name-link">value()</a> - Element in annotation interface io.micronaut.scala.processing.test.annotation.<a href="io/micronaut/scala/processing/test/annotation/ScalaRepeatableSource.html" title="annotation interface in io.micronaut.scala.processing.test.annotation">ScalaRepeatableSource</a></dt>
-<dd>&nbsp;</dd>
+<dd>
+<div class="block">Names for which the mapper should produce one requirement.</div>
+</dd>
 <dt><a href="io/micronaut/scala/processing/test/ScalaAnnotationRemovalVisitor.Mode.html#valueOf(java.lang.String)" class="member-name-link">valueOf(String)</a> - Static method in enum class io.micronaut.scala.processing.test.<a href="io/micronaut/scala/processing/test/ScalaAnnotationRemovalVisitor.Mode.html" title="enum class in io.micronaut.scala.processing.test">ScalaAnnotationRemovalVisitor.Mode</a></dt>
 <dd>
 <div class="block">Returns the enum constant of this class with the specified name.</div>
