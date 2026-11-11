@@ -174,7 +174,7 @@ provides the Scala compiler integration and runtime support for Scala types.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>Scala 3.9.0 is the primary LTS compiler release. The build also supports
-Scala 3.3.9 (previous LTS) and Scala 3.10.0 (non-LTS). Each compiler version
+Scala 3.3.9 (previous LTS) and Scala 3.10.1 (non-LTS). Each compiler version
 has its own plugin artifact:</p>
 </div>
 <div class="ulist">
@@ -186,7 +186,7 @@ has its own plugin artifact:</p>
 <p><code>io.micronaut.scala:micronaut-inject-scala_3.3.9</code></p>
 </li>
 <li>
-<p><code>io.micronaut.scala:micronaut-inject-scala_3.10.0</code></p>
+<p><code>io.micronaut.scala:micronaut-inject-scala_3.10.1</code></p>
 </li>
 </ul>
 </div>
@@ -1015,7 +1015,7 @@ java {
 
 dependencies {
     implementation("org.scala-lang:scala3-library_3:3.9.0")
-    implementation("io.micronaut:micronaut-context:5.2.2")
+    implementation("io.micronaut:micronaut-context:5.2.21")
 
     scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
     runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
@@ -1106,7 +1106,7 @@ the Scala Maven plugin version and compile executions are configured.</p>
 <pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">scalaVersion := "3.9.0"
 
 libraryDependencies ++= Seq(
-  "io.micronaut" % "micronaut-context" % "5.2.2",
+  "io.micronaut" % "micronaut-context" % "5.2.21",
   "io.micronaut.scala" % "micronaut-runtime-scala" % "1.0.0-SNAPSHOT" % Runtime
 )
 
@@ -1135,7 +1135,7 @@ The default binary-version suffix <code>_3</code> does not identify a published 
   def scalaVersion = "3.9.0"
 
   def ivyDeps = Agg(
-    ivy"io.micronaut:micronaut-context:5.2.2",
+    ivy"io.micronaut:micronaut-context:5.2.21",
     ivy"io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT"
   )
 
@@ -2581,7 +2581,7 @@ confirm that the visitor using the option is on the compilation classpath. See
 <li>
 <p><code>inject-scala-compiler</code> publishes the primary compiler plugin, and
 <code>inject-scala-compiler-lts</code> and <code>inject-scala-compiler-latest</code> build the same
-sources for Scala 3.3.9 and 3.10.0 respectively.</p>
+sources for Scala 3.3.9 and 3.10.1 respectively.</p>
 </li>
 <li>
 <p><code>inject-scala-test-compiler</code> publishes the test harness and runs the compiler
