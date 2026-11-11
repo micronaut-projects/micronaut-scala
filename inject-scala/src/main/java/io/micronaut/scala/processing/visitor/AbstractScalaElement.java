@@ -83,6 +83,8 @@ abstract class AbstractScalaElement implements Element {
     }
 
     /**
+     * The raw Scaladoc comment written on this element, if one exists.
+     *
      * @return The raw Scaladoc comment written on this element, if any
      */
     protected Optional<String> rawDocumentation() {

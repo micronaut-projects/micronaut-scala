@@ -109,6 +109,8 @@ public final class ScalaInheritedPropertyMutationVisitor implements TypeElementV
         private final Map<String, List<String>> ignoredFields = new LinkedHashMap<>();
 
         /**
+         * Names of the annotated properties, grouped by the type through which they were read.
+         *
          * @return The names of the properties carrying the annotation, by the type they were read through
          */
         public Map<String, List<String>> getIgnoredProperties() {
@@ -116,6 +118,8 @@ public final class ScalaInheritedPropertyMutationVisitor implements TypeElementV
         }
 
         /**
+         * Names of the annotated fields, grouped by the type through which they were read.
+         *
          * @return The names of the fields carrying the annotation, by the type they were read through
          */
         public Map<String, List<String>> getIgnoredFields() {

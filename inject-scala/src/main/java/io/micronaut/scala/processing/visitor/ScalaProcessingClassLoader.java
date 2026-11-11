@@ -81,6 +81,8 @@ public final class ScalaProcessingClassLoader extends URLClassLoader {
     private final URLClassLoader pluginContents;
 
     /**
+     * Creates a classloader for compiler output and the compilation classpath.
+     *
      * @param classpath The output directory and the compilation classpath
      * @param parent The plugin's classloader
      * @param plugin The plugin jar, whose contents a visitor shares with the plugin

@@ -29,6 +29,8 @@ import java.lang.annotation.Target;
 public @interface ScalaRepeatableSource {
 
     /**
+     * Names for which the mapper should produce one requirement.
+     *
      * @return The names to produce one requirement for
      */
     String[] value();

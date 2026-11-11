@@ -86,6 +86,8 @@ public final class ScalaParameterElement extends AbstractScalaElement implements
     }
 
     /**
+     * Whether the generated default accessor is static on the declaring class.
+     *
      * @return whether {@link #defaultAccessor()} is static on the declaring class
      */
     boolean isDefaultAccessorStatic() {
@@ -93,6 +95,8 @@ public final class ScalaParameterElement extends AbstractScalaElement implements
     }
 
     /**
+     * The method or constructor that declares this parameter.
+     *
      * @return the method or constructor this parameter belongs to
      */
     MethodElement declaringMethod() {

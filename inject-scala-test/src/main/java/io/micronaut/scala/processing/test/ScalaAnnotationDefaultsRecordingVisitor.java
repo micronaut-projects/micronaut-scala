@@ -125,6 +125,8 @@ public final class ScalaAnnotationDefaultsRecordingVisitor implements TypeElemen
         }
 
         /**
+         * Defaults reported by {@link VisitorContext#getAnnotationDefaultValues(String)}.
+         *
          * @return The defaults {@link VisitorContext#getAnnotationDefaultValues(String)} reported
          */
         @Nullable
@@ -133,6 +135,8 @@ public final class ScalaAnnotationDefaultsRecordingVisitor implements TypeElemen
         }
 
         /**
+         * Defaults carried by {@link AnnotationValue#getDefaultValues()}.
+         *
          * @return The defaults {@link AnnotationValue#getDefaultValues()} carried
          */
         @Nullable
