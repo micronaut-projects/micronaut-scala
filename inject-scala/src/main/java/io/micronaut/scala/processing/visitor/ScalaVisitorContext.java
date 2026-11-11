@@ -353,6 +353,12 @@ public final class ScalaVisitorContext implements VisitorContext, BeanElementVis
     }
 
     private Object annotationMetadataKey(ScalaAnnotatedElementData element) {
+        // A classpath property can have annotations recovered from the class file that are
+        // absent from its TASTy parameter symbol. Its metadata must be built from the merged
+        // property data rather than reusing the parameter's earlier cache entry.
+        if (element instanceof ScalaPropertyData) {
+            return element;
+        }
         if (element instanceof ScalaTypeData typeData && typeData.annotatedTypeUse()) {
             return typeData;
         }

@@ -82,10 +82,14 @@ class Shelf:
                   is declared, so what is written there belongs to the property'''
         Path library = precompile(ScalaCompiler.SourceFile.scala('library.Book', BOOK))
         ClassElement book = returnTypeOfBook(library)
+        def id = book.beanProperties.find { it.name == 'id' }
+        def constructor = book.primaryConstructor.get()
 
         expect:
-        book.beanProperties.find { it.name == 'id' }.stringValue('jakarta.inject.Named').get() == 'key'
+        id.stringValue('jakarta.inject.Named').get() == 'key'
+        constructor.parameters[0].stringValue('jakarta.inject.Named').get() == 'key'
         book.beanProperties.find { it.name == 'title' }.getAnnotationNames().isEmpty()
+        !book.beanProperties.find { it.name == 'pages' }.hasAnnotation('io.micronaut.scala.ScalaDefaultValue')
     }
 
     void "a constructor parameter default survives the classpath"() {

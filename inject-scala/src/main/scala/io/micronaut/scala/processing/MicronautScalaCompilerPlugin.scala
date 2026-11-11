@@ -447,6 +447,7 @@ private object ScalaModelExtractor:
 
   /** Synthetic marker carrying a Scala default-argument accessor across classloaders. */
   private val DefaultAccessorAnnotationName = "io.micronaut.scala.ScalaDefaultValue"
+  private val SpecializedAnnotationName = "scala.specialized"
 
   private val ScalaPrimitiveNames = Map(
     "scala.Boolean" -> "boolean",
@@ -915,7 +916,19 @@ private object ScalaModelExtractor:
     val classFile = if java then classFileParameterAnnotations(symbol) else None
     val primaryConstructor = symbol.primaryConstructor
     val parameters = constructorParameters(primaryConstructor)
-    val parameterAnnotations = constructorParameterAnnotations(parameters)
+    // On a classpath type, a constructor parameter's annotations can come from the class
+    // file even when dotty did not retain them on the TASTy symbol. Reuse the extracted
+    // constructor parameters so property annotations see both sources.
+    val primaryConstructorData =
+      if primaryConstructor == Symbols.NoSymbol then None
+      else Some(methodData(primaryConstructor, constructor = true, owner = symbol, classFileAnnotations(classFile, primaryConstructor)))
+    val parameterAnnotations = primaryConstructorData.toList
+      .flatMap(_.parameters().asScala)
+      .map(parameter => parameter.name() -> parameter.annotations().asScala.toList.filterNot(
+        _.name() == DefaultAccessorAnnotationName
+      ))
+      .filter(_._2.nonEmpty)
+      .toMap
     val extractedMethods = declarations
       .filter(member => member.isTerm && hasFlag(member, Flags.Method) && !member.denot.isConstructor)
       .map(method => method -> withParameterAnnotations(
@@ -949,9 +962,7 @@ private object ScalaModelExtractor:
       .filter(member => member != primaryConstructor && member.denot.isConstructor)
       .filterNot(member => hasFlag(member, Flags.Synthetic) || hasFlag(member, Flags.Artifact))
       .map(constructor => methodData(constructor, constructor = true, owner = symbol, classFileAnnotations(classFile, constructor)))
-    val constructors =
-      if primaryConstructor == Symbols.NoSymbol then secondaryConstructors
-      else methodData(primaryConstructor, constructor = true, owner = symbol, classFileAnnotations(classFile, primaryConstructor)) +: secondaryConstructors
+    val constructors = primaryConstructorData.toList ++ secondaryConstructors
     // A Java class has no Scala properties. What it has are getters and setters, which core
     // derives from the methods by Java's own conventions when the element is asked.
     val constructorProps = if java then Nil else constructorProperties(parameters, methodByName, allFields)
@@ -1178,8 +1189,8 @@ private object ScalaModelExtractor:
    * @param symbol The parameter symbol
    * @param tpe The declared type
    * @param nativeType The object an element built from this parameter is keyed on: the tree for
-   *     a source class, the symbol for a classpath one. A property and the parameter declaring it
-   *     share it, so the annotation metadata cached for one is what the other reports.
+   *     a source class, the symbol for a classpath one. The property keeps this declaration
+   *     identity, but owns separate annotation metadata built from its merged annotations.
    */
   private final case class ConstructorParameter(symbol: Symbol, tpe: Type, nativeType: Object)
 
@@ -2695,6 +2706,10 @@ private object ScalaModelExtractor:
       // is a type reference in one of its spellings, which no annotation value can hold.
       declaredAnnotations(symbol)
         .filterNot(annotation => className(annotation.symbol).startsWith(InternalAnnotationPrefix))
+        // This is a compiler optimization hint, not bean metadata. Its arguments are the
+        // Specializable enum values, which are intentionally not annotation constants in
+        // Scala 3 and cannot be represented in Micronaut's annotation model.
+        .filterNot(annotation => className(annotation.symbol) == SpecializedAnnotationName)
         .filterNot(isThrowsAnnotation)
         .map(annotationData(_, Set.empty))
 
