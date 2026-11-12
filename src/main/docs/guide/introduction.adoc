@@ -25,8 +25,8 @@ The test harness is published as
 published as `io.micronaut.scala:micronaut-runtime-scala` and does not have a
 compiler-version suffix.
 
-Micronaut Scala has its own version, independent of Micronaut Core. The current
-development version is `1.0.0-SNAPSHOT`. The build requires JDK 25.
+Micronaut Scala has its own version, independent of Micronaut Core. This guide
+is built for version `{version}`. The build requires JDK 25.
 
 == What is included
 
