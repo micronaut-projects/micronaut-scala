@@ -1,0 +1,2638 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <title>Micronaut Scala</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <link rel="stylesheet" href="../css/main.css" type="text/css" media="screen, print" title="Style" charset="utf-8" />
+    <link rel="stylesheet" href="../css/custom.css" type="text/css" media="screen, print" title="Style" charset="utf-8" />
+    <link rel="stylesheet" href="../css/pdf.css" type="text/css" media="print" title="PDF" charset="utf-8" />
+    <link rel="stylesheet" href="../css/highlight/agate.css">
+    <script src="../js/highlight.pack.js"></script>
+    <script src="../js/guide.js"></script>
+    <script src="../js/multi-language-sample.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+    <link rel="stylesheet" href="../css/multi-language-sample.css"/>
+    <script src="../js/docs.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.11/clipboard.min.js"></script>
+    <script type="text/javascript">
+        function addJsClass(el) {
+            var classes = document.body.className.split(" ");
+            classes.push("js");
+            document.body.className = classes.join(" ");
+        }
+    </script>
+    <style type="text/css">
+        .lang-java { display: block }; .lang-python { display: block }; .lang-kotlin { display: block }; .lang-groovy { display: block }; .lang-scala { display: block }; 
+    </style>
+</head>
+
+<body class="body" id="docs" onload="addJsClass();" onhashchange="highlightMenu()">
+
+<div id="table-of-content-nav-link" class="desktop">
+    <a id="theme-switcher" title="Switch to dark theme" href="javascript:switchTheme(true)"><i class="fa fa-moon-o"></i></a>
+    <a title="Collapse/Open Table of contents" title="Hide Table of Contents" href="javascript:hideTableOfContents();" class="button">[ + ]</a>
+</div>
+
+<div id="main">
+    <div id="navigation" class="no-print">
+        <div class="navTitle">
+            <span id="logo"><a href="http://micronaut.io" title="Go to Micronaut Website"><img src="../img/micronaut-logo-white.svg" alt="Micronaut"/></a></span>
+        </div>
+        <div class="navLinks">
+            <ul>
+                    <li><div id="nav-summary" onmouseover="toggleNavSummary(false)" onmouseout="toggleNavSummary(true)" class="desktop">
+                            <a href="../guide/index.html" class="button">Table of contents</a>
+                            <div id="nav-summary-childs" style="display:none;">
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#introduction"><strong>1</strong><span>Introduction</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#quickStart"><strong>2</strong><span>Quick Start</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#concepts"><strong>3</strong><span>Micronaut for Scala Developers</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#idiomatic"><strong>4</strong><span>Idiomatic Scala</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#buildTools"><strong>5</strong><span>Build Tools</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#configuration"><strong>6</strong><span>Configuration Options</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#annotations"><strong>7</strong><span>Annotations</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#documentation"><strong>8</strong><span>Documentation in Generated Files</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#serialization"><strong>9</strong><span>Serialization</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#data"><strong>10</strong><span>Micronaut Data</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#dependencies"><strong>11</strong><span>Artifacts and Dependencies</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#testing"><strong>12</strong><span>Testing</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#limitations"><strong>13</strong><span>Limitations</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#troubleshooting"><strong>14</strong><span>Troubleshooting</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#repository"><strong>15</strong><span>Repository</span></a></div>
+                                
+                                <div class="toc-item" style="margin-left:0"><a href="#releaseHistory"><strong>16</strong><span>Release History</span></a></div>
+                                
+                            </div>
+                        </div>
+                    </li>
+
+                <li id="table-of-content-nav-link-mobile" class="mobile">
+                    <a title="Scroll to Table of contents" href="javascript:scrollToTop();" class="button">Toc</a>
+                </li>
+                <li class="desktop">
+                    <a title="Go to API documentation" href="../api/index.html" class="button">API Reference</a>
+                </li>
+                <li class="mobile">
+                    <a title="Go to API documentation" href="../api/index.html" class="button">API</a>
+                </li>
+                <li class="desktop">
+                    <a title="Go to Configuration Reference documentation" href="../guide/configurationreference.html" class="button">Configuration Reference</a>
+                </li>
+                <li class="mobile">
+                    <a title="Go to Configuration Reference documentation" href="../guide/configurationreference.html" class="button">Conf</a>
+                </li>
+            </ul>
+
+        </div>
+    </div>
+    
+    <div id="table-of-content">
+        <div class="toc-content">
+
+        <h2>Table of Contents</h2>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-introduction"><a href="#introduction"><strong>1</strong><span>Introduction</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-quickStart"><a href="#quickStart"><strong>2</strong><span>Quick Start</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-concepts"><a href="#concepts"><strong>3</strong><span>Micronaut for Scala Developers</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-idiomatic"><a href="#idiomatic"><strong>4</strong><span>Idiomatic Scala</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-buildTools"><a href="#buildTools"><strong>5</strong><span>Build Tools</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-configuration"><a href="#configuration"><strong>6</strong><span>Configuration Options</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-annotations"><a href="#annotations"><strong>7</strong><span>Annotations</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-documentation"><a href="#documentation"><strong>8</strong><span>Documentation in Generated Files</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-serialization"><a href="#serialization"><strong>9</strong><span>Serialization</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-data"><a href="#data"><strong>10</strong><span>Micronaut Data</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-dependencies"><a href="#dependencies"><strong>11</strong><span>Artifacts and Dependencies</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-testing"><a href="#testing"><strong>12</strong><span>Testing</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-limitations"><a href="#limitations"><strong>13</strong><span>Limitations</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-troubleshooting"><a href="#troubleshooting"><strong>14</strong><span>Troubleshooting</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-repository"><a href="#repository"><strong>15</strong><span>Repository</span></a></div>
+        
+        <div class="toc-item" style="margin-left:0px" id="toc-item-releaseHistory"><a href="#releaseHistory"><strong>16</strong><span>Release History</span></a></div>
+        
+        </div>
+    </div>
+    
+    <div class="docs-content">
+    <div class="project">
+        <h1>Micronaut Scala</h1>
+        <p></p>
+        <p>Micronaut Scala compiler plugin and integration tests</p>
+        <p><strong>Version:</strong> 1.0.0-M1 </p>
+    </div>
+    
+<h1 id="introduction"><a class="anchor" href="#introduction"></a>1 Introduction</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/introduction.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>Micronaut Scala lets you use Micronaut Framework from Scala 3. Its compiler
+plugin generates bean definitions, introspections and AOP proxies from your
+Scala classes during compilation.</p>
+</div>
+<div class="paragraph">
+<p>The plugin adapts Scala declarations to Micronaut&#8217;s compile-time APIs. Micronaut
+Core provides the shared processing and runtime infrastructure; this project
+provides the Scala compiler integration and runtime support for Scala types.</p>
+</div>
+<div class="sect1">
+<h2 id="_supported_versions">Supported versions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Scala 3.9.0 is the primary LTS compiler release. The build also supports
+Scala 3.3.9 (previous LTS) and Scala 3.10.1 (non-LTS). Each compiler version
+has its own plugin artifact:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>io.micronaut.scala:micronaut-inject-scala_3.9.0</code></p>
+</li>
+<li>
+<p><code>io.micronaut.scala:micronaut-inject-scala_3.3.9</code></p>
+</li>
+<li>
+<p><code>io.micronaut.scala:micronaut-inject-scala_3.10.1</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Choose the artifact that exactly matches your Scala compiler version. Compiler
+plugin APIs can change between releases, so using a different version can fail
+during compilation.</p>
+</div>
+<div class="paragraph">
+<p>The test harness is published as
+<code>io.micronaut.scala:micronaut-inject-scala-test_3.9.0</code>. Runtime support is
+published as <code>io.micronaut.scala:micronaut-runtime-scala</code> and does not have a
+compiler-version suffix.</p>
+</div>
+<div class="paragraph">
+<p>Micronaut Scala has its own version, independent of Micronaut Core. The current
+development version is <code>1.0.0-SNAPSHOT</code>. The build requires JDK 25.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_what_is_included">What is included</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The integration supports dependency injection, bean introspection, AOP,
+configuration properties and annotation metadata. Runtime support includes
+converters for Scala collections and <code>Option</code>, along with Micronaut
+Serialization support for collections, <code>Option</code> and Scala 3 enums.</p>
+</div>
+<div class="paragraph">
+<p>Scala 2 is not supported.</p>
+</div>
+<div class="paragraph">
+<p>Start with <a href="#quickStart">Quick Start</a> to configure the plugin. If you are new
+to Micronaut, <a href="#concepts">Micronaut for Scala Developers</a> introduces the main
+framework features with Scala examples.</p>
+</div>
+</div>
+</div>
+
+<h1 id="quickStart"><a class="anchor" href="#quickStart"></a>2 Quick Start</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/quickStart.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>To use Micronaut from Scala, add the compiler plugin to your build and the
+Scala runtime support to your application&#8217;s runtime dependencies. Use JDK 25
+and choose a plugin artifact that matches your full Scala compiler version.</p>
+</div>
+<div class="sect1">
+<h2 id="_add_the_dependencies">Add the dependencies</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For a Gradle application using Scala 3.9.0, add these entries to your
+<code>dependencies</code> block:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="kotlin">scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
+runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>micronaut-inject-scala_3.9.0</code> runs during compilation and generates the classes
+Micronaut needs to create and inject your beans. <code>micronaut-runtime-scala</code>
+provides converters and serialization support for Scala types at runtime.</p>
+</div>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-warning" title="Warning"></i>
+</td>
+<td class="content">
+Keep the compiler plugin off the application runtime classpath. Its jar
+bundles Micronaut and ASM classes that can conflict with the application&#8217;s own
+dependencies.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>See <a href="#buildTools">Build Tools</a> for a fuller Gradle configuration and examples
+for Maven, sbt and Mill. Adding the plugin as an ordinary dependency does not
+register it with the Scala compiler.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_define_and_use_a_bean">Define and use a bean</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Define a dependency as a bean with <code>@Singleton</code>:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+class Translator:
+  def hello: String = "Hello"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Then declare it as a constructor parameter in another bean:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+class GreetingService(translator: Translator):
+  def greet(name: String): String = s"${translator.hello}, $name"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Micronaut supplies <code>Translator</code> when it creates <code>GreetingService</code>. In an
+application context, calling <code>getBean(classOf[GreetingService]).greet("Scala")</code>
+returns <code>Hello, Scala</code>.</p>
+</div>
+<div class="paragraph">
+<p>See <a href="#concepts">Micronaut for Scala Developers</a> for more about bean creation,
+qualifiers and the other framework features.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_match_the_compiler_version">Match the compiler version</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The suffix <code>_3.9.0</code> is the full Scala compiler version. Do not shorten it to
+<code>_3</code> or use it with a different compiler release. See
+<a href="#introduction">Supported versions</a> for the available variants.</p>
+</div>
+<div class="paragraph">
+<p>The examples use the development version <code>1.0.0-SNAPSHOT</code>. When using a
+released version, replace that version in both dependencies.</p>
+</div>
+</div>
+</div>
+
+<h1 id="concepts"><a class="anchor" href="#concepts"></a>3 Micronaut for Scala Developers</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/concepts.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>Micronaut provides dependency injection, configuration binding, introspection
+and AOP. This chapter introduces those features through Scala examples.</p>
+</div>
+<div class="paragraph">
+<p>The Scala compiler plugin runs Micronaut&#8217;s compile-time processing while your
+Scala sources are compiled. You use the same Micronaut annotations and runtime
+APIs as you would in a Java application.</p>
+</div>
+<div class="sect1">
+<h2 id="_compile_time_processing_and_runtime_bean_creation">Compile-time processing and runtime bean creation</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>During compilation, the plugin generates a <code>BeanDefinition</code> for each bean. It
+records how to construct the bean, which dependencies it needs and which
+qualifiers apply. At runtime, Micronaut uses these definitions to create beans
+and resolve their dependencies, avoiding reflective discovery of that metadata.</p>
+</div>
+<div class="paragraph">
+<p>This does not mean every dependency problem is a compile error. A missing bean
+or an ambiguous qualifier can still cause an error when Micronaut tries to
+create the bean at runtime.</p>
+</div>
+<div class="paragraph">
+<p>Scala also has different rules for Java annotation arguments. See
+<a href="#annotations">Annotations</a> when adapting an example from the Java guide.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_dependency_injection">Dependency injection</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A <strong>bean</strong> is an object managed by Micronaut. Start by defining a trait for a
+dependency:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">trait Engine:
+  def start(): String</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Annotate each implementation with <code>@Singleton</code> to make it a bean. Here,
+<code>@Named</code> distinguishes two implementations of the same trait:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+@Named("v6")
+class V6Engine extends Engine:
+  def start(): String = "V6 starting"
+
+@Singleton
+@Named("v8")
+class V8Engine extends Engine:
+  def start(): String = "V8 starting"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Declare the dependency as a constructor parameter. A <strong>qualifier</strong>, such as
+<code>@Named</code>, selects an implementation when several beans have the required type:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+class Vehicle(@Named("v8") engine: Engine):
+  def start(): String = engine.start()</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>ApplicationContext.run().getBean(classOf[Vehicle])</code> creates a <code>Vehicle</code> with
+<code>V8Engine</code> supplied. If no matching engine bean is available, creating the
+<code>Vehicle</code> fails at runtime.</p>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+Prefer constructor injection in Scala. Dependencies are available as soon
+as the class is constructed, and a unit test can supply them directly with
+<code>new</code>. Micronaut also supports field and setter injection with <code>@Inject</code>.
+</td>
+</tr>
+</table>
+</div>
+<div class="sect2">
+<h3 id="_scopes">Scopes</h3>
+<div class="paragraph">
+<p>A <strong>scope</strong> controls a bean&#8217;s lifetime. <code>@Singleton</code> shares one instance within
+an application context. <code>@Prototype</code> creates a new instance for each injection
+or lookup:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Prototype
+class Journey:
+  val id: String = java.util.UUID.randomUUID().toString</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Other Micronaut scopes include <code>@Context</code>, <code>@Refreshable</code> and request scope in
+server applications.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_configuration_properties">Configuration properties</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>@ConfigurationProperties</code> binds a class to a section of application
+configuration. The resulting object is a bean that other beans can inject:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@ConfigurationProperties("engine")
+class EngineConfiguration(
+    val manufacturer: String,
+    // An absent property binds to `None` rather than failing the bean.
+    val nickname: Option[String],
+    val cylinders: List[Int]
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Set <code>engine.manufacturer</code> to <code>Ford</code> and <code>engine.cylinders</code> to a list to supply
+the corresponding constructor values. <code>nickname</code> is optional: when its
+configuration property is absent, it binds to <code>None</code>. The <code>List[Int]</code> parameter
+receives a Scala list with each element converted to an integer.</p>
+</div>
+<div class="paragraph">
+<p>These conversions require <code>micronaut-runtime-scala</code> on the runtime classpath.
+Scala <code>Seq</code>, <code>Set</code> and <code>Map</code> are also supported. A required parameter without
+a value or a default prevents the configuration bean from being created.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_bean_introspection">Bean introspection</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>@Introspected</code> asks Micronaut to generate metadata for constructing a type and
+accessing its properties. Validation, data binding and serialization can use
+this metadata without discovering properties through reflection:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Introspected
+case class Book(title: String, pages: Int)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>BeanIntrospection.getIntrospection(classOf[Book])</code> exposes <code>title</code> and <code>pages</code>
+as properties and can instantiate <code>Book</code> from their values. The case class&#8217;s
+constructor parameters supply its properties, and its generated accessors
+supply the getters.</p>
+</div>
+<div class="paragraph">
+<p>Ordinary classes can also be introspected. The plugin recognises Scala <code>val</code>
+and <code>var</code> accessors as well as getter and setter pairs. A <code>val</code> is read-only;
+a <code>var</code> can also be written through its setter.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_serialization">Serialization</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="https://micronaut-projects.github.io/micronaut-serde/latest/guide/">Micronaut Serialization</a>
+uses generated introspections to read and write objects. Mark a case class
+with <code>@Serdeable</code> to enable both directions:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Serdeable
+case class Order(id: String, quantity: Int)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>An injected <code>ObjectMapper</code> writes this example as
+<code>{"id":"A-1","quantity":3}</code> and reads it back through the case class constructor.
+Add <code>io.micronaut.serde:micronaut-serde-jackson</code> to use the Jackson-based
+implementation.</p>
+</div>
+<div class="paragraph">
+<p>For properties declared as Scala collections, <code>Option</code> or Scala 3 enums, also
+include <code>micronaut-runtime-scala</code>. See <a href="#serialization">Serialization</a> for
+JSON examples and the handling of missing optional fields.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_around_advice">Around advice</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Aspect-oriented programming</strong> (AOP) lets an interceptor add behaviour around a
+method call. Common uses include logging, retries and transactions. Micronaut
+generates the proxy classes during compilation.</p>
+</div>
+<div class="paragraph">
+<p>To define custom around advice, first declare an annotation marked with
+<code>@Around</code>:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Around
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE, ElementType.METHOD))
+class Audited extends StaticAnnotation, java.lang.annotation.Annotation:
+  override def annotationType(): Class[? &lt;: java.lang.annotation.Annotation] =
+    classOf[Audited]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Then bind an interceptor to the annotation. The interceptor receives the call
+and invokes <code>proceed()</code> to continue to the original method:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+@InterceptorBean(Array(classOf[Audited]))
+class AuditInterceptor extends MethodInterceptor[Object, Object]:
+  private val calls = ListBuffer.empty[String]
+
+  def audited: Seq[String] = calls.toSeq
+
+  override def intercept(context: MethodInvocationContext[Object, Object]): Object =
+    calls += context.getMethodName
+    context.proceed()</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Apply the annotation to the methods you want to intercept, or to a class to
+advise its eligible methods:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+class OrderService:
+  @Audited
+  def place(item: String): String = s"ordered $item"
+
+  def quote(item: String): String = s"quote for $item"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Calling <code>place</code> runs the interceptor and returns <code>ordered a book</code>. Calling
+<code>quote</code> does not run the interceptor.</p>
+</div>
+<div class="paragraph">
+<p>The annotation extends <code>java.lang.annotation.Annotation</code> because
+<code>@InterceptorBean</code> accepts a <code>classOf[&#8230;&#8203;]</code> argument with that bound. See
+<a href="#annotations">Annotations</a> for details.</p>
+</div>
+<div class="paragraph">
+<p>The generated proxy extends the advised class and overrides its advised
+methods. A <code>final</code> class or advised method therefore causes a compilation error.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_introduction_advice">Introduction advice</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Introduction advice</strong> supplies the implementation of abstract methods. This
+is how Micronaut implements declarative clients and repositories.</p>
+</div>
+<div class="paragraph">
+<p>The interceptor uses the invocation context to decide how to answer each call:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+class GreeterIntroduction extends MethodInterceptor[AnyRef, Object]:
+  override def intercept(context: MethodInvocationContext[AnyRef, Object]): Object =
+    s"${context.getMethodName}(${context.getParameterValues.mkString(", ")})"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>An annotation marked with <code>@Introduction</code> enables the advice. <code>@Type</code> identifies
+the interceptor:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Introduction
+@Type(Array(classOf[GreeterIntroduction]))
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE))
+class Stub extends StaticAnnotation</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Apply the annotation to a trait or abstract class:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Stub
+trait Greeter:
+  def greet(name: String): String</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>getBean(classOf[Greeter]).greet("Scala")</code> returns <code>greet(Scala)</code>, the value
+supplied by the interceptor. An abstract class can also have constructor
+dependencies and concrete methods; those methods keep their implementation.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_data_access">Data access</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Micronaut Data uses introduction advice to implement repositories. An entity
+can be a case class whose constructor parameters describe the mapped properties:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">/** A book on the shelf.
+  *
+  * @param id the generated primary key, zero until the database assigns one
+  * @param title the book's title
+  * @param pages how many pages it has
+  */
+@MappedEntity
+case class Book(
+    @Id @GeneratedValue id: Long,
+    title: String,
+    pages: Int
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this example, <code>@Id</code> marks the identifier and <code>@GeneratedValue</code> asks the
+database to generate it.</p>
+</div>
+<div class="paragraph">
+<p>Declare a repository as a trait extending <code>CrudRepository</code>. Methods such as
+<code>findByTitle</code> describe queries through their names:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">/** Books, stored in the default data source. */
+@JdbcRepository(dialect = Dialect.H2)
+trait BookRepository extends CrudRepository[Book, Long]:
+
+  /** Finds every book with the given title. */
+  def findByTitle(title: String): List[Book]
+
+  /** Counts the books longer than the given length. */
+  def countByPagesGreaterThan(pages: Int): Long
+
+  /** Finds one book with the given title, if there is one. */
+  def findFirstByTitle(title: String): java.util.Optional[Book]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>During compilation, Micronaut Data processes the entity and repository and
+records the SQL and query metadata. Micronaut generates a repository proxy
+whose interceptors execute those queries at runtime. You inject
+<code>BookRepository</code> without writing an implementation yourself.</p>
+</div>
+<div class="paragraph">
+<p>Scala collections can be used for query results, but optional single results
+currently need <code>java.util.Optional</code>. See <a href="#data">Micronaut Data</a> for the
+processor dependency, supported signatures and a database configuration.</p>
+</div>
+<div class="paragraph">
+<p>The examples in this chapter are compiled and exercised in <code>test-suite-scala</code>
+and <code>test-suite-scala-data</code>.</p>
+</div>
+</div>
+</div>
+
+<h1 id="idiomatic"><a class="anchor" href="#idiomatic"></a>4 Idiomatic Scala</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/idiomatic.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>Micronaut works well with Scala constructor parameters, case classes and
+traits. The examples below show how to use those features for beans and
+configuration, with a few details to keep in mind when using Java APIs.</p>
+</div>
+<div class="sect1">
+<h2 id="_prefer_constructor_injection">Prefer constructor injection</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Declare dependencies as constructor parameters so they are available throughout
+the class body, including when initialising a <code>val</code>:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+class ReportService(clock: Clock, config: ServerConfig):
+  // A constructor parameter is in scope for the class body, so state derived
+  // from a dependency can be a val rather than something set later.
+  private val label: String = s"${config.host}@${clock.getZone}"
+
+  def report(): String = label</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With field injection, a declaration such as <code>@Inject var clock: Clock = null</code>
+remains null until injection runs. Constructor injection avoids that intermediate
+state and lets unit tests construct the class directly with test dependencies.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_case_classes_for_configuration">Case classes for configuration</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A case class makes a convenient immutable configuration bean:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@ConfigurationProperties("server")
+case class ServerConfig(
+    host: String = "localhost",
+    port: Int = 8080,
+    tags: List[String] = Nil,
+    banner: Option[String] = None
+)</code></pre>
+</div>
+</div>
+<div class="dlist">
+<dl>
+<dt class="hdlist1">Default parameter values</dt>
+<dd>
+<p>The constructor default is used when the property is
+absent. Here, <code>host</code> defaults to <code>localhost</code>; <code>server.host</code> overrides it.</p>
+</dd>
+<dt class="hdlist1"><code>Option[String]</code></dt>
+<dd>
+<p>An optional property binds to <code>None</code> when absent.</p>
+</dd>
+<dt class="hdlist1"><code>List[String]</code></dt>
+<dd>
+<p>A list-valued property binds to a Scala list, with element
+conversion. Scala <code>Seq</code>, <code>Set</code> and <code>Map</code> are also supported.</p>
+</dd>
+<dt class="hdlist1"><code>case</code></dt>
+<dd>
+<p>Generated equality and <code>toString</code> methods help when comparing
+configuration values in tests or inspecting them while debugging.</p>
+</dd>
+</dl>
+</div>
+<div class="paragraph">
+<p>Use class-level Scaladoc <code>@param</code> tags to document constructor properties in
+generated configuration metadata. See <a href="#documentation">Documentation in Generated Files</a>.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+Binding <code>Option</code> and Scala collections requires <code>micronaut-runtime-scala</code>
+on the runtime classpath.
+</td>
+</tr>
+</table>
+</div>
+<div class="sect2">
+<h3 id="_repeated_configuration">Repeated configuration</h3>
+<div class="paragraph">
+<p>Use <code>@EachProperty</code> when the same configuration structure appears under several
+names, such as a set of data sources. <code>@Parameter</code> receives each entry&#8217;s name:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@EachProperty("datasources")
+case class DataSourceConfig(@Parameter name: String, url: String)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Configuring <code>datasources.one.url</code> and <code>datasources.two.url</code> creates two
+<code>DataSourceConfig</code> beans. Inject one by name with <code>@Named</code>, or inject a
+collection to receive them all.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_enums_in_configuration">Enums in configuration</h3>
+<div class="paragraph">
+<p>For an enum bound from a configuration string, extend <code>java.lang.Enum</code>:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">enum Mode extends java.lang.Enum[Mode]:
+  case Fast, Slow
+
+@ConfigurationProperties("run")
+case class RunConfig(mode: Mode = Mode.Slow)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Configuration binding uses Micronaut&#8217;s Java enum converter. A plain Scala enum
+does not extend <code>java.lang.Enum</code>, so this conversion fails. The example above
+supports both a configured value and the constructor default when no value is
+set. JSON serialization has separate support for plain Scala enums; see
+<a href="#serialization">Serialization</a>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_use_traits_for_replaceable_dependencies">Use traits for replaceable dependencies</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A trait lets a bean depend on an interface while Micronaut supplies an
+implementation:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">trait Notifier:
+  def send(message: String): String</code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+class EmailNotifier extends Notifier:
+  def send(message: String): String = s"email: $message"
+
+@Singleton
+class SmsNotifier extends Notifier:
+  def send(message: String): String = s"sms: $message"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When several beans implement the trait, a collection parameter receives all of
+them:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+class Broadcaster(notifiers: List[Notifier]):
+  def broadcast(message: String): List[String] =
+    notifiers.map(_.send(message)).sorted</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If a dependency is optional, declare an <code>Option</code> parameter. It receives <code>None</code>
+when no matching bean exists:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">trait Archive:
+  def store(message: String): Unit
+
+@Singleton
+class AuditLog(archive: Option[Archive]):
+  def describe(): String = archive.fold("not archived")(_ =&gt; "archived")</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To select one of several implementations, use a qualifier such as <code>@Named</code> at
+the injection point. This also lets a test supply a different implementation
+without changing the consuming bean.</p>
+</div>
+<div class="paragraph">
+<p>Traits can also declare abstract methods implemented by introduction advice,
+as described in <a href="#concepts">Micronaut for Scala Developers</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_factories_for_types_you_do_not_own">Factories for types you do not own</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use <code>@Factory</code> to create beans from library types or to centralise construction
+logic. Each method annotated with a scope supplies a bean of its return type:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Factory
+class Clocks:
+  @Singleton
+  def systemClock(): Clock = Clock.systemUTC()</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>Clock</code> returned by this factory can be injected into <code>ReportService</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_scala_objects_as_beans">Scala objects as beans</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A Scala <code>object</code> can be annotated with <code>@Singleton</code>:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Singleton
+object HouseStyle:
+  def prefix: String = "[app]"
+
+@Singleton
+class Banner(style: HouseStyle.type):
+  def render(text: String): String = s"${style.prefix} $text"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In this example, the injection point uses <code>HouseStyle.type</code>, the singleton type
+of that specific object. A test double cannot have the same singleton type.
+For behaviour you may want to replace, prefer a class injected through a trait.
+Objects remain useful for constants and pure helper functions.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_aop_and_annotation_rules">AOP and annotation rules</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>AOP proxies extend your bean class and override advised methods. Keep advised
+classes and methods non-final so the compiler can generate those overrides.</p>
+</div>
+<div class="paragraph">
+<p>Java annotation arguments also follow Scala&#8217;s rules: use explicit arrays for
+array-valued members and name annotation arguments. See <a href="#annotations">Annotations</a>
+for examples.</p>
+</div>
+<div class="paragraph">
+<p>These examples are compiled and run by <code>GuideExamplesSpec</code> in <code>test-suite-scala</code>.</p>
+</div>
+</div>
+</div>
+
+<h1 id="buildTools"><a class="anchor" href="#buildTools"></a>5 Build Tools</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/buildTools.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>Register Micronaut Scala as a Scala compiler plugin. The configuration depends
+on your build tool, but the artifact name must always match the full Scala
+compiler version. The examples below use Scala 3.9.0 and JDK 25.</p>
+</div>
+<div class="sect1">
+<h2 id="_gradle">Gradle</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use Gradle&#8217;s <code>scalaCompilerPlugins</code> configuration for the plugin:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="kotlin">plugins {
+    scala
+}
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+dependencies {
+    implementation("org.scala-lang:scala3-library_3:3.9.0")
+    implementation("io.micronaut:micronaut-context:5.2.21")
+
+    scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
+    runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
+}
+
+tasks.withType&lt;ScalaCompile&gt;().configureEach {
+    options.release.set(25)
+    scalaCompileOptions.additionalParameters.add("-J--add-modules=java.compiler")
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>java.compiler</code> module provides the <code>javax.lang.model</code> APIs used by
+Micronaut processing code. Pass <code>-J&#8212;&#8203;add-modules=java.compiler</code> to make it
+available in the compiler process.</p>
+</div>
+<div class="paragraph">
+<p>The repository&#8217;s <code>ScalaGradlePluginFunctionalSpec</code> exercises plugin loading and
+bean generation through a separate Gradle build, using local jar files as
+dependencies.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_maven">Maven</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Register the compiler plugin in <code>scala-maven-plugin&#8217;s `compilerPlugins</code>
+configuration. Add runtime support as an application dependency:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="xml">&lt;properties&gt;
+  &lt;scala.version&gt;3.9.0&lt;/scala.version&gt;
+  &lt;micronaut.scala.version&gt;1.0.0-SNAPSHOT&lt;/micronaut.scala.version&gt;
+&lt;/properties&gt;
+
+&lt;dependencies&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;org.scala-lang&lt;/groupId&gt;
+    &lt;artifactId&gt;scala3-library_3&lt;/artifactId&gt;
+    &lt;version&gt;${scala.version}&lt;/version&gt;
+  &lt;/dependency&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;io.micronaut.scala&lt;/groupId&gt;
+    &lt;artifactId&gt;micronaut-runtime-scala&lt;/artifactId&gt;
+    &lt;version&gt;${micronaut.scala.version}&lt;/version&gt;
+    &lt;scope&gt;runtime&lt;/scope&gt;
+  &lt;/dependency&gt;
+&lt;/dependencies&gt;
+
+&lt;build&gt;
+  &lt;plugins&gt;
+    &lt;plugin&gt;
+      &lt;groupId&gt;net.alchim31.maven&lt;/groupId&gt;
+      &lt;artifactId&gt;scala-maven-plugin&lt;/artifactId&gt;
+      &lt;configuration&gt;
+        &lt;args&gt;
+          &lt;arg&gt;-J--add-modules=java.compiler&lt;/arg&gt;
+        &lt;/args&gt;
+        &lt;compilerPlugins&gt;
+          &lt;compilerPlugin&gt;
+            &lt;groupId&gt;io.micronaut.scala&lt;/groupId&gt;
+            &lt;artifactId&gt;micronaut-inject-scala_3.9.0&lt;/artifactId&gt;
+            &lt;version&gt;${micronaut.scala.version}&lt;/version&gt;
+          &lt;/compilerPlugin&gt;
+        &lt;/compilerPlugins&gt;
+      &lt;/configuration&gt;
+    &lt;/plugin&gt;
+  &lt;/plugins&gt;
+&lt;/build&gt;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This fragment assumes the rest of the application&#8217;s Micronaut dependencies and
+the Scala Maven plugin version and compile executions are configured.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sbt">sbt</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The example names the complete artifact ID explicitly:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">scalaVersion := "3.9.0"
+
+libraryDependencies ++= Seq(
+  "io.micronaut" % "micronaut-context" % "5.2.21",
+  "io.micronaut.scala" % "micronaut-runtime-scala" % "1.0.0-SNAPSHOT" % Runtime
+)
+
+addCompilerPlugin(
+  "io.micronaut.scala" % "micronaut-inject-scala_3.9.0" % "1.0.0-SNAPSHOT"
+)
+
+javacOptions ++= Seq("--add-modules", "java.compiler")</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you use sbt&#8217;s <code>cross</code> dependency notation instead, select <code>CrossVersion.full</code>.
+The default binary-version suffix <code>_3</code> does not identify a published plugin.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_mill">Mill</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Add the plugin to <code>scalacPluginIvyDeps</code>, using its full artifact ID:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">object app extends ScalaModule {
+  def scalaVersion = "3.9.0"
+
+  def ivyDeps = Agg(
+    ivy"io.micronaut:micronaut-context:5.2.21",
+    ivy"io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT"
+  )
+
+  def scalacPluginIvyDeps = Agg(
+    ivy"io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT"
+  )
+
+  def scalacOptions = Seq("-J--add-modules=java.compiler")
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When using Mill&#8217;s cross-version notation instead of an explicit suffix, use the
+full-cross <code>:::</code> form.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+The repository tests the Gradle integration. The Maven, sbt and Mill
+fragments are not exercised here. If compilation produces no bean definitions,
+see <a href="#troubleshooting">Troubleshooting</a>.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+
+<h1 id="configuration"><a class="anchor" href="#configuration"></a>6 Configuration Options</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/configuration.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>Options are passed to the plugin with the standard Scala compiler-plugin syntax:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>-P:micronaut-scala:&lt;key&gt;=&lt;value&gt;</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>An option without <code>=</code> has the value <code>"true"</code>.</p>
+</div>
+<div class="sect1">
+<h2 id="_available_options">Available options</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The plugin passes options to <code>VisitorContext.getOptions()</code>. Micronaut processing
+code and any <code>TypeElementVisitor</code> on the compilation classpath can read them,
+so visitors may accept additional keys beyond those listed here.</p>
+</div>
+<div class="paragraph">
+<p>The table lists the well-known keys in the plugin&#8217;s help. Their effect depends
+on the processing code that reads them. Use <code>-P:micronaut-scala:help</code> to print
+the help.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 50%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Key</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.processing.incremental</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Incremental processing hint (<code>true</code> or <code>false</code>). This does not make build tools
+track generated bean definitions; see <a href="#limitations">Limitations</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.processing.group</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The Maven group of the module being compiled.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.processing.module</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The name of the module being compiled.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.processing.project.dir</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The project directory passed to processing code.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.processing.annotations</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Comma-separated package prefixes for processors that support annotation filtering.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.processing.use.context.classloader</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Micronaut&#8217;s context-classloader switch. The Scala integration enables context
+classloader lookup internally while processing.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_setting_options">Setting options</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="kotlin">tasks.withType&lt;ScalaCompile&gt;().configureEach {
+    scalaCompileOptions.additionalParameters.addAll(
+        listOf(
+            "-J--add-modules=java.compiler",
+            "-P:micronaut-scala:micronaut.processing.group=com.example",
+            "-P:micronaut-scala:micronaut.processing.module=app"
+        )
+    )
+}</code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+The plugin accepts unknown keys. Check the spelling if an option has no
+effect; a typo does not cause a compilation error.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+
+<h1 id="annotations"><a class="anchor" href="#annotations"></a>7 Annotations</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/annotations.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>Micronaut uses Java annotations. When applying them in Scala, use explicit
+arrays, name the arguments and write repeatable-annotation containers yourself.
+These differences matter when adapting examples from Java.</p>
+</div>
+<div class="sect1">
+<h2 id="_array_valued_members">Array-valued members</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Java allows a single value for an array-valued annotation member. Scala requires
+an array, even for one element. This does not compile:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Introspected(accessKind = Introspected.AccessKind.METHOD)   // does not compile</code></pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Found:    (io.micronaut.core.annotation.Introspected.AccessKind.METHOD :
+  io.micronaut.core.annotation.Introspected.AccessKind)
+Required: Array[io.micronaut.core.annotation.Introspected.AccessKind]</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Wrap the value in <code>Array(&#8230;&#8203;)</code>:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Introspected(accessKind = Array(Introspected.AccessKind.METHOD))
+class Vehicle(val make: String)</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_named_arguments">Named arguments</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use named arguments for Java annotation members. A positional argument can bind
+to the first declared member rather than <code>value</code>. For example, <code>@Min(10)</code> binds
+to the <code>message</code> member of <code>jakarta.validation.constraints.Min</code> and fails:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">def check(@Min(10) size: Int): Int = size   // does not compile</code></pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Found:    (10 : Int)
+Required: String</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Name the member explicitly:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Introspected
+class Part:
+  @Introspected.Property(value = "part_number")
+  def partNumber: String = "none"
+  def partNumber_=(value: String): Unit = ()</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>An annotation whose only member is <code>value</code> also accepts a positional argument.
+Naming it still makes the intent clear.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_repeatable_annotations">Repeatable annotations</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Scala does not accept repeated applications of the same annotation. Use the
+container annotation declared by Java&#8217;s <code>@Repeatable</code>, with <code>new</code> for each entry:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE, ElementType.METHOD))
+@InterceptorBindingDefinitions(Array(
+  new InterceptorBinding(kind = InterceptorKind.POST_CONSTRUCT),
+  new InterceptorBinding(kind = InterceptorKind.PRE_DESTROY)
+))
+class Managed extends StaticAnnotation, java.lang.annotation.Annotation:
+  override def annotationType(): Class[? &lt;: java.lang.annotation.Annotation] =
+    classOf[Managed]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For Micronaut annotations, common pairs are <code>@Requires</code> and <code>@Requirements</code>,
+<code>@InterceptorBinding</code> and <code>@InterceptorBindingDefinitions</code>, and <code>@Property</code> and
+<code>@PropertySource</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_declaring_an_annotation">Declaring an annotation</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A Scala annotation extends <code>scala.annotation.StaticAnnotation</code> and declares its
+members as constructor parameters. Use <code>@Retention(RetentionPolicy.RUNTIME)</code>
+for Micronaut annotation processing and <code>@Target</code> to specify where it applies:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.TYPE))
+class Audited(val category: String = "general") extends StaticAnnotation
+
+@Audited(category = "billing")
+class Invoice(val total: Long)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If another annotation accepts your annotation type as a <code>classOf[&#8230;&#8203;]</code> argument
+bounded by <code>Annotation</code>, also extend <code>java.lang.annotation.Annotation</code> and
+implement <code>annotationType()</code>, as <code>Managed</code> does above. Examples of such arguments
+include those of <code>@InterceptorBean</code>, <code>@Type</code> and <code>@Introduction(interfaces = &#8230;&#8203;)</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_scala_and_java_type_names">Scala and Java type names</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Check which type a short name refers to. Scala&#8217;s <code>StringBuilder</code> is
+<code>scala.collection.mutable.StringBuilder</code>; use <code>java.lang.StringBuilder</code> when a
+Java API or injection point needs that type.</p>
+</div>
+<div class="paragraph">
+<p>Similarly, Scala <code>Seq</code>, <code>List</code> and <code>Map</code> differ from Java collections. The
+runtime support converts between supported collection types, but the types are
+not interchangeable in method signatures.</p>
+</div>
+</div>
+</div>
+
+<h1 id="documentation"><a class="anchor" href="#documentation"></a>8 Documentation in Generated Files</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/documentation.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>The compiler plugin makes Scaladoc comments available to Micronaut&#8217;s
+compile-time visitors. Those visitors can use the comments for descriptions in
+configuration metadata, OpenAPI definitions and JSON schemas.</p>
+</div>
+<div class="sect1">
+<h2 id="_write_scaladoc_comments">Write Scaladoc comments</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>No compiler flag or plugin option is needed. Use <code>/** &#8230;&#8203; */</code> comments above the
+declarations you want to document; ordinary <code>//</code> comments are not included.</p>
+</div>
+<div class="paragraph">
+<p>For a constructor property, write a class-level <code>@param</code> tag:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">/** Configures the outbound mailer.
+  *
+  * @param host the SMTP host to connect to
+  * @param port the port the SMTP host listens on
+  */
+@ConfigurationProperties("mailer")
+case class MailerConfig(host: String = "localhost", port: Int = 25)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The generated configuration metadata includes the class description and each
+parameter&#8217;s description:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-json hljs" data-lang="json">{
+  "groups": [
+    { "name": "mailer",
+      "type": "io.micronaut.docs.documentation.MailerConfig",
+      "description": "Configures the outbound mailer." }
+  ],
+  "properties": [
+    { "name": "mailer.host", "type": "java.lang.String",
+      "description": "the SMTP host to connect to" },
+    { "name": "mailer.port", "type": "int",
+      "description": "the port the SMTP host listens on" }
+  ]
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For a property declared in the class body, put the comment directly above it:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">@ConfigurationProperties("mailer")
+class MailerConfig:
+  /** How many messages to send at once. */
+  var batchSize: Int = 10</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Place the main description before any block tags such as <code>@param</code>, <code>@return</code>
+or <code>@throws</code>. The description ends at the first block tag.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_where_descriptions_appear">Where descriptions appear</h2>
+<div class="sectionbody">
+<div class="dlist">
+<dl>
+<dt class="hdlist1">Configuration metadata</dt>
+<dd>
+<p>Compiling <code>@ConfigurationProperties</code> classes generates
+<code>META-INF/spring-configuration-metadata.json</code>. The class comment describes the
+configuration group, and property comments or <code>@param</code> tags describe its keys.
+IDEs can display these descriptions during configuration completion.</p>
+</dd>
+<dt class="hdlist1">OpenAPI</dt>
+<dd>
+<p>Add <code>micronaut-openapi</code> to the compilation classpath to generate an
+OpenAPI definition. Its visitor can use comments on controller methods and
+exposed types for operation and schema descriptions. Explicit descriptions in
+annotations such as <code>@Schema</code> take precedence.</p>
+</dd>
+<dt class="hdlist1">JSON schema</dt>
+<dd>
+<p>A JSON schema generator can read the same documentation through
+Micronaut&#8217;s element API. Add the generator required by your application to the
+compilation classpath.</p>
+</dd>
+</dl>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_comments_from_dependencies">Comments from dependencies</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The plugin reads comments from the sources being compiled. Class files from
+another module or library do not retain Scaladoc, so those types do not provide
+comments through this mechanism. If needed, document the member that exposes
+the dependency type in your own sources.</p>
+</div>
+<div class="paragraph">
+<p><code>GuideExamplesSpec</code> checks the generated metadata for the <code>MailerConfig</code>
+example. OpenAPI examples and generation tests are in <code>test-suite-scala-openapi</code>.</p>
+</div>
+</div>
+</div>
+
+<h1 id="serialization"><a class="anchor" href="#serialization"></a>9 Serialization</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/serialization.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p><a href="https://micronaut-projects.github.io/micronaut-serde/latest/guide/">Micronaut Serialization</a>
+uses the introspections generated by the compiler plugin to read and write Scala
+objects. Annotate a case class with <code>@Serdeable</code> to enable serialization and
+deserialization:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">/** One line of an order. */
+@Serdeable
+case class Line(sku: String, quantity: Int)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This example writes as <code>{"sku":"sku-1","quantity":2}</code>. Deserialization calls the
+case class constructor with the property values.</p>
+</div>
+<div class="paragraph">
+<p>Add the serialization implementation and Scala runtime support:</p>
+</div>
+<div class="paragraph">
+<p>        <div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">implementation(<span class="hljs-string">"io.micronaut.serde:micronaut-serde-jackson")</span></code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="maven">&lt;dependency&gt;
+    &lt;groupId&gt;io.micronaut.serde&lt;/groupId&gt;
+    &lt;artifactId&gt;micronaut-serde-jackson&lt;/artifactId&gt;
+&lt;/dependency&gt;</code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-toml hljs" data-lang="pyronaut">[tool.pyronaut.dependencies]
+runtime = [
+    <span class="hljs-string">"io.micronaut.serde:micronaut-serde-jackson"</span>,
+]</code></pre>
+</div>
+</div>
+</p>
+</div>
+<div class="paragraph">
+<p>        <div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">runtimeOnly(<span class="hljs-string">"io.micronaut.scala:micronaut-runtime-scala")</span></code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="maven">&lt;dependency&gt;
+    &lt;groupId&gt;io.micronaut.scala&lt;/groupId&gt;
+    &lt;artifactId&gt;micronaut-runtime-scala&lt;/artifactId&gt;
+    &lt;scope&gt;runtime&lt;/scope&gt;
+&lt;/dependency&gt;</code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-toml hljs" data-lang="pyronaut">[tool.pyronaut.dependencies]
+runtime = [
+    <span class="hljs-string">"io.micronaut.scala:micronaut-runtime-scala"</span>,
+]</code></pre>
+</div>
+</div>
+</p>
+</div>
+<div class="paragraph">
+<p>The runtime module supplies serializers and deserializers for Scala <code>Option</code>,
+collections and enums.</p>
+</div>
+<div class="sect1">
+<h2 id="_a_worked_example">A worked example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The following order combines these types:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">/** A customer order.
+  *
+  * @param reference the order reference
+  * @param status how far along it is
+  * @param lines what was ordered
+  * @param notes free text the customer may not have supplied
+  * @param labels arbitrary tags, by name
+  */
+@Serdeable
+case class Order(
+    reference: String,
+    status: Status,
+    lines: List[Line],
+    notes: Option[String] = None,
+    labels: Map[String, String] = Map.empty
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>An order with one line and all optional values supplied writes as:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-json hljs" data-lang="json">{
+  "reference": "A-1",
+  "status": "Placed",
+  "lines": [{"sku": "sku-1", "quantity": 2}],
+  "notes": "leave at the door",
+  "labels": {"priority": "high"}
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_option">Option</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>Some(value)</code> writes the contained value without a wrapper. With the default
+inclusion settings, a property containing <code>None</code> is omitted. The serializer
+reports an empty option as absent; if it is written explicitly, it writes as
+JSON <code>null</code>.</p>
+</div>
+<div class="paragraph">
+<p>Give optional constructor parameters a default of <code>None</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">notes: Option[String] = None</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When the JSON omits the property, Micronaut Serialization uses the constructor
+default. Without that default, an omitted <code>Option</code> property currently receives
+<code>null</code>. An explicit JSON <code>null</code>, however, deserializes to <code>None</code> even without a
+constructor default.</p>
+</div>
+<div class="paragraph">
+<p>This missing-property behaviour is covered by the serialization tests and is
+tracked in
+<a href="https://github.com/micronaut-projects/micronaut-serialization/issues/1416">micronaut-serialization#1416</a>.</p>
+</div>
+<div class="paragraph">
+<p>Defaults also work for collections. For example,
+<code>labels: Map[String, String] = Map.empty</code> gives an omitted <code>labels</code> property an
+empty map.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_collections">Collections</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Scala collections such as <code>List</code>, <code>Seq</code>, <code>Set</code>, <code>Vector</code> and <code>IndexedSeq</code> write
+as JSON arrays. Maps write as JSON objects, with their keys represented as
+strings. During deserialization, elements, keys and values are read using the
+declared type arguments. For example, <code>List[Line]</code> uses the <code>Line</code> deserializer
+for each element, and <code>Map[Int, String]</code> converts JSON property names to integers.</p>
+</div>
+<div class="paragraph">
+<p>The result matches the declared collection type: <code>Vector[Int]</code> produces a
+<code>Vector</code>, while <code>Seq[String]</code> produces a compatible sequence. Supported mutable
+collection interfaces include <code>mutable.Seq</code>, <code>mutable.Set</code>, <code>mutable.Buffer</code>,
+<code>mutable.IndexedSeq</code> and <code>mutable.Map</code>.</p>
+</div>
+<div class="paragraph">
+<p>Deserialization uses the collection converters registered by
+<code>micronaut-runtime-scala</code>. A custom collection type needs a converter that can
+produce that type.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_scala_3_enums">Scala 3 enums</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>An enum with parameterless cases writes as its case name:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">/** How far along an order is. */
+enum Status:
+  case Placed, Shipped, Delivered</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Deserialization looks up the name using the compiler-generated <code>valueOf</code> method.
+Unknown names cause a deserialization error. Serialization uses the case name
+even if the enum overrides <code>toString</code>.</p>
+</div>
+<div class="paragraph">
+<p>The enum does not need its own <code>@Serdeable</code> annotation. Enums with parameterised
+cases do not have the required <code>valueOf</code> method and are not supported by this
+serializer. Model those values with a suitably configured serializable hierarchy
+or provide a custom serializer.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_other_serialization_features">Other serialization features</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Micronaut Serialization&#8217;s documentation covers supported Jackson annotations,
+naming strategies, views and custom serializers. Use
+<code>@Serdeable.Serializable</code> for serialization only and <code>@Serdeable.Deserializable</code>
+for deserialization only. See <a href="#annotations">Annotations</a> for Scala&#8217;s rules
+when supplying Java annotation arguments.</p>
+</div>
+<div class="paragraph">
+<p>The examples in this chapter are compiled and tested with an <code>ObjectMapper</code> in
+<code>test-suite-scala-serde</code>.</p>
+</div>
+</div>
+</div>
+
+<h1 id="data"><a class="anchor" href="#data"></a>10 Micronaut Data</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/data.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p><a href="https://micronaut-projects.github.io/micronaut-data/latest/guide/">Micronaut Data</a>
+generates query metadata at compile time and implements repository methods
+through introduction advice. Scala entities can be case classes, and repositories
+can be traits or abstract classes.</p>
+</div>
+<div class="sect1">
+<h2 id="_dependencies">Dependencies</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Add the Data processor to the compilation classpath of the module containing
+your Scala entities and repositories. The Scala plugin discovers its
+<code>TypeElementVisitor</code> through that classpath:</p>
+</div>
+<div class="paragraph">
+<p>        <div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">compileOnly(<span class="hljs-string">"io.micronaut.data:micronaut-data-processor")</span></code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="maven">&lt;dependency&gt;
+    &lt;groupId&gt;io.micronaut.data&lt;/groupId&gt;
+    &lt;artifactId&gt;micronaut-data-processor&lt;/artifactId&gt;
+    &lt;scope&gt;provided&lt;/scope&gt;
+&lt;/dependency&gt;</code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-toml hljs" data-lang="pyronaut">[tool.pyronaut.dependencies]
+build = [
+    <span class="hljs-string">"io.micronaut.data:micronaut-data-processor"</span>,
+]</code></pre>
+</div>
+</div>
+</p>
+</div>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-warning" title="Warning"></i>
+</td>
+<td class="content">
+An <code>annotationProcessor</code> dependency alone is insufficient for Scala.
+That configuration is used by <code>javac</code>. A module with both Java and Scala entities
+needs the processor in both configurations.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Without the processor on the Scala compilation classpath, a repository proxy may
+still be generated, but calling it can fail with
+<code>Micronaut Data method is missing compilation time query information</code>.</p>
+</div>
+<div class="paragraph">
+<p>For JDBC access to the in-memory H2 database used here, add:</p>
+</div>
+<div class="paragraph">
+<p>        <div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">implementation(<span class="hljs-string">"io.micronaut.data:micronaut-data-jdbc")</span></code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="maven">&lt;dependency&gt;
+    &lt;groupId&gt;io.micronaut.data&lt;/groupId&gt;
+    &lt;artifactId&gt;micronaut-data-jdbc&lt;/artifactId&gt;
+&lt;/dependency&gt;</code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-toml hljs" data-lang="pyronaut">[tool.pyronaut.dependencies]
+runtime = [
+    <span class="hljs-string">"io.micronaut.data:micronaut-data-jdbc"</span>,
+]</code></pre>
+</div>
+</div>
+</p>
+</div>
+<div class="paragraph">
+<p>        <div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">runtimeOnly(<span class="hljs-string">"io.micronaut.sql:micronaut-jdbc-hikari")</span></code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="maven">&lt;dependency&gt;
+    &lt;groupId&gt;io.micronaut.sql&lt;/groupId&gt;
+    &lt;artifactId&gt;micronaut-jdbc-hikari&lt;/artifactId&gt;
+    &lt;scope&gt;runtime&lt;/scope&gt;
+&lt;/dependency&gt;</code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-toml hljs" data-lang="pyronaut">[tool.pyronaut.dependencies]
+runtime = [
+    <span class="hljs-string">"io.micronaut.sql:micronaut-jdbc-hikari"</span>,
+]</code></pre>
+</div>
+</div>
+</p>
+</div>
+<div class="paragraph">
+<p>        <div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">runtimeOnly(<span class="hljs-string">"com.h2database:h2")</span></code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="maven">&lt;dependency&gt;
+    &lt;groupId&gt;com.h2database&lt;/groupId&gt;
+    &lt;artifactId&gt;h2&lt;/artifactId&gt;
+    &lt;scope&gt;runtime&lt;/scope&gt;
+&lt;/dependency&gt;</code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-toml hljs" data-lang="pyronaut">[tool.pyronaut.dependencies]
+runtime = [
+    <span class="hljs-string">"com.h2database:h2"</span>,
+]</code></pre>
+</div>
+</div>
+</p>
+</div>
+<div class="paragraph">
+<p>Also add the runtime converters for Scala collection results:</p>
+</div>
+<div class="paragraph">
+<p>        <div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">runtimeOnly(<span class="hljs-string">"io.micronaut.scala:micronaut-runtime-scala")</span></code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="maven">&lt;dependency&gt;
+    &lt;groupId&gt;io.micronaut.scala&lt;/groupId&gt;
+    &lt;artifactId&gt;micronaut-runtime-scala&lt;/artifactId&gt;
+    &lt;scope&gt;runtime&lt;/scope&gt;
+&lt;/dependency&gt;</code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-toml hljs" data-lang="pyronaut">[tool.pyronaut.dependencies]
+runtime = [
+    <span class="hljs-string">"io.micronaut.scala:micronaut-runtime-scala"</span>,
+]</code></pre>
+</div>
+</div>
+</p>
+</div>
+<div class="paragraph">
+<p>See <a href="#dependencies">Artifacts and Dependencies</a> for more about visitor loading.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_define_an_entity">Define an entity</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Annotate a case class with <code>@MappedEntity</code>. Put the property annotations on its
+constructor parameters:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">/** A book on the shelf.
+  *
+  * @param id the generated primary key, zero until the database assigns one
+  * @param title the book's title
+  * @param pages how many pages it has
+  */
+@MappedEntity
+case class Book(
+    @Id @GeneratedValue id: Long,
+    title: String,
+    pages: Int
+)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The plugin makes those annotations available on the properties Micronaut Data
+processes. <code>@Id</code> marks the identifier, and <code>@GeneratedValue</code> requests a
+database-generated value.</p>
+</div>
+<div class="paragraph">
+<p>The identifier uses Scala <code>Long</code>, which maps to Java&#8217;s primitive <code>long</code>. A new
+entity starts with <code>id</code> set to <code>0</code>; the entity returned by <code>save</code> contains the
+generated identifier.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_define_a_repository">Define a repository</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Extend <code>CrudRepository</code> to inherit the standard persistence operations. Add
+methods whose names describe queries:</p>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-scala hljs" data-lang="scala">/** Books, stored in the default data source. */
+@JdbcRepository(dialect = Dialect.H2)
+trait BookRepository extends CrudRepository[Book, Long]:
+
+  /** Finds every book with the given title. */
+  def findByTitle(title: String): List[Book]
+
+  /** Counts the books longer than the given length. */
+  def countByPagesGreaterThan(pages: Int): Long
+
+  /** Finds one book with the given title, if there is one. */
+  def findFirstByTitle(title: String): java.util.Optional[Book]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>findByTitle</code> finds matching rows, and <code>countByPagesGreaterThan</code> counts rows with
+a larger page count. The type arguments in <code>CrudRepository[Book, Long]</code> tell
+Micronaut Data which entity and identifier types the inherited operations use.</p>
+</div>
+<div class="paragraph">
+<p>The compiler plugin and Data processor generate the proxy and query metadata.
+Inject <code>BookRepository</code> to use it; you do not need to implement the abstract
+methods. Concrete methods on the trait or abstract class retain their own
+implementation.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_scala_types_in_method_signatures">Scala types in method signatures</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>findByTitle</code> returns a Scala <code>List[Book]</code>. At compile time, the plugin identifies
+Scala collections as iterable results so Data can process a multi-row query.
+At runtime, the Scala converters turn the result collection into the declared
+type.</p>
+</div>
+<div class="paragraph">
+<p><code>countByPagesGreaterThan</code> returns Scala <code>Long</code>, represented as a primitive.</p>
+</div>
+<div class="paragraph">
+<p>For an optional single result, use <code>java.util.Optional</code>, as <code>findFirstByTitle</code>
+does. Micronaut Data currently rejects <code>scala.Option</code> for this signature:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>Unable to implement Repository method: BookRepository.findFirstByTitle(String title).
+Query results in a type [Book] whilst method returns an incompatible type: scala.Option</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To convert the result to Scala <code>Option</code>, import <code>scala.jdk.OptionConverters.*</code>
+and call <code>.toScala</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_configuration_and_testing">Configuration and testing</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The example repository uses the default data source. Configure an in-memory H2
+database with schema creation enabled:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-yaml hljs" data-lang="yaml">datasources:
+  default:
+    url: jdbc:h2:mem:books;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    schema-generate: CREATE_DROP
+    dialect: H2</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In a test, start an <code>ApplicationContext</code> with these properties, retrieve the
+repository and call its methods.</p>
+</div>
+<div class="paragraph">
+<p>The examples are compiled and run against H2 in <code>test-suite-scala-data</code>. That
+module also compares generated query metadata with an equivalent Java repository.</p>
+</div>
+</div>
+</div>
+
+<h1 id="dependencies"><a class="anchor" href="#dependencies"></a>11 Artifacts and Dependencies</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/dependencies.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>Choose dependencies according to where they run:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 33.3333%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Artifact</th>
+<th class="tableblock halign-left valign-top">Where it goes</th>
+<th class="tableblock halign-left valign-top">Compiler-version suffix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut-inject-scala_&lt;scala version&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Scala compiler plugin configuration</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut-runtime-scala</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Application runtime classpath</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut-inject-scala-test_&lt;scala version&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Test compile classpath for compiler-integration tests</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+</tr>
+</tbody>
+</table>
+<div class="sect1">
+<h2 id="_compiler_plugin">Compiler plugin</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>micronaut-inject-scala_3.9.0</code> runs inside the Scala compiler. It bundles the
+Micronaut and ASM classes it needs because the compiler loads plugins in an
+isolated classloader.</p>
+</div>
+<div class="paragraph">
+<p>Most bundled dependencies are omitted from the published POM to avoid resolving
+them again as separate plugin jars. Keep the compiler plugin on the compiler
+plugin configuration: putting it on an application&#8217;s runtime classpath can
+introduce conflicting copies of Micronaut and ASM.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_runtime_support">Runtime support</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>micronaut-runtime-scala</code> supplies converters for Scala collections and <code>Option</code>.
+It also provides serializers and deserializers when Micronaut Serialization is
+present. Include it at runtime when your application uses these features.</p>
+</div>
+<div class="paragraph">
+<p>This artifact has no compiler-version suffix because it does not run inside the
+compiler.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compile_time_visitors">Compile-time visitors</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The Scala plugin discovers <code>TypeElementVisitor</code> implementations through
+<code>ServiceLoader</code> on the compilation classpath. Processors from other Micronaut
+modules, such as validation or Data, must therefore be compile-time dependencies
+of the module containing your Scala sources.</p>
+</div>
+<div class="paragraph">
+<p>Adding a processor only to Gradle&#8217;s <code>annotationProcessor</code> configuration makes it
+available to <code>javac</code>, not to the Scala plugin. Use <code>compileOnly</code> for a processor
+needed by Scala sources.</p>
+</div>
+<div class="paragraph">
+<p>Visitors load their dependencies from the compilation classpath in preference
+to the compiler process&#8217;s own libraries. They share the JDK, Scala compiler
+classes and classes bundled with the plugin. This keeps libraries used by a
+visitor, such as Jackson or SnakeYAML, separate from versions used by the build
+tool&#8217;s compiler infrastructure.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_versions">Versions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The suffix identifies the full Scala compiler version. For example,
+<code>micronaut-inject-scala_3.9.0</code> is published; <code>micronaut-inject-scala_3</code> is not.
+See <a href="#introduction">Supported versions</a> for the available compiler variants.</p>
+</div>
+<div class="paragraph">
+<p>The Micronaut Scala release version is independent of the Micronaut Core version.</p>
+</div>
+</div>
+</div>
+
+<h1 id="testing"><a class="anchor" href="#testing"></a>12 Testing</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/testing.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p><code>micronaut-inject-scala-test_&lt;scala version&gt;</code> provides a harness for compiling
+Scala sources in-process and inspecting the resulting elements, bean definitions
+and introspections. It can also start an <code>ApplicationContext</code> from the compiled
+classes.</p>
+</div>
+<div class="paragraph">
+<p>Use this harness when developing the Scala integration or a compile-time visitor.
+Application tests can use the normal Micronaut testing APIs without it.</p>
+</div>
+<div class="sect1">
+<h2 id="_add_the_harness">Add the harness</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>        <div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="gradle">testImplementation(<span class="hljs-string">"io.micronaut.scala:micronaut-inject-scala-test_3.9.0")</span></code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="maven">&lt;dependency&gt;
+    &lt;groupId&gt;io.micronaut.scala&lt;/groupId&gt;
+    &lt;artifactId&gt;micronaut-inject-scala-test_3.9.0&lt;/artifactId&gt;
+    &lt;scope&gt;test&lt;/scope&gt;
+&lt;/dependency&gt;</code></pre>
+</div>
+</div>
+<div class="listingblock multi-language-sample">
+<div class="title"></div>
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-toml hljs" data-lang="pyronaut">[tool.pyronaut.dependencies]
+test = [
+    <span class="hljs-string">"io.micronaut.scala:micronaut-inject-scala-test_3.9.0"</span>,
+]</code></pre>
+</div>
+</div>
+</p>
+</div>
+<div class="paragraph">
+<p>The artifact suffix must match the full Scala compiler version. See
+<a href="#dependencies">Artifacts and Dependencies</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_set_the_system_properties">Set the system properties</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The harness invokes the Scala compiler directly. Supply both of these properties
+so it can locate the plugin and resolve the compiled source&#8217;s dependencies:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 50%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.scala.plugin.jar</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Absolute path to the compiler plugin jar.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>micronaut.scala.test.classpath</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Classpath for the compiled sources, usually the test runtime classpath.</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>For a Gradle test task, with <code>pluginJar</code> referring to the built plugin jar:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="kotlin">tasks.withType&lt;Test&gt;().configureEach {
+    doFirst {
+        systemProperty("micronaut.scala.plugin.jar", pluginJar.absolutePath)
+        systemProperty(
+            "micronaut.scala.test.classpath",
+            sourceSets.test.get().runtimeClasspath.asPath
+        )
+    }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Using <code>doFirst</code> defers classpath resolution until the test task runs. The harness
+reports an error if either required property is missing.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_compile_and_inspect_sources">Compile and inspect sources</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>AbstractScalaTypeElementSpec</code> provides these helpers:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>buildClassElement(name, source)</code> compiles source and returns its <code>ClassElement</code>.</p>
+</li>
+<li>
+<p><code>buildBeanDefinition(name, source)</code> compiles and loads a bean definition.</p>
+</li>
+<li>
+<p><code>buildBeanIntrospection(name, source)</code> compiles and loads an introspection.</p>
+</li>
+<li>
+<p><code>buildContext(source, properties, includeAllBeans)</code> compiles source and starts
+an <code>ApplicationContext</code>.</p>
+</li>
+<li>
+<p><code>buildClassLoader(name, source)</code> compiles source and returns a classloader for
+the output.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A test can install a visitor for a compilation to capture the <code>VisitorContext</code>
+and inspect the elements produced by the compiler.</p>
+</div>
+</div>
+</div>
+
+<h1 id="limitations"><a class="anchor" href="#limitations"></a>13 Limitations</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/limitations.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>This chapter describes known limitations and Scala bytecode details that can
+affect compile-time visitors.</p>
+</div>
+<div class="sect1">
+<h2 id="_incremental_compilation">Incremental compilation</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Generated bean definitions are written directly into the class output directory.
+Build tools do not track them as outputs belonging to a particular source file.
+Deleting or renaming a bean&#8217;s source can therefore leave its generated definition
+and registration marker behind.</p>
+</div>
+<div class="paragraph">
+<p>For example, <code>$Foo$Definition.class</code> and its marker under
+<code>META-INF/micronaut/io.micronaut.inject.BeanDefinitionReference/</code> may survive an
+incremental rebuild. The application can then still discover the old bean.
+A compilation that fails after generating files can also leave stale output.</p>
+</div>
+<div class="paragraph">
+<p>Run a clean build after deleting or renaming a bean, or when stale generated
+classes remain after a failed compilation.</p>
+</div>
+<div class="paragraph">
+<p>Recompiling only some sources does retain the definitions for unchanged sources.
+Each bean has its own registration marker, so a partial compilation does not
+replace a shared list of all beans.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_scala_bytecode_and_the_element_model">Scala bytecode and the element model</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When writing a visitor, keep these differences from Java source in mind:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A repeated parameter such as <code>def f(xs: String*)</code> is represented as a single
+<code>scala.collection.immutable.Seq</code> parameter. The method has no JVM varargs flag,
+so <code>isVarArgs()</code> returns <code>false</code>.</p>
+</li>
+<li>
+<p>Scala <code>protected</code> and <code>protected[pkg]</code> members can be public in the bytecode.
+The element model reports that JVM visibility.</p>
+</li>
+<li>
+<p>Scala <code>val</code> and <code>var</code> properties have private backing fields and accessor
+methods. A query for public fields will not find those backing fields.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The model also includes trait parameters, <code>inline</code> methods and extension
+methods declared in a class body.</p>
+</div>
+</div>
+</div>
+
+<h1 id="troubleshooting"><a class="anchor" href="#troubleshooting"></a>14 Troubleshooting</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/troubleshooting.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="sect1">
+<h2 id="_no_bean_definitions_are_generated">No bean definitions are generated</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If compilation succeeds but produces no <code>$*$Definition</code> classes, check that the
+plugin is registered with the Scala compiler. Use <code>scalaCompilerPlugins</code>,
+<code>addCompilerPlugin</code>, <code>scalacPluginIvyDeps</code> or Maven&#8217;s <code>compilerPlugins</code>, as shown
+in <a href="#buildTools">Build Tools</a>. An ordinary application dependency does not load
+the plugin.</p>
+</div>
+<div class="paragraph">
+<p>Run the compiler with <code>-Xplugin-list</code> to check which plugins loaded. Also check
+that the source declares a bean, for example with <code>@Singleton</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_noclassdeffounderror_inside_the_compiler"><code>NoClassDefFoundError</code> inside the compiler</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>java.lang.NoClassDefFoundError: io/micronaut/inject/processing/ProcessingException</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Check that you are using the published compiler plugin jar with its bundled
+dependencies. A jar containing only this project&#8217;s classes lacks the Micronaut
+and ASM classes needed during processing.</p>
+</div>
+<div class="paragraph">
+<p>The Scala compiler loads a plugin from its <code>-Xplugin</code> path in a separate
+classloader. In Gradle, each resolved plugin jar gets its own <code>-Xplugin</code>
+argument, so adding the missing dependencies as separate plugin entries does
+not make them visible to the plugin. Use the complete bundled jar.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_missing_plugin_properties_warnings"><code>Missing plugin.properties</code> warnings</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>warning: Missing plugin.properties in &lt;some-jar&gt;</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A jar passed to <code>-Xplugin</code> has no plugin descriptor. This can happen when the
+build tool resolves transitive dependencies into the compiler plugin
+configuration. The compiler skips those jars.</p>
+</div>
+<div class="paragraph">
+<p>Check the resolved plugin configuration. The Micronaut Scala plugin jar itself
+must contain <code>plugin.properties</code> at its root.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_errors_mentioning_javax_lang_model">Errors mentioning <code>javax.lang.model</code></h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Make the <code>java.compiler</code> module available in the compiler process:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>-J--add-modules=java.compiler</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>See <a href="#buildTools">Build Tools</a> for the compiler configuration examples.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_could_not_find_3version"><code>Could not find &#8230;&#8203;_3:&lt;version&gt;</code></h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use the full Scala compiler version in the plugin artifact name. For example,
+this project publishes <code>micronaut-inject-scala_3.9.0</code>, not
+<code>micronaut-inject-scala_3</code>.</p>
+</div>
+<div class="paragraph">
+<p>With cross-version notation, use <code>CrossVersion.full</code> in sbt or <code>:::</code> in Mill.
+With explicit coordinates, write the full suffix in the artifact ID.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_scala_collections_or_option_fail_to_bind">Scala collections or <code>Option</code> fail to bind</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If configuration binding or injection involving a Scala collection or <code>Option</code>
+fails at runtime, check that <code>micronaut-runtime-scala</code> is on the runtime
+classpath. Its converters are separate from the compiler plugin. Also check
+that the configured values can be converted to the declared element type.</p>
+</div>
+<div class="paragraph">
+<p>See <a href="#dependencies">Artifacts and Dependencies</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_the_version_of_scala_library_was_changed_while_using_the_default_zinc_version"><code>The version of 'scala-library' was changed while using the default Zinc version</code></h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre>Version 3.9.0 is not compatible with org.scala-sbt:zinc_2.13:1.12.0</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Check whether a dependency-resolution rule is applying your Scala 3 version to
+Gradle&#8217;s <code>zinc</code> configuration. Zinc needs its own Scala 2.13 <code>scala-library</code> and
+<code>scala-reflect</code> dependencies. Exempt that configuration from application Scala
+version pinning.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_a_deleted_bean_is_still_available">A deleted bean is still available</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Run a clean build after deleting or renaming a bean. Build tools do not track
+the generated bean definition as an output of its source, so an incremental
+build can leave the definition behind. See <a href="#limitations">Limitations</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_a_plugin_option_has_no_effect">A plugin option has no effect</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The plugin passes <code>-P:micronaut-scala:</code> options to
+<code>VisitorContext.getOptions()</code> and accepts unknown keys. Check the spelling and
+confirm that the visitor using the option is on the compilation classpath. See
+<a href="#configuration">Configuration Options</a>.</p>
+</div>
+</div>
+</div>
+
+<h1 id="repository"><a class="anchor" href="#repository"></a>15 Repository</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/repository.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>Source code, issues and pull requests are available in the
+<a href="https://github.com/micronaut-projects/micronaut-scala">Micronaut Scala repository</a>.</p>
+</div>
+<div class="paragraph">
+<p>The repository separates shared sources from compiler-specific builds:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>inject-scala</code> contains the compiler plugin implementation.</p>
+</li>
+<li>
+<p><code>inject-scala-test</code> contains the compiler test harness and parity tests.</p>
+</li>
+<li>
+<p><code>inject-scala-compiler</code> publishes the primary compiler plugin, and
+<code>inject-scala-compiler-lts</code> and <code>inject-scala-compiler-latest</code> build the same
+sources for Scala 3.3.9 and 3.10.1 respectively.</p>
+</li>
+<li>
+<p><code>inject-scala-test-compiler</code> publishes the test harness and runs the compiler
+integration tests.</p>
+</li>
+<li>
+<p><code>runtime-scala</code> contains converters and serialization support.</p>
+</li>
+<li>
+<p><code>test-suite-scala</code> contains the main guide examples. The <code>test-suite-scala-data</code>,
+<code>test-suite-scala-serde</code> and <code>test-suite-scala-openapi</code> modules cover those
+integrations.</p>
+</li>
+<li>
+<p><code>micronaut-scala-bom</code> manages the published artifact versions.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>See <code>CONTRIBUTING.md</code> in the repository for the JDK requirements, build commands
+and contribution process.</p>
+</div>
+
+<h1 id="releaseHistory"><a class="anchor" href="#releaseHistory"></a>16 Release History</h1>
+
+<div class='contribute-btn'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/releaseHistory.adoc"'>
+        <i class='fa fa-pencil-square-o'></i> Improve this doc
+    </button>
+</div>
+
+
+<div class="paragraph">
+<p>Published versions and release notes are listed on the
+<a href="https://github.com/micronaut-projects/micronaut-scala/releases">Micronaut Scala releases page</a>.</p>
+</div>
+<div class="paragraph">
+<p>Micronaut Scala has its own release version, independent of Micronaut Core.
+Development versions use the <code>-SNAPSHOT</code> suffix.</p>
+</div>
+<div class="paragraph">
+<p>Each compiler plugin artifact targets a full Scala compiler version. For example,
+Scala 3.9.0 uses <code>micronaut-inject-scala_3.9.0</code>. Check the supported compiler
+variants when upgrading either Scala or the plugin.</p>
+</div>
+
+    </div>
+</div>
+
+<script type="text/javascript">
+
+</script>
+</body>
+</html>
