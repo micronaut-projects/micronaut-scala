@@ -153,7 +153,7 @@
 <h1 id="introduction"><a class="anchor" href="#introduction"></a>1 Introduction</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/introduction.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/introduction.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -202,8 +202,8 @@ published as <code>io.micronaut.scala:micronaut-runtime-scala</code> and does no
 compiler-version suffix.</p>
 </div>
 <div class="paragraph">
-<p>Micronaut Scala has its own version, independent of Micronaut Core. The current
-development version is <code>1.0.0-SNAPSHOT</code>. The build requires JDK 25.</p>
+<p>Micronaut Scala has its own version, independent of Micronaut Core. This guide
+is built for version <code>1.0.0-M1</code>. The build requires JDK 25.</p>
 </div>
 </div>
 </div>
@@ -230,7 +230,7 @@ framework features with Scala examples.</p>
 <h1 id="quickStart"><a class="anchor" href="#quickStart"></a>2 Quick Start</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/quickStart.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/quickStart.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -250,8 +250,8 @@ and choose a plugin artifact that matches your full Scala compiler version.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="kotlin">scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
-runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")</code></pre>
+<pre class="highlightjs highlight"><code class="language-kotlin hljs" data-lang="kotlin">scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-M1")
+runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-M1")</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -323,8 +323,8 @@ qualifiers and the other framework features.</p>
 <a href="#introduction">Supported versions</a> for the available variants.</p>
 </div>
 <div class="paragraph">
-<p>The examples use the development version <code>1.0.0-SNAPSHOT</code>. When using a
-released version, replace that version in both dependencies.</p>
+<p>The examples use the guide version <code>1.0.0-M1</code>. For a different Micronaut Scala
+release, use that release version in both dependencies.</p>
 </div>
 </div>
 </div>
@@ -332,7 +332,7 @@ released version, replace that version in both dependencies.</p>
 <h1 id="concepts"><a class="anchor" href="#concepts"></a>3 Micronaut for Scala Developers</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/concepts.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/concepts.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -718,7 +718,7 @@ and <code>test-suite-scala-data</code>.</p>
 <h1 id="idiomatic"><a class="anchor" href="#idiomatic"></a>4 Idiomatic Scala</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/idiomatic.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/idiomatic.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -980,7 +980,7 @@ for examples.</p>
 <h1 id="buildTools"><a class="anchor" href="#buildTools"></a>5 Build Tools</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/buildTools.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/buildTools.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -1017,8 +1017,8 @@ dependencies {
     implementation("org.scala-lang:scala3-library_3:3.9.0")
     implementation("io.micronaut:micronaut-context:5.2.21")
 
-    scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
-    runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
+    scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-M1")
+    runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-M1")
 }
 
 tasks.withType&lt;ScalaCompile&gt;().configureEach {
@@ -1050,7 +1050,7 @@ configuration. Add runtime support as an application dependency:</p>
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="xml">&lt;properties&gt;
   &lt;scala.version&gt;3.9.0&lt;/scala.version&gt;
-  &lt;micronaut.scala.version&gt;1.0.0-SNAPSHOT&lt;/micronaut.scala.version&gt;
+  &lt;micronaut.scala.version&gt;1.0.0-M1&lt;/micronaut.scala.version&gt;
 &lt;/properties&gt;
 
 &lt;dependencies&gt;
@@ -1107,11 +1107,11 @@ the Scala Maven plugin version and compile executions are configured.</p>
 
 libraryDependencies ++= Seq(
   "io.micronaut" % "micronaut-context" % "5.2.21",
-  "io.micronaut.scala" % "micronaut-runtime-scala" % "1.0.0-SNAPSHOT" % Runtime
+  "io.micronaut.scala" % "micronaut-runtime-scala" % "1.0.0-M1" % Runtime
 )
 
 addCompilerPlugin(
-  "io.micronaut.scala" % "micronaut-inject-scala_3.9.0" % "1.0.0-SNAPSHOT"
+  "io.micronaut.scala" % "micronaut-inject-scala_3.9.0" % "1.0.0-M1"
 )
 
 javacOptions ++= Seq("--add-modules", "java.compiler")</code></pre>
@@ -1136,11 +1136,11 @@ The default binary-version suffix <code>_3</code> does not identify a published 
 
   def ivyDeps = Agg(
     ivy"io.micronaut:micronaut-context:5.2.21",
-    ivy"io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT"
+    ivy"io.micronaut.scala:micronaut-runtime-scala:1.0.0-M1"
   )
 
   def scalacPluginIvyDeps = Agg(
-    ivy"io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT"
+    ivy"io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-M1"
   )
 
   def scalacOptions = Seq("-J--add-modules=java.compiler")
@@ -1171,7 +1171,7 @@ see <a href="#troubleshooting">Troubleshooting</a>.
 <h1 id="configuration"><a class="anchor" href="#configuration"></a>6 Configuration Options</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/configuration.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/configuration.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -1278,7 +1278,7 @@ effect; a typo does not cause a compilation error.
 <h1 id="annotations"><a class="anchor" href="#annotations"></a>7 Annotations</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/annotations.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/annotations.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -1428,7 +1428,7 @@ not interchangeable in method signatures.</p>
 <h1 id="documentation"><a class="anchor" href="#documentation"></a>8 Documentation in Generated Files</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/documentation.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/documentation.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -1546,7 +1546,7 @@ example. OpenAPI examples and generation tests are in <code>test-suite-scala-ope
 <h1 id="serialization"><a class="anchor" href="#serialization"></a>9 Serialization</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/serialization.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/serialization.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -1775,7 +1775,7 @@ when supplying Java annotation arguments.</p>
 <h1 id="data"><a class="anchor" href="#data"></a>10 Micronaut Data</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/data.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/data.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -2091,7 +2091,7 @@ module also compares generated query metadata with an equivalent Java repository
 <h1 id="dependencies"><a class="anchor" href="#dependencies"></a>11 Artifacts and Dependencies</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/dependencies.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/dependencies.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -2201,7 +2201,7 @@ See <a href="#introduction">Supported versions</a> for the available compiler va
 <h1 id="testing"><a class="anchor" href="#testing"></a>12 Testing</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/testing.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/testing.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -2341,7 +2341,7 @@ and inspect the elements produced by the compiler.</p>
 <h1 id="limitations"><a class="anchor" href="#limitations"></a>13 Limitations</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/limitations.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/limitations.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -2410,7 +2410,7 @@ methods declared in a class body.</p>
 <h1 id="troubleshooting"><a class="anchor" href="#troubleshooting"></a>14 Troubleshooting</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/troubleshooting.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/troubleshooting.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -2557,7 +2557,7 @@ confirm that the visitor using the option is on the compilation classpath. See
 <h1 id="repository"><a class="anchor" href="#repository"></a>15 Repository</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/repository.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/repository.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
@@ -2608,7 +2608,7 @@ and contribution process.</p>
 <h1 id="releaseHistory"><a class="anchor" href="#releaseHistory"></a>16 Release History</h1>
 
 <div class='contribute-btn'>
-    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/HEAD/src/main/docs/guide/releaseHistory.adoc"'>
+    <button type='button' class='btn btn-default' onclick='window.location.href="https://github.com/micronaut-projects/micronaut-scala/edit/stack/release-docs-m1-and-remove-recovery/src/main/docs/guide/releaseHistory.adoc"'>
         <i class='fa fa-pencil-square-o'></i> Improve this doc
     </button>
 </div>
