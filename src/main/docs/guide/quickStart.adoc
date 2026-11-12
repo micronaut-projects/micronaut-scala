@@ -7,10 +7,10 @@ and choose a plugin artifact that matches your full Scala compiler version.
 For a Gradle application using Scala 3.9.0, add these entries to your
 `dependencies` block:
 
-[source,kotlin]
+[source,kotlin,subs="attributes+"]
 ----
-scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:1.0.0-SNAPSHOT")
-runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:1.0.0-SNAPSHOT")
+scalaCompilerPlugins("io.micronaut.scala:micronaut-inject-scala_3.9.0:{version}")
+runtimeOnly("io.micronaut.scala:micronaut-runtime-scala:{version}")
 ----
 
 `micronaut-inject-scala_3.9.0` runs during compilation and generates the classes
@@ -48,5 +48,5 @@ The suffix `_3.9.0` is the full Scala compiler version. Do not shorten it to
 `_3` or use it with a different compiler release. See
 <<introduction, Supported versions>> for the available variants.
 
-The examples use the development version `1.0.0-SNAPSHOT`. When using a
-released version, replace that version in both dependencies.
+The examples use the guide version `{version}`. For a different Micronaut Scala
+release, use that release version in both dependencies.
