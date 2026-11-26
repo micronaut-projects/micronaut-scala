@@ -35,7 +35,7 @@ error_prone_core = "2.52.0"
 # that they will appear in the Micronaut BOM as <properties>
 #
 # be sure to update graal version in gradle.properties as well
-managed-graal = "25.5.5.0.3"
+managed-graal = "25.6.5.1"
 managed-groovy = "6.0.0"
 sonatype-scan = "4.1.1-01"
 micronaut-docs = "3.0.0"
