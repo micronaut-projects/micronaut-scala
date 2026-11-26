@@ -27,7 +27,7 @@ slf4j = "2.0.20"
 spock = "2.5-groovy-6.0"
 tomlj="2.2.0"
 errorprone-gradle-plugin = "5.1.1"
-nullaway = "0.14.3"
+nullaway = "0.14.4"
 error_prone_core = "2.52.0"
 
 #
