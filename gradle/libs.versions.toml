@@ -37,7 +37,7 @@ error_prone_core = "2.52.0"
 # be sure to update graal version in gradle.properties as well
 managed-graal = "25.5.5.0.3"
 managed-groovy = "6.0.0"
-sonatype-scan = "4.1.1-01"
+sonatype-scan = "4.1.2-01"
 micronaut-docs = "3.0.0"
 
 [libraries]
