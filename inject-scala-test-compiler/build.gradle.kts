@@ -54,6 +54,14 @@ dependencies {
     testImplementation(libs.micronaut.data.model) { exclude(group = "io.micronaut") }
     testImplementation(libs.managed.graalvm.nativeimage)
     testImplementation(libs.micronaut.http)
+    testImplementation(libs.micronaut.http.client)
+    testImplementation(libs.micronaut.http.server.netty)
+    testImplementation(libs.micronaut.jackson.core)
+    testImplementation(libs.jackson.databind)
+    testImplementation(platform(libs.test.boms.micronaut.serde))
+    testImplementation(libs.micronaut.serde.jackson) {
+        exclude(group = "io.micronaut")
+    }
     testImplementation(platform(libs.test.boms.micronaut.validation))
     testImplementation(libs.micronaut.validation) {
         exclude(group = "io.micronaut")

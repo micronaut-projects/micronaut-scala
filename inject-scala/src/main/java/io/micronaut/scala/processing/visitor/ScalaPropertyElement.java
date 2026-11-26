@@ -17,7 +17,6 @@ package io.micronaut.scala.processing.visitor;
 
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationUtil;
-import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.inject.annotation.AnnotationMetadataHierarchy;
 import io.micronaut.inject.annotation.MutableAnnotationMetadata;
 import io.micronaut.inject.ast.ClassElement;
@@ -31,9 +30,6 @@ import io.micronaut.inject.ast.annotation.MutableAnnotationMetadataDelegate;
 import io.micronaut.inject.ast.annotation.PropertyElementAnnotationMetadata;
 import org.jspecify.annotations.Nullable;
 
-import java.lang.annotation.Annotation;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -255,42 +251,34 @@ public final class ScalaPropertyElement extends AbstractScalaMemberElement imple
         if (parameters.length != 1 || field == null) {
             return Optional.empty();
         }
-        AnnotationMetadata qualifierAnnotationMetadata = qualifierAnnotationMetadata(field.getAnnotationMetadata());
-        if (qualifierAnnotationMetadata.isEmpty()) {
+        AnnotationMetadata fieldAnnotationMetadata = injectionArgumentAnnotationMetadata(field.getAnnotationMetadata());
+        if (fieldAnnotationMetadata.isEmpty()) {
             return Optional.empty();
         }
         ParameterElement[] newParameters = parameters.clone();
         ParameterElement parameter = parameters[0];
         AnnotationMetadata annotationMetadata = new AnnotationMetadataHierarchy(
             parameter,
-            qualifierAnnotationMetadata
+            fieldAnnotationMetadata
         ).merge();
         newParameters[0] = parameter.withAnnotationMetadata(annotationMetadata);
         return Optional.of(newParameters);
     }
 
-    private AnnotationMetadata qualifierAnnotationMetadata(AnnotationMetadata annotationMetadata) {
-        List<AnnotationValue<Annotation>> qualifierValues = annotationMetadata.getAnnotationValuesByStereotype(AnnotationUtil.QUALIFIER);
-        if (qualifierValues.isEmpty()) {
-            return AnnotationMetadata.EMPTY_METADATA;
-        }
+    /**
+     * A Scala var is injected through its setter, so the argument must carry the field's
+     * injection metadata, including annotations such as {@code @Client} that are not qualifiers.
+     * Optional injection still resolves a bean rather than a required {@code @Value} expression.
+     */
+    private AnnotationMetadata injectionArgumentAnnotationMetadata(AnnotationMetadata annotationMetadata) {
         boolean optionalInjection = !annotationMetadata.booleanValue(AnnotationUtil.INJECT, AnnotationUtil.MEMBER_REQUIRED)
             .orElse(true);
-        MutableAnnotationMetadata qualifierMetadata = new MutableAnnotationMetadata();
-        for (AnnotationValue<Annotation> qualifierValue : qualifierValues) {
-            String annotationName = qualifierValue.getAnnotationName();
-            if (optionalInjection && VALUE_ANNOTATION.equals(annotationName)) {
-                continue;
-            }
-            qualifierMetadata.addDeclaredAnnotation(annotationName, qualifierValue.getValues(), qualifierValue.getRetentionPolicy());
-            qualifierMetadata.addDeclaredStereotype(
-                List.of(annotationName),
-                AnnotationUtil.QUALIFIER,
-                Map.of(),
-                qualifierValue.getRetentionPolicy()
-            );
+        if (optionalInjection && annotationMetadata.hasAnnotation(VALUE_ANNOTATION)) {
+            MutableAnnotationMetadata metadata = MutableAnnotationMetadata.of(annotationMetadata);
+            metadata.removeAnnotation(VALUE_ANNOTATION);
+            return metadata;
         }
-        return qualifierMetadata.isEmpty() ? AnnotationMetadata.EMPTY_METADATA : qualifierMetadata;
+        return annotationMetadata;
     }
 
     /**
