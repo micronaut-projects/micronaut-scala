@@ -33,7 +33,7 @@ micronautBom {
         "micronaut-$scalaTestCompilerProject"
     )
     suppressions {
-        dependencies.add("com.fasterxml.jackson.core:jackson-annotations:2.22")
+        dependencies.add("com.fasterxml.jackson.core:jackson-annotations:2.23")
     }
 }
 
