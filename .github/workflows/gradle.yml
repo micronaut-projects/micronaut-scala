@@ -8,21 +8,44 @@ on:
   push:
     branches:
       - master
+      - main
       - '[0-9]+.[0-9]+.x'
   pull_request:
     branches:
       - master
+      - main
       - '[0-9]+.[0-9]+.x'
+      # stacked PRs target each other's branches
+      - 'python/**'
+      - 'python-*'
+      - 'stack/**'
+    types: [opened, synchronize, reopened, ready_for_review]
+# A new push to a pull request cancels its older run, freeing the shared runner
+# pool. Pushes to a branch share one group per branch and never cancel a run in
+# progress, as it may be publishing docs. GitHub keeps only the newest pending
+# run of a group, so when several commits land while a run is in progress, only
+# the latest of them is built and published.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   build:
     name: "build"
-    if: github.repository != 'micronaut-projects/micronaut-project-template'
+    if: github.repository != 'micronaut-projects/micronaut-project-template' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     strategy:
       matrix:
         java: ['25']
+    outputs:
+      # Outcome of the static analysis step: success, failure or skipped (no Sonar token, e.g. fork pull requests)
+      sonar: ${{ steps.sonar.outcome }}
     env:
+      TESTCONTAINERS_RYUK_DISABLED: true
       SONAR_TOKEN_AVAILABLE: ${{ secrets.SONAR_TOKEN != '' }}
+      # Branch pushes write to the remote build cache so later jobs and pull requests reuse
+      # their outputs; pull requests only read. Set explicitly: the setup-gradle token makes the
+      # micronaut-build settings plugin detect CI on every build, which would otherwise push.
+      ORG_GRADLE_PROJECT_cachePush: ${{ github.event_name == 'push' }}
     steps:
        # https://github.com/actions/virtual-environments/issues/709
       - name: Remove system JDKs
@@ -46,7 +69,7 @@ jobs:
           fetch-depth: 0
 
       - name: "🔧 Setup GraalVM CE"
-        uses: graalvm/setup-graalvm@d6eca2595046623d69d636041513c80abf745406 # v1
+        uses: graalvm/setup-graalvm@60e76998d25690099182b796e99b8804da582d90 # v1
         with:
           distribution: 'graalvm'
           java-version: ${{ matrix.java }}
@@ -54,7 +77,16 @@ jobs:
           native-image-job-reports: true
 
       - name: "🔧 Setup Gradle"
-        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6
+        with:
+          # Exchanged for a short-lived token that the following steps receive as DEVELOCITY_ACCESS_KEY and
+          # GRADLE_ENTERPRISE_ACCESS_KEY, so the long-lived key never reaches the build. Pushes use the writer key.
+          # Other events use DEVELOCITY_PULL_REQUEST_ACCESS_KEY, a key whose Develocity user cannot write to the
+          # build cache, and fall back to the writer key until that secret exists.
+          develocity-access-key: >-
+            ${{ (github.event_name == 'push' && secrets.GRADLE_ENTERPRISE_ACCESS_KEY) ||
+                (github.event_name != 'push' && (secrets.DEVELOCITY_PULL_REQUEST_ACCESS_KEY || secrets.GRADLE_ENTERPRISE_ACCESS_KEY)) ||
+                '' }}
 
       - name: "❓ Optional setup step"
         run: |
@@ -63,23 +95,25 @@ jobs:
       - name: "🛠 Build with Gradle"
         id: gradle
         env:
-          DEVELOCITY_ACCESS_KEY: ${{ secrets.GRADLE_ENTERPRISE_ACCESS_KEY }}
           GH_TOKEN_PUBLIC_REPOS_READONLY: ${{ secrets.GH_TOKEN_PUBLIC_REPOS_READONLY }}
           GH_USERNAME: ${{ secrets.GH_USERNAME }}
         run: |
           ./gradlew check jacocoReport --no-daemon --continue
 
       - name: "🔎 Run static analysis"
+        id: sonar
         if: env.SONAR_TOKEN_AVAILABLE == 'true' && matrix.java == '25'
+        # Waits for the quality gate so a failing gate stops the native and Python tests, but does not
+        # fail this job: docs publishing below keeps running on branch pushes.
+        continue-on-error: true
         env:
-          DEVELOCITY_ACCESS_KEY: ${{ secrets.GRADLE_ENTERPRISE_ACCESS_KEY }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          ./gradlew sonar --no-parallel --continue
+          ./gradlew sonar --no-parallel --continue -Dsonar.qualitygate.wait=true
 
       - name: "📊 Publish Test Report"
         if: always()
-        uses: mikepenz/action-junit-report@a16be3a69023e9bd7e748ede768b3282ea7b30ce # v6.7.1
+        uses: mikepenz/action-junit-report@a16be3a69023e9bd7e748ede768b3282ea7b30ce # v6
         with:
           check_name: Java CI / Test Report (${{ matrix.java }})
           report_paths: '**/build/test-results/test/TEST-*.xml'
@@ -87,18 +121,15 @@ jobs:
 
       - name: "📜 Upload binary compatibility check results"
         if: matrix.java == '25'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: binary-compatibility-reports
           path: "**/build/reports/binary-compatibility-*.html"
 
-      - name: "📦 Publish to Sonatype Snapshots"
+      # Snapshots are published once a day by publish-snapshot.yml, not on every push.
+      - name: "📚 Build documentation"
         if: success() && github.event_name == 'push' && matrix.java == '25'
-        env:
-          DEVELOCITY_ACCESS_KEY: ${{ secrets.GRADLE_ENTERPRISE_ACCESS_KEY }}
-          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
-          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
-        run: ./gradlew publishToSonatype docs --no-daemon
+        run: ./gradlew docs --no-daemon
 
       - name: "❓ Determine docs target repository"
         uses: haya14busa/action-cond@94f77f7a80cd666cb3155084e428254fea4281fd # v1
@@ -110,7 +141,7 @@ jobs:
 
       - name: "📑 Publish to Github Pages"
         if: success() && github.event_name == 'push' && matrix.java == '25'
-        uses: micronaut-projects/github-pages-deploy-action@f038553bfd54ac983dc35178906333ce37d1e5a5 # master
+        uses: micronaut-projects/github-pages-deploy-action@76d63aafbab7108d74e83be4e5b3b0501382e829 # master
         env:
           TARGET_REPOSITORY: ${{ steps.docs_target.outputs.value }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -120,3 +151,32 @@ jobs:
       - name: "❓ Optional cleanup step"
         run: |
           [ -f ./cleanup.sh ] && ./cleanup.sh || [ ! -f ./cleanup.sh ]
+  # Native and Python tests start only when the build and its tests passed and the Sonar quality gate
+  # did not fail, so a red or cancelled build never takes runners for their matrices.
+  native:
+    needs: build
+    if: needs.build.outputs.sonar != 'failure'
+    uses: ./.github/workflows/graalvm-latest.yml
+    secrets: inherit
+  python:
+    needs: build
+    if: needs.build.outputs.sonar != 'failure'
+    uses: ./.github/workflows/python.yml
+    secrets: inherit
+  # The one check that branch rulesets require (see rulesets.json in the template repo), so that changing the JDK
+  # matrix or adding a job never breaks them. It fails when any job above failed or was cancelled. A failing Sonar
+  # quality gate still skips the native and Python tests without failing this check.
+  ci-passed:
+    name: "Java CI passed"
+    needs: [build, native, python]
+    if: always() && github.repository != 'micronaut-projects/micronaut-project-template'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the results of the Java CI jobs
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: ${RESULTS}"
+          case " ${RESULTS} " in
+            *" failure "*|*" cancelled "*) exit 1 ;;
+          esac
