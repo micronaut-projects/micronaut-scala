@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - '[0-9]+.[0-9]+.x'
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - '**/*.gradle'
       - '**/*.gradle.kts'
@@ -25,9 +26,14 @@ on:
       - '.github/workflows/release.yml'
       - '.github/scripts/vulnerability-audit.sh'
       - '.github/scripts/vulnerability-audit-filter.py'
+# A new push to a pull request cancels its older run, freeing the shared runner
+# pool.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 jobs:
   audit:
-    if: github.repository != 'micronaut-projects/micronaut-project-template'
+    if: github.repository != 'micronaut-projects/micronaut-project-template' && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -57,7 +63,7 @@ jobs:
           fetch-depth: 0
 
       - name: "🔧 Setup GraalVM CE"
-        uses: graalvm/setup-graalvm@d6eca2595046623d69d636041513c80abf745406 # v1
+        uses: graalvm/setup-graalvm@60e76998d25690099182b796e99b8804da582d90 # v1
         with:
           distribution: 'graalvm'
           java-version: ${{ matrix.java }}
@@ -65,7 +71,7 @@ jobs:
           native-image-job-reports: true
 
       - name: "🔧 Setup Gradle"
-        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6
 
       - name: "❓ Optional setup step"
         run: |
